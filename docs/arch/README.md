@@ -12,7 +12,10 @@ flowchart TB
         OV[01-overview.md]
         COMP[02-components.md]
         FB[03-feedback-loop.md]
-        DD[04-design-decisions.md]
+    end
+
+    subgraph ADR["ADRs (../adr/)"]
+        DD[0001-tcp-controller-vs-llm-agents]
     end
 
     subgraph Deployment["Deployment"]
@@ -48,7 +51,11 @@ flowchart TB
 | [01-overview.md](01-overview.md) | System overview and core concepts (TCP Controller, Gherkin setpoints, error signal) |
 | [02-components.md](02-components.md) | Architecture diagram and component descriptions |
 | [03-feedback-loop.md](03-feedback-loop.md) | Feedback loop flow and TCP control logic |
-| [04-design-decisions.md](04-design-decisions.md) | Why TCP (PID) Controller + LLM Agents (key architectural decision) |
+
+### Architecture Decision Records
+| File | Description |
+|------|-------------|
+| [0001-tcp-controller-vs-llm-agents.md](../adr/0001-tcp-controller-vs-llm-agents.md) | Why TCP (PID) Controller + LLM Agents (key architectural decision) |
 
 ### Deployment & Infrastructure
 | File | Description |
@@ -81,7 +88,7 @@ flowchart TB
 ## Quick Start
 
 1. Start with **[01-overview.md](01-overview.md)** for core concepts
-2. Review **[04-design-decisions.md](04-design-decisions.md)** to understand the key TCP Controller vs LLM split
+2. Review **[ADR-0001](../adr/0001-tcp-controller-vs-llm-agents.md)** to understand the key TCP Controller vs LLM split
 3. Explore **[05-k8s-deployment.md](05-k8s-deployment.md)** for deployment details
 4. Check **[13-backend-services.md](13-backend-services.md)** for Rust implementation patterns
 
