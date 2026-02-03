@@ -4,7 +4,7 @@
 
 **Date:** 2026-02-03
 
-**Decision Makers:** Forgemaster Team
+**Decision Makers:** CSM-101
 
 **Technical Area:** System Architecture / Orchestration
 

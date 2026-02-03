@@ -1,22 +1,8 @@
 # ADR Template
 
-> **Note:** This is a template file - not published to Confluence. Copy this file to create a new ADR.
+> **Note:** Copy this file to create a new ADR.
 
 ---
-
-<!-- Parent: [ADR] Architecture Decision Records -->
-<!-- Title: [ADR-NNNN] Title -->
-
-<ac:structured-macro ac:name="note">
-  <ac:rich-text-body>
-    <p><strong>Source of Truth:</strong> This document is managed in Git. Do not edit on Confluence - changes will be overwritten on next publish.</p>
-  </ac:rich-text-body>
-</ac:structured-macro>
-
-<ac:structured-macro ac:name="status">
-  <ac:parameter ac:name="title">PROPOSED</ac:parameter>
-  <ac:parameter ac:name="colour">Blue</ac:parameter>
-</ac:structured-macro> <time datetime="YYYY-MM-DD" />
 
 # ADR-NNNN: Title
 
@@ -24,7 +10,7 @@
 
 **Date:** YYYY-MM-DD
 
-**Decision Makers:** [Names]
+**Decision Makers:** CSM-101
 
 **Technical Area:** [e.g., Messaging, Storage, Security, Integration]
 
