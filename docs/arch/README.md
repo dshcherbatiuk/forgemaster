@@ -14,6 +14,14 @@ flowchart TB
         FB[03-feedback-loop.md]
     end
 
+    subgraph TaskExec["Task Execution"]
+        TL[04-task-lifecycle.md]
+        AC[04a-agent-creation.md]
+        OS[04b-orchestrator-spec.md]
+        SR[04c-subsystem-reuse.md]
+        CM[04d-context-management.md]
+    end
+
     subgraph ADR["ADRs (../adr/)"]
         DD[0001-tcp-controller-vs-llm-agents]
     end
@@ -41,6 +49,9 @@ flowchart TB
         EDGE[06-edge-cases.md]
         SUM[16-summary.md]
     end
+
+    Core --> TaskExec
+    TaskExec --> Deployment
 ```
 
 ## Documents
@@ -51,6 +62,15 @@ flowchart TB
 | [01-overview.md](01-overview.md) | System overview and core concepts (TCP Controller, Gherkin setpoints, error signal) |
 | [02-components.md](02-components.md) | Architecture diagram and component descriptions |
 | [03-feedback-loop.md](03-feedback-loop.md) | Feedback loop flow and TCP control logic |
+
+### Task Execution
+| File | Description |
+|------|-------------|
+| [04-task-lifecycle.md](04-task-lifecycle.md) | Task submission, state machine, namespace lifecycle |
+| [04a-agent-creation.md](04a-agent-creation.md) | Agent instantiation algorithm, templates, custom agents |
+| [04b-orchestrator-spec.md](04b-orchestrator-spec.md) | Orchestrator decision logic, signal interpretation |
+| [04c-subsystem-reuse.md](04c-subsystem-reuse.md) | Subsystem templates, matching, composition |
+| [04d-context-management.md](04d-context-management.md) | Context schema, flow between agents, API |
 
 ### Architecture Decision Records
 | File | Description |
@@ -87,10 +107,12 @@ flowchart TB
 
 ## Quick Start
 
-1. Start with **[01-overview.md](01-overview.md)** for core concepts
-2. Review **[ADR-0001](../adr/0001-tcp-controller-vs-llm-agents.md)** to understand the key TCP Controller vs LLM split
-3. Explore **[05-k8s-deployment.md](05-k8s-deployment.md)** for deployment details
-4. Check **[13-backend-services.md](13-backend-services.md)** for Rust implementation patterns
+1. Start with **[Project Goal](../project-goal.md)** for hackathon context and vision
+2. Read **[01-overview.md](01-overview.md)** for core concepts
+3. Review **[ADR-0001](../adr/0001-tcp-controller-vs-llm-agents.md)** to understand the key TCP Controller vs LLM split
+4. Explore **[04-task-lifecycle.md](04-task-lifecycle.md)** for how tasks flow through the system
+5. Check **[04c-subsystem-reuse.md](04c-subsystem-reuse.md)** for agent reuse patterns
+6. See **[05-k8s-deployment.md](05-k8s-deployment.md)** for deployment details
 
 ## Key Concepts
 
