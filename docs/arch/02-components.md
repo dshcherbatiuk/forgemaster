@@ -61,10 +61,10 @@ sequenceDiagram
     participant TR as Test Runner
     participant EX as Executor Agents
 
-    C->>TG: Task: "Build REST API for user management"
+    C->>TG: Task: "Create e-commerce backend with catalog, cart, checkout"
     TG->>TG: Analyze task requirements
     TG->>TR: Generated Gherkin E2E Tests
-    Note over TR: Feature: User Management API<br/>Scenario: Create user<br/>Scenario: Get user<br/>Scenario: Update user<br/>...
+    Note over TR: Feature: E-commerce API<br/>Scenario: Add product to cart<br/>Scenario: Process checkout<br/>Scenario: Handle payment<br/>...
     C->>EX: Execute task
     EX->>TR: Output (API code)
     TR->>TR: Run tests against output
@@ -74,56 +74,55 @@ sequenceDiagram
 **Example Gherkin Output:**
 
 ```gherkin
-Feature: User Management API
-  As a client
-  I want to manage users via REST API
-  So that I can perform CRUD operations
+Feature: E-commerce Backend API
+  As a customer
+  I want to browse products, manage cart, and checkout
+  So that I can purchase items online
 
-  Scenario: Create a new user
+  Scenario: Add product to cart
     Given the API is running
-    When I send a POST request to "/users" with body:
+    And a product exists with id "prod-123"
+    When I send a POST request to "/cart/items" with body:
       """
       {
-        "name": "John Doe",
-        "email": "john@example.com"
+        "product_id": "prod-123",
+        "quantity": 2
       }
       """
     Then the response status should be 201
-    And the response should contain "id"
+    And the cart should contain 2 items
 
-  Scenario: Get existing user
-    Given a user exists with id "123"
-    When I send a GET request to "/users/123"
+  Scenario: View shopping cart
+    Given items exist in my cart
+    When I send a GET request to "/cart"
     Then the response status should be 200
-    And the response should contain "name"
+    And the response should contain "items"
+    And the response should contain "total_price"
 
-  Scenario: Update user details
-    Given a user exists with id "123"
-    When I send a PUT request to "/users/123" with body:
+  Scenario: Process checkout with Stripe
+    Given items exist in my cart
+    And I have a valid Stripe payment method
+    When I send a POST request to "/checkout" with body:
       """
       {
-        "name": "Jane Doe"
+        "payment_method_id": "pm_card_visa",
+        "shipping_address": {
+          "street": "123 Main St",
+          "city": "San Francisco",
+          "zip": "94102"
+        }
       }
       """
-    Then the response status should be 200
-    And the user name should be "Jane Doe"
+    Then the response status should be 201
+    And the response should contain "order_id"
+    And the Stripe charge should be created
 
-  Scenario: Delete user
-    Given a user exists with id "123"
-    When I send a DELETE request to "/users/123"
-    Then the response status should be 204
-    And the user should no longer exist
-
-  Scenario: Invalid input returns error
-    Given the API is running
-    When I send a POST request to "/users" with body:
-      """
-      {
-        "invalid": "data"
-      }
-      """
-    Then the response status should be 400
-    And the response should contain "error"
+  Scenario: Invalid payment fails gracefully
+    Given items exist in my cart
+    When I send a POST request to "/checkout" with invalid payment
+    Then the response status should be 402
+    And the response should contain "payment_error"
+    And the cart should remain unchanged
 ```
 
 ### 3. Orchestrator Agent

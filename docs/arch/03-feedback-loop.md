@@ -21,8 +21,8 @@ The system validates success through two independent checks:
 
 | Validation Type | What It Checks | Example |
 |-----------------|----------------|---------|
-| **Test Validation** | Implementation correctness | "Booking flow completes without errors" |
-| **Outcome Validation** | Real-world result | "Confirmation email received, booking ID valid" |
+| **Test Validation** | Implementation correctness | "Checkout flow completes, Stripe charge created" |
+| **Outcome Validation** | Real-world result | "Order confirmation email sent, payment in Stripe dashboard" |
 
 > **Why both?** Tests are self-generated, so could have false positives. Outcome checks verify the task actually worked in the real world.
 

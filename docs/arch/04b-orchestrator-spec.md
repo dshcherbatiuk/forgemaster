@@ -265,10 +265,11 @@ actions:
 │  Input: Task + Available Agents                                          │
 │                                                                          │
 │  Step 1: Break down task                                                 │
-│    task: "Build REST API for users"                                      │
+│    task: "Create e-commerce backend with catalog, cart, checkout"        │
 │    subtasks:                                                             │
-│      - Generate Gherkin tests from requirements                          │
-│      - Implement API endpoints                                           │
+│      - Generate Gherkin tests for e-commerce flows                       │
+│      - Implement catalog, cart, checkout endpoints                       │
+│      - Integrate Stripe payment processing                               │
 │      - Review code for issues                                            │
 │      - Run tests and collect feedback                                    │
 │                                                                          │
@@ -301,7 +302,8 @@ actions:
   "iteration": 3,
   "requirements": {
     "type": "web-api",
-    "language": "rust"
+    "language": "rust",
+    "features": ["catalog", "cart", "checkout", "stripe"]
   },
   "artifacts": {
     "tests": "path/to/tests.feature",

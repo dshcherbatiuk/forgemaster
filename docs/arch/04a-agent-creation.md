@@ -32,7 +32,7 @@ flowchart TB
   "type": "web-api",
   "language": "rust",
   "framework": "axum",
-  "features": ["authentication", "validation", "pagination"]
+  "features": ["product-catalog", "shopping-cart", "checkout", "stripe-integration"]
 }
 ```
 
@@ -139,8 +139,8 @@ The Orchestrator Agent generates agent configuration using LLM:
 │                                                                  │
 │  Input:                                                          │
 │  - Required skill: "rust-code-generation"                        │
-│  - Task context: "Build REST API with Axum"                      │
-│  - Feature requirements: ["auth", "validation"]                  │
+│  - Task context: "Build e-commerce backend with Axum"            │
+│  - Feature requirements: ["catalog", "cart", "checkout"]         │
 │                                                                  │
 │  LLM generates:                                                  │
 │  - System prompt tailored to skill + context                     │
@@ -176,7 +176,7 @@ spec:
 
     Context:
     - Framework: Axum
-    - Features required: authentication, validation, pagination
+    - Features required: product catalog, shopping cart, checkout, Stripe integration
 
     Guidelines:
     - Follow Rust best practices and idioms

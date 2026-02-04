@@ -45,7 +45,7 @@ flowchart TB
 
 When a user submits a task, ForgeMaster first searches its registry for existing agent subsystems that can handle it. The registry contains proven agent combinations from previous successful tasks, each tagged with skills, task types, and success rates.
 
-If a matching subsystem is found (e.g., "ticket-booking-automation" for a travel booking task), ForgeMaster reuses it immediately — no need to figure out which agents to create or how to configure them.
+If a matching subsystem is found (e.g., "ecommerce-backend" for an online store task), ForgeMaster reuses it immediately — no need to figure out which agents to create or how to configure them.
 
 ### 2. Build — Create from Scratch
 
@@ -91,35 +91,23 @@ After task completion, ForgeMaster decides what to do with the subsystem:
 ### Example Lifecycle
 
 ```
-Task 1: "Build automated flight ticket booking system"
+Task 1: "Create an e-commerce backend with product catalog, shopping cart, and checkout"
   → Search: No matching subsystem found
-  → Build: Creates [WebScraper, BookingAgent, PaymentValidator, NotificationAgent] + [browser-mcp, email-mcp]
-  → Orchestrate: TCP Controller runs feedback loop, 4 iterations, success
-  → Publish: Saves as "ticket-booking-automation" to registry
+  → Build: Creates [TestGenerator, CodeGenerator, Reviewer] + [github-mcp, postgres-mcp, stripe-mcp]
+  → Orchestrate: TCP Controller runs feedback loop, 5 iterations, success
+  → Publish: Saves as "ecommerce-backend" to registry
 
-Task 2: "Book concert tickets when they go on sale"
-  → Search: Found "ticket-booking-automation" (89% match)
+Task 2: "Build online marketplace with seller accounts and product listings"
+  → Search: Found "ecommerce-backend" (87% match)
   → Reuse: Deploys existing subsystem instantly
-  → Orchestrate: 2 iterations, success
+  → Orchestrate: 3 iterations, success (extended for multi-seller)
+  → Publish: Saves as "ecommerce-marketplace" to registry
+
+Task 3: "Add subscription billing to SaaS platform"
+  → Search: Found "ecommerce-backend" (72% match, has Stripe)
+  → Reuse: Deploys with modifications for recurring payments
+  → Orchestrate: 4 iterations, success
   → Drop: One-time task, delete namespace
-
-Task 3: "Set up ETL pipeline for sales data"
-  → Search: No matching subsystem found
-  → Build: Creates [SchemaAnalyzer, TransformAgent, ValidationAgent, LoadAgent] + [postgres-mcp, s3-mcp]
-  → Orchestrate: 5 iterations, success
-  → Publish: Saves as "etl-data-pipeline" to registry
-
-Task 4: "Generate test suite for payment module"
-  → Search: No matching subsystem found
-  → Build: Creates [CodeAnalyzer, TestGenerator, CoverageChecker] + [github-mcp, jest-mcp]
-  → Orchestrate: 3 iterations, success
-  → Publish: Saves as "test-automation-suite" to registry
-
-Task 5: "Run hyperparameter tuning for recommendation model"
-  → Search: No matching subsystem found
-  → Build: Creates [ExperimentDesigner, TrainingAgent, MetricsAnalyzer] + [mlflow-mcp, gpu-mcp]
-  → Orchestrate: 8 iterations, success
-  → Publish: Saves as "ml-hyperparameter-tuning" to registry
 ```
 
 ## Key Differentiators

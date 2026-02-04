@@ -16,18 +16,18 @@ POST /api/v1/tasks
 
 ```json
 {
-  "name": "user-management-api",
-  "description": "Build REST API for user management with CRUD operations",
+  "name": "ecommerce-backend",
+  "description": "Create e-commerce backend with product catalog, shopping cart, and checkout flow",
   "requirements": {
     "type": "web-api",
     "language": "rust",
     "framework": "axum",
-    "features": ["authentication", "validation", "pagination"]
+    "features": ["product-catalog", "shopping-cart", "checkout", "stripe-integration"]
   },
   "acceptance_criteria": [
-    "Given a valid user payload, when POST /users, then return 201",
-    "Given an invalid email, when POST /users, then return 400",
-    "Given existing user ID, when GET /users/{id}, then return user"
+    "Given a product exists, when POST /cart/items, then add to cart",
+    "Given items in cart, when POST /checkout, then process payment via Stripe",
+    "Given valid payment, when checkout completes, then create order"
   ],
   "constraints": {
     "timeout_minutes": 60,
@@ -180,7 +180,7 @@ metadata:
   name: task-a1b2c3d4
   labels:
     forgemaster.io/task-id: a1b2c3d4
-    forgemaster.io/task-name: user-management-api
+    forgemaster.io/task-name: ecommerce-backend
     forgemaster.io/created-at: "2026-02-04T10:00:00Z"
   annotations:
     forgemaster.io/timeout: "60m"
@@ -206,15 +206,15 @@ spec:
 apiVersion: forgemaster.io/v1alpha1
 kind: AgentTask
 metadata:
-  name: user-management-api
+  name: ecommerce-backend
   namespace: task-a1b2c3d4
 spec:
-  description: "Build REST API for user management"
+  description: "Create e-commerce backend with product catalog, shopping cart, and checkout"
   requirements:
     type: web-api
     language: rust
   acceptance_criteria:
-    - "Given valid user, when POST /users, then 201"
+    - "Given product exists, when POST /cart/items, then add to cart"
   constraints:
     timeout_minutes: 60
     max_iterations: 10

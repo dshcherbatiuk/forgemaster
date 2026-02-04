@@ -10,10 +10,10 @@
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                        SUBSYSTEM REUSE CYCLE                             │
 │                                                                          │
-│   Task 1: "Build REST API for products"                                  │
+│   Task 1: "Create e-commerce backend with catalog, cart, checkout"       │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │  Agents: [test-gen, code-gen, reviewer]                         │   │
-│   │  MCPs: [github, filesystem]                                      │   │
+│   │  MCPs: [github, filesystem, stripe-mcp]                         │   │
 │   │  Result: SUCCESS                                                 │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
 │                              │                                           │
@@ -21,16 +21,16 @@
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                 EXTRACT SUBSYSTEM TEMPLATE                       │   │
 │   │                                                                  │   │
-│   │  Name: "rest-api-rust-axum"                                      │   │
+│   │  Name: "ecommerce-backend"                                       │   │
 │   │  Agents: [test-gen, code-gen, reviewer]                         │   │
-│   │  MCPs: [github, filesystem]                                      │   │
+│   │  MCPs: [github, filesystem, stripe-mcp]                         │   │
 │   │  Success rate: 100% (1/1)                                        │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
 │                              │                                           │
 │                              ▼                                           │
-│   Task 2: "Build REST API for orders"                                    │
+│   Task 2: "Build online marketplace with seller accounts"                │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │  Similarity detected: 95% match with "rest-api-rust-axum"       │   │
+│   │  Similarity detected: 87% match with "ecommerce-backend"        │   │
 │   │  → Reuse subsystem template                                      │   │
 │   │  → Faster startup, proven combination                            │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
@@ -45,7 +45,7 @@
 apiVersion: forgemaster.io/v1alpha1
 kind: SubsystemTemplate
 metadata:
-  name: rest-api-rust-axum
+  name: ecommerce-backend
   namespace: metaagent-system
   labels:
     forgemaster.io/task-type: web-api
@@ -54,49 +54,53 @@ metadata:
 spec:
   # Description
   description: |
-    Proven agent combination for building REST APIs in Rust with Axum framework.
-    Includes test generation, code generation, and code review.
+    Proven agent combination for building e-commerce backends in Rust with Axum.
+    Includes test generation, code generation, Stripe integration, and code review.
 
   # Task matching criteria
   matching:
     task_types:
       - web-api
-      - rest-api
+      - ecommerce
     languages:
       - rust
     frameworks:
       - axum
     keywords:
-      - api
-      - rest
-      - crud
-      - endpoints
+      - ecommerce
+      - catalog
+      - cart
+      - checkout
+      - payment
+      - stripe
 
   # Agent configurations
   agents:
     - type: test-generator
       config:
         model: claude-3-sonnet
-        prompt_template: rust-api-tests
+        prompt_template: ecommerce-tests
         skills: [gherkin-generation, rust-testing]
 
     - type: code-generator
       config:
         model: claude-3-sonnet
-        prompt_template: rust-axum-api
-        skills: [rust-code-generation, axum-framework]
+        prompt_template: rust-axum-ecommerce
+        skills: [rust-code-generation, axum-framework, stripe-integration]
 
     - type: reviewer
       config:
         model: claude-3-opus
-        prompt_template: rust-security-review
-        skills: [code-review, security-review]
+        prompt_template: ecommerce-security-review
+        skills: [code-review, security-review, payment-security]
 
   # MCP server configurations
   mcp_servers:
     - type: github-mcp
       required: true
     - type: filesystem-mcp
+      required: true
+    - type: stripe-mcp
       required: true
     - type: postgres-mcp
       required: false
@@ -232,7 +236,7 @@ extraction_triggers:
 │      task_type: "web-api",                                               │
 │      language: "rust",                                                   │
 │      framework: "axum",                                                  │
-│      keywords: ["api", "users", "crud"]                                  │
+│      keywords: ["ecommerce", "catalog", "cart", "checkout"]              │
 │    }                                                                     │
 │                                                                          │
 │  Step 2: Query candidate templates                                       │
@@ -268,14 +272,14 @@ extraction_triggers:
   "task_id": "task-xyz789",
   "match_found": true,
   "template": {
-    "name": "rest-api-rust-axum",
+    "name": "ecommerce-backend",
     "score": 0.92,
     "success_rate": 0.87,
     "times_used": 15
   },
   "recommendation": "USE_TEMPLATE",
   "customizations_needed": [
-    "Add authentication-related MCP if auth feature requested"
+    "Add subscription-billing MCP if recurring payments needed"
   ]
 }
 ```
@@ -373,9 +377,9 @@ versioning:
 │     - Bump version if changed                                            │
 │                                                                          │
 │  Example:                                                                │
-│    Template "rest-api-rust-axum" used for 10 tasks                       │
-│    7 tasks added "input-validator" agent during execution                │
-│    → Update template to include "input-validator" as default             │
+│    Template "ecommerce-backend" used for 10 tasks                        │
+│    7 tasks added "inventory-validator" agent during execution            │
+│    → Update template to include "inventory-validator" as default         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -388,20 +392,20 @@ versioning:
 task: "Build full-stack e-commerce platform"
 
 composed_subsystems:
-  - name: rest-api-rust-axum
+  - name: ecommerce-backend
     scope: backend-api
     customization:
-      features: [auth, payments, inventory]
+      features: [catalog, cart, checkout, stripe]
 
   - name: react-frontend
     scope: web-frontend
     customization:
-      features: [cart, checkout, user-dashboard]
+      features: [product-listing, cart-ui, checkout-flow]
 
   - name: postgres-schema
     scope: database
     customization:
-      tables: [users, products, orders]
+      tables: [products, carts, orders, payments]
 
 coordination:
   # How subsystems interact

@@ -197,17 +197,17 @@ trait ContextStore {
   "updated_at": "2026-02-04T10:25:00Z",
 
   "task": {
-    "name": "user-management-api",
-    "description": "Build REST API for user management",
+    "name": "ecommerce-backend",
+    "description": "Create e-commerce backend with product catalog, shopping cart, and checkout",
     "requirements": {
       "type": "web-api",
       "language": "rust",
       "framework": "axum",
-      "features": ["authentication", "validation"]
+      "features": ["product-catalog", "shopping-cart", "checkout", "stripe-integration"]
     },
     "acceptance_criteria": [
-      "Given valid user, when POST /users, then 201",
-      "Given invalid email, when POST /users, then 400"
+      "Given product exists, when POST /cart/items, then add to cart",
+      "Given items in cart, when POST /checkout, then process payment via Stripe"
     ]
   },
 
@@ -235,14 +235,14 @@ trait ContextStore {
 
   "artifacts": {
     "tests": {
-      "path": "artifacts/tests/user-api.feature",
+      "path": "artifacts/tests/ecommerce-api.feature",
       "checksum": "sha256:abc123...",
       "created_by": "test-generator-xyz789",
       "iteration": 1
     },
     "code": {
       "path": "artifacts/src/",
-      "files": ["main.rs", "handlers.rs", "models.rs"],
+      "files": ["main.rs", "cart.rs", "checkout.rs", "stripe.rs", "models.rs"],
       "checksum": "sha256:def456...",
       "created_by": "code-generator-abc123",
       "iteration": 3
@@ -258,11 +258,11 @@ trait ContextStore {
       "error_signal": 0.25,
       "failures": [
         {
-          "test": "auth-token-validation",
-          "scenario": "Given expired token, when authenticate, then reject",
-          "error": "Expected 401, got 200",
-          "file": "src/handlers.rs",
-          "line": 45
+          "test": "checkout-payment-validation",
+          "scenario": "Given invalid payment, when checkout, then reject",
+          "error": "Expected 402, got 500",
+          "file": "src/checkout.rs",
+          "line": 78
         }
       ]
     },
@@ -278,18 +278,18 @@ trait ContextStore {
       "iteration": 1,
       "tcp_signal": 0.75,
       "action": "ADD_AGENT",
-      "details": "Added reviewer agent to help with authentication"
+      "details": "Added payment-specialist agent for Stripe integration"
     },
     {
       "iteration": 2,
       "tcp_signal": 0.50,
       "action": "ADJUST_PARAMS",
-      "details": "Updated code-generator prompt with auth examples"
+      "details": "Updated code-generator prompt with Stripe error handling examples"
     }
   ],
 
   "metadata": {
-    "subsystem_template": "rest-api-rust-axum",
+    "subsystem_template": "ecommerce-backend",
     "tcp_coefficients": {"task": 1.0, "context": 0.5, "prediction": 0.3},
     "resource_usage": {
       "llm_calls": 45,
