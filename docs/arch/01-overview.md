@@ -4,7 +4,7 @@
 
 ## Overview
 
-A self-regulating meta-agent system inspired by PID controller principles. The system dynamically provisions and orchestrates task-specific AI agents and MCP servers, using E2E tests as the setpoint for measuring success.
+A self-regulating meta-agent system using TCP (Task-Context-Prediction) control. The system dynamically provisions and orchestrates task-specific AI agents and MCP servers, using dual validation (tests + outcomes) as the setpoint for measuring success.
 
 ## Core Concepts
 
@@ -16,19 +16,39 @@ A self-regulating meta-agent system inspired by PID controller principles. The s
 | Context Memory | **C** (Context) | Accumulated history, learned patterns, what worked before |
 | Predictor | **P** (Prediction) | Anticipates failures, adapts to rate of change |
 
-### Setpoint: E2E Test Generation (Gherkin)
+### Setpoint: Dual Validation (Tests + Outcomes)
 
-Instead of hardcoded success criteria, a dedicated **Test Generator Agent** analyzes each incoming task and produces E2E tests in **Gherkin format** (Given-When-Then) that define what success looks like. This makes the setpoint:
+The system uses **dual validation** to ensure autonomous correctness:
+
+1. **Test Validation** — Generated E2E tests (Gherkin) verify implementation
+2. **Outcome Validation** — Real-world checks verify the task actually worked
+
+#### Test Validation (Gherkin)
+
+A dedicated **Test Generator Agent** produces E2E tests in **Gherkin format** (Given-When-Then):
 
 - **Dynamic** — generated per task
 - **Measurable** — pass/fail, objective
 - **Self-documenting** — Gherkin is human-readable
 - **Executable** — runs with Cucumber, Behave, etc.
 
+#### Outcome Validation
+
+Since tests are self-generated (system grades its own homework), we add **real-world outcome checks**:
+
+| Task Type | Outcome Verification |
+|-----------|---------------------|
+| Ticket Booking | Confirmation email received, booking ID valid in external system |
+| ETL Pipeline | Data exists in target, row counts match, checksums valid |
+| API Development | External client can call endpoints, integration tests pass |
+| ML Training | Metrics improve on held-out validation set |
+
+> **Principle:** Tests verify the HOW. Outcomes verify the WHAT.
+
 ### Error Signal
 
 ```
-error = failed_tests / total_tests
+error = (failed_tests + failed_outcomes) / total_checks
 ```
 
 The error signal drives the feedback loop, triggering adjustments in agent selection, configuration, or strategy.

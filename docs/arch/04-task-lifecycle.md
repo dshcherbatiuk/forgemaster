@@ -63,8 +63,11 @@ stateDiagram-v2
     RUNNING --> CHECKING: output ready
     RUNNING --> FAILED: error
 
-    CHECKING --> SUCCESS: all tests pass
+    CHECKING --> VALIDATING: tests pass
     CHECKING --> FEEDBACK: tests fail
+
+    VALIDATING --> SUCCESS: outcomes verified
+    VALIDATING --> FEEDBACK: outcomes failed
 
     FEEDBACK --> RUNNING: continue/adjust
     FEEDBACK --> FAILED: max iterations
@@ -82,8 +85,9 @@ stateDiagram-v2
 | `PREPARING` | Creating namespace, deploying agents/MCPs | Provision resources |
 | `RUNNING` | Agents executing task | Monitor, collect output |
 | `CHECKING` | Running E2E tests against output | Execute test suite |
+| `VALIDATING` | Verifying real-world outcomes | Check actual results |
 | `FEEDBACK` | Analyzing results, deciding next action | TCP Controller decision |
-| `SUCCESS` | All tests pass, task complete | Archive, cleanup |
+| `SUCCESS` | Tests pass AND outcomes verified | Archive, cleanup |
 | `FAILED` | Max iterations or timeout reached | Archive, cleanup |
 | `CANCELLED` | User cancelled task | Cleanup |
 

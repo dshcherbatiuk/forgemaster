@@ -19,6 +19,7 @@ flowchart TB
         OR["Orchestrator Agent<br/>─────────────<br/>Agent Selection<br/>MCP Provisioning<br/>K8s CRD Management"]
         EX["Executor Agents<br/>─────────────<br/>Code Generator<br/>Reviewer<br/>Specialist"]
         TR["Test Runner Agent<br/>─────────────<br/>Runs Gherkin tests<br/>against output"]
+        OV["Outcome Validator<br/>─────────────<br/>Verifies real-world<br/>results (API calls,<br/>emails, data checks)"]
         FB["Feedback Agent<br/>─────────────<br/>Collects metrics<br/>Calculates error<br/>Analyzes patterns"]
     end
 
@@ -26,7 +27,8 @@ flowchart TB
     CS --> TG & OR & EX
     TG --> TR
     EX --> TR
-    TR --> FB
+    TR --> OV
+    OV --> FB
     FB -->|"Feedback Loop"| Controller
 ```
 
@@ -159,19 +161,45 @@ An agent that executes Gherkin E2E tests against the output using BDD frameworks
 - Java: `cucumber-jvm`
 - Go: `godog`
 
-### 6. Feedback Collector Agent
+### 6. Outcome Validator
+
+Verifies real-world results beyond self-generated tests. Since tests are created by the system itself, they could have false positives. Outcome validation checks that the task **actually worked**.
+
+**Why needed:** Tests verify the HOW (implementation). Outcomes verify the WHAT (it actually worked).
+
+**Validation by Task Type:**
+
+| Task Type | Outcome Verification |
+|-----------|---------------------|
+| Ticket Booking | Confirmation email received, booking ID valid in external system |
+| ETL Pipeline | Data exists in target DB, row counts match, checksums valid |
+| API Development | External client can call endpoints, integration tests pass |
+| ML Training | Metrics improve on held-out validation set |
+| Test Automation | Generated tests actually catch bugs when code is broken |
+
+**Input:** Task output + task type
+**Output:** Outcome validation results (verified/failed per check)
+
+### 7. Feedback Collector Agent
 
 An agent that gathers metrics, analyzes results, and calculates the error signal for the TCP Controller.
 
 **Responsibilities:**
 - Collect test results from Test Runner Agent
+- Collect outcome validation results from Outcome Validator
 - Gather execution metrics (time, tokens, retries)
-- Calculate error signal
+- Calculate combined error signal
 - Analyze failure patterns
 - Provide recommendations for next iteration
 
+**Error Signal Calculation:**
+```
+error = (failed_tests + failed_outcomes) / total_checks
+```
+
 **Metrics:**
 - Test pass rate
+- Outcome validation rate
 - Execution time
 - Token usage
 - Retry count

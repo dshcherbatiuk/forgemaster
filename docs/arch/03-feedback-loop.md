@@ -3,15 +3,28 @@
 ```mermaid
 flowchart TD
     A[1. Task arrives] --> B[2. Test Generator creates E2E tests]
-    B -->|"setpoint defined"| C[3. Orchestrator selects/creates agents]
-    C --> D[4. Executor agents perform task]
-    D --> E[5. Test Runner validates output]
-    E --> F[6. Feedback Collector calculates error]
-    F --> G{7. Error > threshold?}
+    B --> B2[3. Outcome Validator defines real-world checks]
+    B2 -->|"setpoint defined"| C[4. Orchestrator selects/creates agents]
+    C --> D[5. Executor agents perform task]
+    D --> E[6. Test Runner validates output]
+    E --> E2[7. Outcome Validator checks real-world results]
+    E2 --> F[8. Feedback Collector calculates error]
+    F --> G{9. Error > threshold?}
     G -->|Yes| H[Controller adjusts strategy]
     H --> C
-    G -->|No| I[8. Task complete, return output]
+    G -->|No| I[10. Task complete, return output]
 ```
+
+### Dual Validation
+
+The system validates success through two independent checks:
+
+| Validation Type | What It Checks | Example |
+|-----------------|----------------|---------|
+| **Test Validation** | Implementation correctness | "Booking flow completes without errors" |
+| **Outcome Validation** | Real-world result | "Confirmation email received, booking ID valid" |
+
+> **Why both?** Tests are self-generated, so could have false positives. Outcome checks verify the task actually worked in the real world.
 
 ---
 

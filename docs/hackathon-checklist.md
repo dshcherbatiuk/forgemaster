@@ -41,7 +41,7 @@ meta-agent/
 ├── □ README.md (run instructions!)
 ├── crates/
 │   ├── □ meta-agent-core/      # Shared types
-│   ├── □ tcp-controller/       # PID controller service
+│   ├── □ tcp-controller/       # TCP controller service
 │   ├── □ agent-registry/       # Agent discovery
 │   ├── □ agent-runtime/        # LLM agent execution
 │   ├── □ a2a-rs/              # A2A protocol
@@ -87,7 +87,7 @@ meta-agent/
 | 2 | Problem: Manual agent orchestration doesn't scale |
 | 3 | Solution: Autonomous meta-agent with feedback loop |
 | 4 | Architecture: TCP + Agents + A2A/MCP/A2UI |
-| 5 | TCP Controller: PID-based orchestration |
+| 5 | TCP Controller: Task-Context-Prediction orchestration |
 | 6 | Demo: REST API generation example |
 | 7 | Technical Stack: Rust, K8s, Claude |
 | 8 | Differentiators: Control theory + AI agents |
@@ -105,7 +105,7 @@ meta-agent/
 ## Development Priorities
 
 ### Day 1 (Feb 5) — Foundation
-- [ ] Join Slack channel
+- [x] Join Slack channel
 - [ ] Attend kick-off 17:00
 - [ ] Attend session 18:00
 - [ ] Initialize Rust workspace
@@ -114,7 +114,7 @@ meta-agent/
 
 ### Day 2 (Feb 6) — Core Services
 - [ ] Implement `tcp-controller` service
-  - [ ] PID computation
+  - [ ] TCP computation (Task-Context-Prediction)
   - [ ] REST API (Axum)
   - [ ] Redis integration
 - [ ] Implement `agent-registry` service
@@ -154,7 +154,7 @@ meta-agent/
 ## MVP Scope (Must Have)
 
 **Core Features:**
-- [ ] TCP Controller with PID logic
+- [ ] TCP Controller with Task-Context-Prediction logic
 - [ ] Agent Registry (register, search)
 - [ ] 2 LLM Agents (Test Generator, Code Generator)
 - [ ] Basic feedback loop

@@ -116,7 +116,7 @@ flowchart TB
 
 ## Key Concepts
 
-- **TCP Controller**: PID-inspired orchestration (Task-Context-Prediction)
-- **Error Signal**: `error = failed_tests / total_tests`
+- **TCP Controller**: Task-Context-Prediction orchestration
+- **Error Signal**: `error = (failed_tests + failed_outcomes) / total_checks`
 - **Gherkin Setpoint**: E2E tests define dynamic success criteria
 - **A2A/A2UI/MCP**: Protocol stack for agent communication

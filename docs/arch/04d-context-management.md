@@ -4,6 +4,152 @@
 
 **Context** is the shared state that flows between agents during task execution. It includes task requirements, generated artifacts, test results, and iteration history.
 
+## Why External Context Storage Matters
+
+Traditional LLM agents lose information when context gets compressed:
+
+```
+LLM Context Problem:
+────────────────────
+Conversation grows → Context window fills → Compress/summarize → Details LOST
+```
+
+ForgeMaster solves this by storing context **externally**:
+
+```
+ForgeMaster Solution:
+─────────────────────
+Context stored in Redis/DB → LLM queries what it needs → Nothing LOST
+```
+
+**Key Insight:** The TCP Controller uses **math, not LLM** for orchestration decisions. LLM agents can "forget" details after compression, but the Context Store preserves everything. When an agent needs historical context:
+
+1. Query Context Store for relevant data
+2. Inject into agent prompt
+3. Agent works with full context
+4. Results saved back to Context Store
+
+This means ForgeMaster maintains **perfect memory** across iterations, tasks, and agent lifetimes.
+
+## LLM Integration Pattern
+
+How to integrate Claude API with external context storage:
+
+```mermaid
+sequenceDiagram
+    participant Agent as LLM Agent
+    participant Context as Context Store (Redis)
+    participant Claude as Claude API
+
+    Note over Agent: Task: "Fix the auth bug"
+
+    Agent->>Context: Query relevant context
+    Context-->>Agent: Previous iterations, error history, artifacts
+
+    Agent->>Agent: Build prompt with injected context
+
+    Agent->>Claude: API call (prompt + context)
+    Claude-->>Agent: Response
+
+    Agent->>Context: Save new results, decisions, artifacts
+```
+
+### Context Injection (Before LLM Call)
+
+```rust
+async fn call_agent(task: &Task, agent: &Agent) -> Result<Response> {
+    // 1. Query relevant context from Redis
+    let context = context_store.get_task_context(&task.id).await?;
+    let history = context_store.get_iteration_history(&task.id, limit: 5).await?;
+    let failures = context_store.get_test_failures(&task.id).await?;
+
+    // 2. Build prompt with injected context
+    let prompt = format!(r#"
+## Task
+{task_description}
+
+## Previous Iterations (last 5)
+{history}
+
+## Current Failing Tests
+{failures}
+
+## Your Role
+{agent_system_prompt}
+
+## Instructions
+Continue from where we left off. Fix the failing tests.
+"#);
+
+    // 3. Call Claude API
+    let response = claude.messages.create(
+        model: "claude-sonnet-4-20250514",
+        messages: vec![Message { role: "user", content: prompt }],
+        max_tokens: 4096,
+    ).await?;
+
+    // 4. Save results back to context store
+    context_store.save_iteration(&task.id, &response).await?;
+
+    Ok(response)
+}
+```
+
+### Smart Context Selection
+
+Don't inject ALL context (too large). Select what's relevant:
+
+```rust
+async fn get_relevant_context(task_id: &str, current_error: &str) -> RelevantContext {
+    // Recent history (last 3-5 iterations)
+    let recent = context_store.get_iteration_history(task_id, 5).await?;
+
+    // Current failing tests with details
+    let failures = context_store.get_test_failures(task_id).await?;
+
+    // Related decisions from TCP Controller
+    let decisions = context_store.get_recent_decisions(task_id, 3).await?;
+
+    // Current artifacts (code, tests)
+    let artifacts = context_store.get_current_artifacts(task_id).await?;
+
+    RelevantContext { recent, failures, decisions, artifacts }
+}
+```
+
+### What Gets Stored vs Injected
+
+| Stored (Everything) | Injected (Relevant Only) |
+|---------------------|--------------------------|
+| All iterations | Last 3-5 iterations |
+| All artifacts | Current artifacts + diffs |
+| All decisions | Recent decisions |
+| Full test history | Failing tests only |
+| All agent outputs | Summaries |
+
+### Context Store Trait
+
+```rust
+trait ContextStore {
+    // Read operations
+    async fn get_task_context(&self, task_id: &str) -> Result<TaskContext>;
+    async fn get_iteration_history(&self, task_id: &str, limit: usize) -> Result<Vec<Iteration>>;
+    async fn get_test_failures(&self, task_id: &str) -> Result<Vec<TestFailure>>;
+    async fn get_recent_decisions(&self, task_id: &str, limit: usize) -> Result<Vec<Decision>>;
+    async fn get_current_artifacts(&self, task_id: &str) -> Result<Artifacts>;
+
+    // Write operations
+    async fn save_iteration(&self, task_id: &str, result: &AgentResponse) -> Result<()>;
+    async fn save_artifact(&self, task_id: &str, artifact: &Artifact) -> Result<()>;
+    async fn save_decision(&self, task_id: &str, decision: &Decision) -> Result<()>;
+
+    // Smart retrieval
+    async fn query_relevant(&self, task_id: &str, query: &str) -> Result<Vec<ContextChunk>>;
+}
+```
+
+> **Key Principle:** LLM sees a "window" into the context store. The store has everything. The LLM gets what's relevant for THIS call.
+
 ## Context Architecture
 
 ```
