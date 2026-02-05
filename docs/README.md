@@ -80,9 +80,10 @@ flowchart LR
 | ADR | Decision |
 |-----|----------|
 | [ADR-0001](adr/0001-tcp-controller-vs-llm-agents.md) | TCP (PID) Controller for orchestration, LLM for agents |
-| [ADR-0002](adr/0002-a2ui-for-user-interface.md) | A2UI with React + Lit for web portal |
+| [ADR-0002](adr/0002-a2ui-for-user-interface.md) | A2UI with CopilotKit for web portal |
 | [ADR-0003](adr/0003-a2a-for-agent-communication.md) | A2A protocol for agent-to-agent communication |
 | [ADR-0004](adr/0004-mcp-for-tool-integration.md) | MCP for tool integration (GitHub, DB, Stripe) |
+| [ADR-0005](adr/0005-kubernetes-native-architecture.md) | Kubernetes-native architecture with CRDs |
 
 ### Examples
 
