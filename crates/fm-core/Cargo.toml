@@ -1,5 +1,5 @@
 [package]
-name = "forgemaster-core"
+name = "fm-core"
 description = "Core types, traits, and configuration for ForgeMaster"
 version.workspace = true
 edition.workspace = true

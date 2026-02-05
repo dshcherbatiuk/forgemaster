@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/forgemaster-core",
+    "crates/fm-core",
 ]
 
 [workspace.package]
@@ -40,7 +40,7 @@ typed-builder = "0.20"
 smallvec = { version = "1.13", features = ["serde"] }
 
 # Internal crates
-forgemaster-core = { path = "crates/forgemaster-core" }
+fm-core = { path = "crates/fm-core" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
