@@ -14,6 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Keep Helm charts in separate files (not inline in Ansible)
 - Keep Helm chart per service (in service directory)
 - Use Ansible to orchestrate deployments (calls Helm)
+- Keep it simple
+- Follow SOLID principles
+- Follow DRY principle
+- Follow YAGNI principle
+- Keep CSS in separate files
 
 ## Project Overview
 
