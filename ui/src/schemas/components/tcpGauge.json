@@ -1,0 +1,57 @@
+{
+  "id": "tcp-card",
+  "components": [
+    {
+      "id": "tcp-card",
+      "component": {
+        "Card": {
+          "child": "tcp-col"
+        }
+      }
+    },
+    {
+      "id": "tcp-col",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["tcp-title", "tcp-value-row", "tcp-description"] }
+        }
+      }
+    },
+    {
+      "id": "tcp-title",
+      "component": {
+        "Text": {
+          "text": { "literalString": "TCP Error Signal" },
+          "usageHint": "h3"
+        }
+      }
+    },
+    {
+      "id": "tcp-value-row",
+      "component": {
+        "Row": {
+          "distribution": "center",
+          "children": { "explicitList": ["tcp-value"] }
+        }
+      }
+    },
+    {
+      "id": "tcp-value",
+      "component": {
+        "Text": {
+          "text": { "path": "/tcp/value" },
+          "usageHint": "h1"
+        }
+      }
+    },
+    {
+      "id": "tcp-description",
+      "component": {
+        "Text": {
+          "text": { "path": "/tcp/description" },
+          "usageHint": "caption"
+        }
+      }
+    }
+  ]
+}

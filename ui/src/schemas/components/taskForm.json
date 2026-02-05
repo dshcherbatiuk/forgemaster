@@ -1,0 +1,65 @@
+{
+  "id": "task-card",
+  "components": [
+    {
+      "id": "task-card",
+      "component": {
+        "Card": {
+          "child": "task-form-col"
+        }
+      }
+    },
+    {
+      "id": "task-form-col",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["task-title", "task-field", "task-submit-row"] }
+        }
+      }
+    },
+    {
+      "id": "task-title",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Create New Task" },
+          "usageHint": "h2"
+        }
+      }
+    },
+    {
+      "id": "task-field",
+      "component": {
+        "TextField": {
+          "label": { "literalString": "Description" },
+          "text": { "path": "/task/description" }
+        }
+      }
+    },
+    {
+      "id": "task-submit-row",
+      "component": {
+        "Row": {
+          "distribution": "end",
+          "children": { "explicitList": ["task-submit-btn"] }
+        }
+      }
+    },
+    {
+      "id": "task-submit-btn",
+      "component": {
+        "Button": {
+          "child": "task-submit-btn-text",
+          "action": { "name": "submitTask" }
+        }
+      }
+    },
+    {
+      "id": "task-submit-btn-text",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Submit Task" }
+        }
+      }
+    }
+  ]
+}

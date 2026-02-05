@@ -1,0 +1,40 @@
+{
+  "id": "header",
+  "components": [
+    {
+      "id": "header",
+      "component": {
+        "Card": {
+          "child": "header-content"
+        }
+      }
+    },
+    {
+      "id": "header-content",
+      "component": {
+        "Row": {
+          "distribution": "spaceBetween",
+          "children": { "explicitList": ["app-title", "status-badge"] }
+        }
+      }
+    },
+    {
+      "id": "app-title",
+      "component": {
+        "Text": {
+          "text": { "path": "/appName" },
+          "usageHint": "h1"
+        }
+      }
+    },
+    {
+      "id": "status-badge",
+      "component": {
+        "Text": {
+          "text": { "path": "/status" },
+          "usageHint": "caption"
+        }
+      }
+    }
+  ]
+}

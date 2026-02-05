@@ -1,0 +1,98 @@
+{
+  "id": "nav-row",
+  "components": [
+    {
+      "id": "nav-row",
+      "component": {
+        "Row": {
+          "children": { "explicitList": ["nav-btn-task", "nav-btn-progress", "nav-btn-agents", "nav-btn-tests", "nav-btn-tcp"] }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-task",
+      "component": {
+        "Button": {
+          "child": "nav-btn-task-text",
+          "action": { "name": "navigate", "parameters": { "view": "taskForm" } }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-task-text",
+      "component": {
+        "Text": {
+          "text": { "literalString": "New Task" }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-progress",
+      "component": {
+        "Button": {
+          "child": "nav-btn-progress-text",
+          "action": { "name": "navigate", "parameters": { "view": "progress" } }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-progress-text",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Progress" }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-agents",
+      "component": {
+        "Button": {
+          "child": "nav-btn-agents-text",
+          "action": { "name": "navigate", "parameters": { "view": "agents" } }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-agents-text",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Agents" }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-tests",
+      "component": {
+        "Button": {
+          "child": "nav-btn-tests-text",
+          "action": { "name": "navigate", "parameters": { "view": "tests" } }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-tests-text",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Tests" }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-tcp",
+      "component": {
+        "Button": {
+          "child": "nav-btn-tcp-text",
+          "action": { "name": "navigate", "parameters": { "view": "tcp" } }
+        }
+      }
+    },
+    {
+      "id": "nav-btn-tcp-text",
+      "component": {
+        "Text": {
+          "text": { "literalString": "TCP Signal" }
+        }
+      }
+    }
+  ]
+}
