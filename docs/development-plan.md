@@ -57,15 +57,19 @@ Build the web portal early with mock data to visualize the complete flow before 
 - [x] Style with Tailwind CSS
 - [x] Integrate CopilotKit A2UI renderer (`@copilotkit/a2ui-renderer`)
 - [x] Create dynamic JSON schema system with auto-discovery
-- [x] Create ForgeMaster A2UI schemas (JSON):
-  - [x] `taskForm.json` — Task input with description field
-  - [x] `progressStepper.json` — Shows phases: Analyzing → Gen Tests → Gen Code → Running → Complete
-  - [x] `agentCard.json` — Agent status display (name, role, metrics)
-  - [x] `testResultsPanel.json` — Test pass/fail/skip summary
-  - [x] `tcpGauge.json` — Error signal visualization (0.0 - 1.0)
-  - [ ] `logViewer.json` — Streaming log output
-  - [ ] `artifactViewer.json` — Generated code/test display
-  - [ ] `iterationTimeline.json` — Shows iteration history with error trend
+- [x] Create component composition system (includes-based merging)
+- [x] Create unified dashboard schema with reusable components:
+  - [x] `dashboard.json` — Full layout with includes
+  - [x] `components/header.json` — App header with title and status
+  - [x] `components/navigation.json` — Navigation buttons
+  - [x] `components/taskForm.json` — Task input with description field
+  - [x] `components/progressStepper.json` — Shows phases: Analyze → Gen Tests → Gen Code → Run Tests → Complete
+  - [x] `components/agentCard.json` — Agent status display (name, role, metrics)
+  - [x] `components/testResults.json` — Test pass/fail/skip summary
+  - [x] `components/tcpGauge.json` — Error signal visualization (0.0 - 1.0)
+  - [ ] `components/logViewer.json` — Streaming log output
+  - [ ] `components/artifactViewer.json` — Generated code/test display
+  - [ ] `components/iterationTimeline.json` — Shows iteration history with error trend
 
 #### Dry-Run Mock Service
 - [ ] Create mock REST API endpoints
@@ -461,13 +465,17 @@ forgemaster/
 │   ├── src/
 │   │   ├── components/           # React components (A2UIRenderer wrapper)
 │   │   ├── hooks/                # React hooks (useSchema)
-│   │   ├── schemas/              # A2UI JSON schemas (auto-discovered)
-│   │   │   ├── taskForm.json
-│   │   │   ├── progressStepper.json
-│   │   │   ├── agentCard.json
-│   │   │   ├── testResultsPanel.json
-│   │   │   ├── tcpGauge.json
-│   │   │   └── schemaLoader.ts   # Vite import.meta.glob loader
+│   │   ├── schemas/              # A2UI JSON schemas
+│   │   │   ├── dashboard.json    # Main layout with includes
+│   │   │   ├── schemaLoader.ts   # Component composition loader
+│   │   │   └── components/       # Reusable A2UI components
+│   │   │       ├── header.json
+│   │   │       ├── navigation.json
+│   │   │       ├── taskForm.json
+│   │   │       ├── agentCard.json
+│   │   │       ├── progressStepper.json
+│   │   │       ├── testResults.json
+│   │   │       └── tcpGauge.json
 │   │   ├── styles/               # CSS files
 │   │   └── services/             # API clients (future)
 │   └── package.json
