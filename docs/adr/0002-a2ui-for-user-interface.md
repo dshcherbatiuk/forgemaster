@@ -141,10 +141,9 @@ flowchart LR
 
 ### Negative
 
-- **Lit integration**: Need to integrate Lit Web Components into React app
 - **Component limits**: UI constrained to component catalog
 - **Spec changes**: May need to adapt as A2UI spec evolves
-- **Learning curve**: Team needs to learn A2UI concepts and Lit basics
+- **Learning curve**: Team needs to learn A2UI schema format
 
 ### Risks
 
@@ -154,7 +153,7 @@ flowchart LR
 | Limited component expressiveness | Low | Medium | Extend component catalog as needed |
 | Performance issues with complex UIs | Low | Low | Lazy loading, component virtualization |
 | Google abandons A2UI | Low | High | Fork and maintain, spec is open source |
-| Lit + React integration issues | Low | Low | Web Components are standard; fallback to pure Lit app if needed |
+| CopilotKit renderer updates | Low | Low | Pin version, test before upgrading |
 
 ## Implementation Notes
 
@@ -184,51 +183,63 @@ We'll define a ForgeMaster-specific component catalog including:
 
 ### Client Implementation
 
-**Stack: React + Lit A2UI Renderer**
+**Stack: React + CopilotKit A2UI Renderer**
 
-We use React as the application framework with Lit-based A2UI Web Components:
+We use React with `@copilotkit/a2ui-renderer` which provides native React A2UI rendering:
 
 - **React** — Application shell, routing, state management
-- **Lit A2UI Renderer** — Stable, Google-maintained, renders A2UI JSON to Web Components
-- **Web Components** — Lit components work natively in React
+- **CopilotKit A2UI Renderer** — React-native A2UI renderer, handles theme/context internally
+- **JSON Schemas** — A2UI schemas stored as JSON files, auto-discovered via Vite
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  React Application                              │
 │  ┌───────────────────────────────────────────┐  │
-│  │  Lit A2UI Renderer (Web Component)        │  │
+│  │  A2UIRenderer (wrapper component)         │  │
 │  │  ┌─────────────────────────────────────┐  │  │
-│  │  │  A2UI Components (card, form, etc.) │  │  │
+│  │  │  @copilotkit/a2ui-renderer          │  │  │
+│  │  │  (A2UIViewer native React)          │  │  │
 │  │  └─────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────┘
 ```
 
 ```tsx
-// React wrapper for Lit A2UI renderer
-import '@anthropic/a2ui-lit';
+// A2UIRenderer.tsx - Wrapper for CopilotKit renderer
+import { A2UIViewer } from "@copilotkit/a2ui-renderer";
+import type { v0_8 } from "@a2ui/lit";
 
-function TaskProgress({ taskId }: { taskId: string }) {
-  const [schema, setSchema] = useState<A2UISchema | null>(null);
+export interface A2UISchema {
+  root: string;
+  components: v0_8.Types.ComponentInstance[];
+  defaultData?: Record<string, unknown>;
+}
 
-  useEffect(() => {
-    // SSE stream for real-time updates
-    const eventSource = new EventSource(`/api/v1/ui/tasks/${taskId}/progress`);
-    eventSource.onmessage = (e) => setSchema(JSON.parse(e.data));
-    return () => eventSource.close();
-  }, [taskId]);
-
+export function A2UIRenderer({ schema, data, onAction }: Props) {
+  const mergedData = { ...schema.defaultData, ...data };
   return (
-    <a2ui-renderer
-      schema={JSON.stringify(schema)}
-      catalog="forgemaster"
-      onAction={(e) => handleAction(e.detail)}
+    <A2UIViewer
+      root={schema.root}
+      components={schema.components}
+      data={mergedData}
+      onAction={onAction}
     />
   );
 }
 ```
 
-Consider Flutter for mobile later (also has stable A2UI support).
+**Dynamic Schema Loading:**
+
+```typescript
+// schemaLoader.ts - Auto-discover JSON schemas
+const schemaModules = import.meta.glob<{ default: A2UISchema }>("./*.json", {
+  eager: true,
+});
+
+export function getSchema(name: string): A2UISchema | undefined {
+  return schemaCache.get(name);
+}
+```
 
 ## Related
 

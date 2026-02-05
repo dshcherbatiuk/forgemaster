@@ -33,13 +33,13 @@ flowchart LR
 
 | Protocol | Purpose | Implementation |
 |----------|---------|----------------|
-| **A2UI** | Agent → User Interface | React + Lit renderer |
+| **A2UI** | Agent → User Interface | React + CopilotKit A2UI renderer |
 | **A2A** | Agent → Agent communication | JSON-RPC + SSE |
 | **MCP** | Agent → Tools | MCP servers in K8s |
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Web Portal (React + Lit A2UI)                              │
+│  Web Portal (React + CopilotKit A2UI)                       │
 ├─────────────────────────────────────────────────────────────┤
 │  REST API Service                                           │
 ├─────────────────────────────────────────────────────────────┤
@@ -105,7 +105,7 @@ flowchart LR
 | State Store | Redis |
 | Artifacts | GitHub (via MCP) |
 | LLM | Claude API |
-| Frontend | React + Lit |
+| Frontend | React + CopilotKit A2UI |
 | Orchestration | Kubernetes (Kind) |
 
 ---

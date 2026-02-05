@@ -641,93 +641,125 @@ sequenceDiagram
     OA->>Agents: A2A Task (retry)
 ```
 
-### Client Renderer (React Example)
+### Client Renderer (ForgeMaster Implementation)
+
+ForgeMaster uses `@copilotkit/a2ui-renderer` which provides a React-based A2UI renderer:
 
 ```typescript
 // A2UIRenderer.tsx
-import React from 'react';
-import { A2UIResponse, A2UIComponent } from '@a2ui/core';
+import { A2UIViewer } from "@copilotkit/a2ui-renderer";
+import type { v0_8 } from "@a2ui/lit";
 
-// Component catalog mapping
-const componentMap: Record<string, React.ComponentType<any>> = {
-  'card': Card,
-  'container': Container,
-  'text': Text,
-  'progress': ProgressBar,
-  'table': DataTable,
-  'list': List,
-  'button': Button,
-  'agent-card': AgentCard,
-  'test-result': TestResult,
-  'tcp-gauge': TCPGauge,
-};
-
-interface A2UIRendererProps {
-  response: A2UIResponse;
-  onAction: (action: string, data?: any) => void;
+export interface A2UISchema {
+  root: string;
+  components: v0_8.Types.ComponentInstance[];
+  defaultData?: Record<string, unknown>;
 }
 
-export const A2UIRenderer: React.FC<A2UIRendererProps> = ({ 
-  response, 
-  onAction 
-}) => {
-  const { components, data } = response;
-  
-  const resolveData = (binding: any) => {
-    if (typeof binding === 'object' && binding.$data) {
-      // Resolve JSONPath reference
-      return getByPath(data, binding.$data);
-    }
-    return binding;
-  };
-  
-  const renderComponent = (id: string): React.ReactNode => {
-    const component = components.find(c => c.id === id);
-    if (!component) return null;
-    
-    const Component = componentMap[component.type];
-    if (!Component) {
-      console.warn(`Unknown component type: ${component.type}`);
-      return null;
-    }
-    
-    // Resolve data bindings in properties
-    const resolvedProps = Object.entries(component.properties || {})
-      .reduce((acc, [key, value]) => ({
-        ...acc,
-        [key]: resolveData(value)
-      }), {});
-    
-    // Handle actions
-    const handleAction = () => {
-      if (resolvedProps.action) {
-        onAction(resolvedProps.action, resolvedProps.actionData);
-      }
-    };
-    
-    return (
-      <Component 
-        key={id}
-        {...resolvedProps}
-        onClick={handleAction}
-      >
-        {component.children?.map(childId => renderComponent(childId))}
-      </Component>
-    );
-  };
-  
-  // Find root component(s)
-  const rootIds = components
-    .filter(c => !components.some(p => p.children?.includes(c.id)))
-    .map(c => c.id);
-  
+interface Props {
+  schema: A2UISchema;
+  data?: Record<string, unknown>;
+  onAction?: (action: v0_8.Types.UserAction) => void;
+}
+
+export function A2UIRenderer({ schema, data, onAction }: Props) {
+  const mergedData = { ...schema.defaultData, ...data };
+
   return (
-    <div className="a2ui-root">
-      {rootIds.map(id => renderComponent(id))}
-    </div>
+    <A2UIViewer
+      root={schema.root}
+      components={schema.components}
+      data={mergedData}
+      onAction={onAction}
+    />
   );
-};
+}
 ```
+
+### Dynamic Schema Loading
+
+Schemas are stored as JSON files and auto-discovered using Vite's `import.meta.glob`:
+
+```typescript
+// schemaLoader.ts
+import type { A2UISchema } from "../components/A2UIRenderer";
+
+const schemaModules = import.meta.glob<{ default: A2UISchema }>("./*.json", {
+  eager: true,
+});
+
+const schemaCache = new Map<string, A2UISchema>();
+
+for (const [path, module] of Object.entries(schemaModules)) {
+  const name = path.replace("./", "").replace(".json", "");
+  schemaCache.set(name, module.default);
+}
+
+export function getSchema(name: string): A2UISchema | undefined {
+  return schemaCache.get(name);
+}
+
+export function getAvailableSchemas(): string[] {
+  return Array.from(schemaCache.keys());
+}
+```
+
+### A2UI Schema Format (v0.8)
+
+The component type is the KEY of the component object, not a property:
+
+```json
+{
+  "root": "card-1",
+  "components": [
+    {
+      "id": "card-1",
+      "component": {
+        "Card": {
+          "child": "col-1"
+        }
+      }
+    },
+    {
+      "id": "col-1",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["title-1", "field-1"] }
+        }
+      }
+    },
+    {
+      "id": "title-1",
+      "component": {
+        "Text": {
+          "text": { "path": "/title" },
+          "usageHint": "h2"
+        }
+      }
+    },
+    {
+      "id": "field-1",
+      "component": {
+        "TextField": {
+          "label": { "path": "/fieldLabel" },
+          "text": { "path": "/description" }
+        }
+      }
+    }
+  ],
+  "defaultData": {
+    "title": "Create New Task",
+    "fieldLabel": "Description",
+    "description": ""
+  }
+}
+```
+
+Key points:
+- **Component type as key**: `{ "Text": { ... } }` not `{ "type": "Text", ... }`
+- **Data binding**: Use `{ "path": "/fieldName" }` or `{ "literalString": "value" }`
+- **Children**: Use `{ "explicitList": ["id1", "id2"] }` for multiple children
+- **Single child**: Use `"child": "id"` for single child reference
 
 ### Agent CRD with A2UI Support
 

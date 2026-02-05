@@ -52,19 +52,20 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 Build the web portal early with mock data to visualize the complete flow before backend is ready.
 
-#### Frontend Application (React + Lit)
+#### Frontend Application (React + CopilotKit A2UI)
 - [x] Set up React application with Vite
 - [x] Style with Tailwind CSS
-- [ ] Integrate Lit A2UI renderer
-- [ ] Create ForgeMaster component catalog:
-  - [ ] `TaskSubmissionForm` — Task input with description field
-  - [ ] `ProgressStepper` — Shows phases: Analyzing → Generating Tests → Generating Code → Running Tests → Complete
-  - [ ] `LogViewer` — Streaming log output
-  - [ ] `AgentCard` — Agent status display (name, status, model)
-  - [ ] `TestResultsPanel` — Gherkin scenario pass/fail display
-  - [ ] `TCPGauge` — Error signal visualization (0.0 - 1.0)
-  - [ ] `ArtifactViewer` — Generated code/test display
-  - [ ] `IterationTimeline` — Shows iteration history with error trend
+- [x] Integrate CopilotKit A2UI renderer (`@copilotkit/a2ui-renderer`)
+- [x] Create dynamic JSON schema system with auto-discovery
+- [x] Create ForgeMaster A2UI schemas (JSON):
+  - [x] `taskForm.json` — Task input with description field
+  - [x] `progressStepper.json` — Shows phases: Analyzing → Gen Tests → Gen Code → Running → Complete
+  - [x] `agentCard.json` — Agent status display (name, role, metrics)
+  - [x] `testResultsPanel.json` — Test pass/fail/skip summary
+  - [x] `tcpGauge.json` — Error signal visualization (0.0 - 1.0)
+  - [ ] `logViewer.json` — Streaming log output
+  - [ ] `artifactViewer.json` — Generated code/test display
+  - [ ] `iterationTimeline.json` — Shows iteration history with error trend
 
 #### Dry-Run Mock Service
 - [ ] Create mock REST API endpoints
@@ -402,7 +403,7 @@ Scenario: E-commerce Backend API
 │                                                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                        WEB PORTAL                                │   │
-│   │                     (React + Lit A2UI)                          │   │
+│   │                  (React + CopilotKit A2UI)                      │   │
 │   └─────────────────────────────┬───────────────────────────────────┘   │
 │                                 │ A2UI                                   │
 │   ┌─────────────────────────────▼───────────────────────────────────┐   │
@@ -456,14 +457,19 @@ forgemaster/
 │   └── mcp-servers/              # Custom MCP servers
 │       ├── stripe-mcp/
 │       └── redis-mcp/
-├── ui/                           # React + Lit UI portal
+├── ui/                           # React + CopilotKit A2UI portal
 │   ├── src/
-│   │   ├── components/           # A2UI component catalog
-│   │   ├── pages/
-│   │   ├── services/
-│   │   │   ├── api.ts            # Real API client
-│   │   │   └── mock.ts           # Mock/dry-run service
-│   │   └── mock-data/            # Sample scenarios
+│   │   ├── components/           # React components (A2UIRenderer wrapper)
+│   │   ├── hooks/                # React hooks (useSchema)
+│   │   ├── schemas/              # A2UI JSON schemas (auto-discovered)
+│   │   │   ├── taskForm.json
+│   │   │   ├── progressStepper.json
+│   │   │   ├── agentCard.json
+│   │   │   ├── testResultsPanel.json
+│   │   │   ├── tcpGauge.json
+│   │   │   └── schemaLoader.ts   # Vite import.meta.glob loader
+│   │   ├── styles/               # CSS files
+│   │   └── services/             # API clients (future)
 │   └── package.json
 ├── helm/
 │   └── forgemaster/              # Helm chart
@@ -485,7 +491,7 @@ forgemaster/
 | **State Store** | Redis |
 | **Artifacts** | GitHub (via MCP) |
 | **LLM** | Claude API |
-| **Frontend** | React + Lit |
+| **Frontend** | React + CopilotKit A2UI |
 | **UI Protocol** | A2UI |
 | **Agent Protocol** | A2A |
 | **Tool Protocol** | MCP |
