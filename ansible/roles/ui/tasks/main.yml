@@ -1,0 +1,22 @@
+---
+- name: Build UI Docker image
+  ansible.builtin.command: >
+    docker build -t {{ image_name }}:{{ image_tag }} .
+  args:
+    chdir: "{{ playbook_dir }}/../ui"
+
+- name: Deploy UI with Helm
+  ansible.builtin.command: >
+    helm upgrade --install forgemaster-ui ./helm
+    --namespace forgemaster-system
+  args:
+    chdir: "{{ playbook_dir }}/../ui"
+
+- name: Wait for UI deployment
+  ansible.builtin.command: >
+    kubectl rollout status deployment/forgemaster-ui
+    -n forgemaster-system --timeout=60s
+
+- name: Display UI info
+  ansible.builtin.debug:
+    msg: "UI deployed. Run: kubectl port-forward svc/forgemaster-ui 8080:8080 -n forgemaster-system"

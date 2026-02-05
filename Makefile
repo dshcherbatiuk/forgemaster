@@ -10,7 +10,7 @@ help:
 	@echo "  make fmt-check     - cargo fmt --check"
 	@echo "  make check         - cargo check"
 	@echo "  make clean         - cargo clean"
-	@echo "  make cluster       - setup OrbStack k8s cluster"
+	@echo "  make cluster       - setup k8s cluster and deploy services"
 	@echo "  make cluster-clean - cleanup cluster resources"
 	@echo "  make cluster-reset - reset OrbStack k8s cluster"
 	@echo "  make ui            - build UI"
@@ -22,7 +22,7 @@ cluster:
 	orbctl start
 	@echo "Waiting for Kubernetes to be ready..."
 	@until kubectl cluster-info > /dev/null 2>&1; do sleep 2; done
-	ansible-playbook ansible/setup-cluster.yml
+	ansible-playbook ansible/site.yml
 
 cluster-clean:
 	ansible-playbook ansible/cleanup-cluster.yml

@@ -11,6 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Step-by-step approach (don't create everything at once)
 - Commit messages: use `feat:`, `fix:`, `refactor:` without ticket numbers
 - Use OrbStack as Kubernetes cluster engine (not Kind)
+- Keep Helm charts in separate files (not inline in Ansible)
+- Keep Helm chart per service (in service directory)
+- Use Ansible to orchestrate deployments (calls Helm)
 
 ## Project Overview
 

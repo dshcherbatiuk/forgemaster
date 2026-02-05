@@ -1,9 +1,9 @@
 ---
-- name: Setup OrbStack Kubernetes cluster for ForgeMaster
+- name: Setup ForgeMaster
   hosts: localhost
   connection: local
 
-  tasks:
+  pre_tasks:
     - name: Check if kubectl works with OrbStack
       ansible.builtin.command: kubectl cluster-info
       register: kubectl_check
@@ -15,6 +15,6 @@
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
       changed_when: ns_create.rc == 0
 
-    - name: Display cluster info
-      ansible.builtin.debug:
-        msg: "OrbStack Kubernetes cluster is ready"
+  roles:
+    - gateway
+    - ui
