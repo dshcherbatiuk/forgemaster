@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean check all cluster cluster-clean cluster-reset help
+.PHONY: build test lint fmt clean check all cluster cluster-clean cluster-reset ui ui-dev help
 
 help:
 	@echo "Available commands:"
@@ -13,6 +13,8 @@ help:
 	@echo "  make cluster       - setup OrbStack k8s cluster"
 	@echo "  make cluster-clean - cleanup cluster resources"
 	@echo "  make cluster-reset - reset OrbStack k8s cluster"
+	@echo "  make ui            - build UI"
+	@echo "  make ui-dev        - run UI dev server"
 
 all: fmt lint test build
 
@@ -27,6 +29,12 @@ cluster-clean:
 
 cluster-reset:
 	echo "y" | orbctl reset
+
+ui:
+	cd ui && npm run build
+
+ui-dev:
+	cd ui && npm run dev
 
 build:
 	cargo build --release

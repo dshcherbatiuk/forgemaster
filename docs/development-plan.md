@@ -19,7 +19,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 │   Phase 1        Phase 2        Phase 3        Phase 4          │
 │   ─────────      ─────────      ─────────      ─────────        │
 │   Foundation     Core Engine    Agents         Integration      │
-│   & Web Portal   & Protocols                   & Demo           │
+│   & UI Portal   & Protocols                   & Demo           │
 │                                                                  │
 │   [██████████]   [░░░░░░░░░░]   [░░░░░░░░░░]   [░░░░░░░░░░]     │
 │                                                                  │
@@ -28,7 +28,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ---
 
-## Phase 1: Foundation & Web Portal
+## Phase 1: Foundation & UI Portal
 
 **Goal:** Set up infrastructure and build web portal with dry-run mode to visualize the system early.
 
@@ -41,12 +41,11 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ### 1.2 Local Kubernetes Cluster
 
-- [ ] Create Ansible playbook for OrbStack cluster setup
-- [ ] Install required components (Redis)
-- [ ] Configure kubectl and helm
-- [ ] Verify cluster is operational
+- [x] Create Ansible playbook for OrbStack cluster setup
+- [x] Configure kubectl and helm
+- [x] Verify cluster is operational
 
-### 1.3 Web Portal (Dry-Run Mode)
+### 1.3 UI Portal (Dry-Run Mode)
 
 Build the web portal early with mock data to visualize the complete flow before backend is ready.
 
@@ -294,7 +293,7 @@ Scenario: E-commerce Backend API
 
 ---
 
-## Web Portal Screens (Dry-Run Preview)
+## UI Portal Screens (Dry-Run Preview)
 
 ### Screen 1: Task Submission
 ```
@@ -436,7 +435,7 @@ Scenario: E-commerce Backend API
 forgemaster/
 ├── Cargo.toml                    # Workspace root
 ├── crates/
-│   ├── forgemaster-core/         # Shared types, traits, config
+│   ├── fm-core/                  # Shared types, traits, config
 │   ├── tcp-controller/           # TCP Controller service
 │   ├── agent-registry/           # Agent Registry service
 │   ├── agent-runtime/            # Base agent execution runtime
@@ -450,7 +449,7 @@ forgemaster/
 │   └── mcp-servers/              # Custom MCP servers
 │       ├── stripe-mcp/
 │       └── redis-mcp/
-├── web/                          # React + Lit web portal
+├── ui/                           # React + Lit UI portal
 │   ├── src/
 │   │   ├── components/           # A2UI component catalog
 │   │   ├── pages/
@@ -530,7 +529,7 @@ forgemaster/
 
 1. **Initialize Rust workspace** — Set up crate structure
 2. **Create Kind cluster** — Ansible playbook for local K8s
-3. **Build Web Portal** — React + Lit with dry-run mode
+3. **Build UI Portal** — React + Lit with dry-run mode
 4. **Implement REST API** — Connect portal to backend
 5. **Implement TCP Controller** — Core feedback loop logic
 6. **Deploy first agent** — Test Generator as proof of concept
