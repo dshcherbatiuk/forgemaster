@@ -1,0 +1,15 @@
+---
+- name: Cleanup ForgeMaster from OrbStack Kubernetes
+  hosts: localhost
+  connection: local
+
+  tasks:
+    - name: Delete forgemaster-system namespace
+      ansible.builtin.command: kubectl delete namespace forgemaster-system
+      register: ns_delete
+      failed_when: ns_delete.rc != 0 and 'not found' not in ns_delete.stderr
+      changed_when: ns_delete.rc == 0
+
+    - name: Display cleanup info
+      ansible.builtin.debug:
+        msg: "ForgeMaster resources cleaned up"

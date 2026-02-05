@@ -41,8 +41,8 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ### 1.2 Local Kubernetes Cluster
 
-- [ ] Create Ansible playbook for Kind cluster setup
-- [ ] Install required components (Ingress, Redis)
+- [ ] Create Ansible playbook for OrbStack cluster setup
+- [ ] Install required components (Redis)
 - [ ] Configure kubectl and helm
 - [ ] Verify cluster is operational
 

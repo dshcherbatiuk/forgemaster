@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Don't create README files for individual crates
 - Step-by-step approach (don't create everything at once)
 - Commit messages: use `feat:`, `fix:`, `refactor:` without ticket numbers
+- Use OrbStack as Kubernetes cluster engine (not Kind)
 
 ## Project Overview
 
