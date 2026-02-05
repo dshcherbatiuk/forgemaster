@@ -1,30 +1,27 @@
-import { useEffect, useRef } from "react";
-import "@a2ui/lit";
+import { A2UIViewer } from "@copilotkit/a2ui-renderer";
+import type { v0_8 } from "@a2ui/lit";
 
-interface Props {
-  schema: object;
-  onAction?: (action: string, data: unknown) => void;
+export interface A2UISchema {
+  root: string;
+  components: v0_8.Types.ComponentInstance[];
+  defaultData?: Record<string, unknown>;
 }
 
-export function A2UIRenderer({ schema, onAction }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+interface Props {
+  schema: A2UISchema;
+  data?: Record<string, unknown>;
+  onAction?: (action: v0_8.Types.UserAction) => void;
+}
 
-  useEffect(() => {
-    if (containerRef.current) {
-      const renderer = document.createElement("a2ui-renderer");
-      renderer.setAttribute("schema", JSON.stringify(schema));
+export function A2UIRenderer({ schema, data, onAction }: Props) {
+  const mergedData = { ...schema.defaultData, ...data };
 
-      if (onAction) {
-        renderer.addEventListener("action", (e: Event) => {
-          const customEvent = e as CustomEvent;
-          onAction(customEvent.detail.action, customEvent.detail.data);
-        });
-      }
-
-      containerRef.current.innerHTML = "";
-      containerRef.current.appendChild(renderer);
-    }
-  }, [schema, onAction]);
-
-  return <div ref={containerRef} />;
+  return (
+    <A2UIViewer
+      root={schema.root}
+      components={schema.components}
+      data={mergedData}
+      onAction={onAction}
+    />
+  );
 }

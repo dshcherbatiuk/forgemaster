@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@a2ui/lit": "^0.8.1",
+    "@copilotkit/a2ui-renderer": "^1.51.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

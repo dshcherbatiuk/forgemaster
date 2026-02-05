@@ -1,0 +1,62 @@
+{
+  "root": "card-1",
+  "components": [
+    {
+      "id": "card-1",
+      "component": {
+        "Card": {
+          "child": "col-1"
+        }
+      }
+    },
+    {
+      "id": "col-1",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["title-1", "gauge-row", "description-1"] }
+        }
+      }
+    },
+    {
+      "id": "title-1",
+      "component": {
+        "Text": {
+          "text": { "path": "/title" },
+          "usageHint": "h3"
+        }
+      }
+    },
+    {
+      "id": "gauge-row",
+      "component": {
+        "Row": {
+          "distribution": "center",
+          "children": { "explicitList": ["gauge-value"] }
+        }
+      }
+    },
+    {
+      "id": "gauge-value",
+      "component": {
+        "Text": {
+          "text": { "path": "/value" },
+          "usageHint": "h1"
+        }
+      }
+    },
+    {
+      "id": "description-1",
+      "component": {
+        "Text": {
+          "text": { "path": "/description" },
+          "usageHint": "caption"
+        }
+      }
+    }
+  ],
+  "defaultData": {
+    "title": "TCP Error Signal",
+    "value": "0.85",
+    "description": "Test Case Passing ratio - measures code quality convergence"
+  }
+}

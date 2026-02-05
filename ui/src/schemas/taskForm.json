@@ -1,0 +1,71 @@
+{
+  "root": "card-1",
+  "components": [
+    {
+      "id": "card-1",
+      "component": {
+        "Card": {
+          "child": "col-1"
+        }
+      }
+    },
+    {
+      "id": "col-1",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["title-1", "field-1", "row-1"] }
+        }
+      }
+    },
+    {
+      "id": "title-1",
+      "component": {
+        "Text": {
+          "text": { "path": "/title" },
+          "usageHint": "h2"
+        }
+      }
+    },
+    {
+      "id": "field-1",
+      "component": {
+        "TextField": {
+          "label": { "path": "/fieldLabel" },
+          "text": { "path": "/description" }
+        }
+      }
+    },
+    {
+      "id": "row-1",
+      "component": {
+        "Row": {
+          "distribution": "end",
+          "children": { "explicitList": ["btn-1"] }
+        }
+      }
+    },
+    {
+      "id": "btn-1",
+      "component": {
+        "Button": {
+          "child": "btn-text-1",
+          "action": { "name": "submit" }
+        }
+      }
+    },
+    {
+      "id": "btn-text-1",
+      "component": {
+        "Text": {
+          "text": { "path": "/buttonLabel" }
+        }
+      }
+    }
+  ],
+  "defaultData": {
+    "title": "Create New Task",
+    "fieldLabel": "Description",
+    "description": "",
+    "buttonLabel": "Submit Task"
+  }
+}

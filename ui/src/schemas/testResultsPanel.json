@@ -1,0 +1,144 @@
+{
+  "root": "card-1",
+  "components": [
+    {
+      "id": "card-1",
+      "component": {
+        "Card": {
+          "child": "col-1"
+        }
+      }
+    },
+    {
+      "id": "col-1",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["header-row", "summary-row"] }
+        }
+      }
+    },
+    {
+      "id": "header-row",
+      "component": {
+        "Row": {
+          "distribution": "spaceBetween",
+          "children": { "explicitList": ["title-1", "run-time"] }
+        }
+      }
+    },
+    {
+      "id": "title-1",
+      "component": {
+        "Text": {
+          "text": { "path": "/title" },
+          "usageHint": "h3"
+        }
+      }
+    },
+    {
+      "id": "run-time",
+      "component": {
+        "Text": {
+          "text": { "path": "/runTime" },
+          "usageHint": "caption"
+        }
+      }
+    },
+    {
+      "id": "summary-row",
+      "component": {
+        "Row": {
+          "distribution": "spaceEvenly",
+          "children": { "explicitList": ["passed-col", "failed-col", "skipped-col"] }
+        }
+      }
+    },
+    {
+      "id": "passed-col",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["passed-value", "passed-label"] }
+        }
+      }
+    },
+    {
+      "id": "passed-value",
+      "component": {
+        "Text": {
+          "text": { "path": "/summary/passed" },
+          "usageHint": "h2"
+        }
+      }
+    },
+    {
+      "id": "passed-label",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Passed" },
+          "usageHint": "caption"
+        }
+      }
+    },
+    {
+      "id": "failed-col",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["failed-value", "failed-label"] }
+        }
+      }
+    },
+    {
+      "id": "failed-value",
+      "component": {
+        "Text": {
+          "text": { "path": "/summary/failed" },
+          "usageHint": "h2"
+        }
+      }
+    },
+    {
+      "id": "failed-label",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Failed" },
+          "usageHint": "caption"
+        }
+      }
+    },
+    {
+      "id": "skipped-col",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["skipped-value", "skipped-label"] }
+        }
+      }
+    },
+    {
+      "id": "skipped-value",
+      "component": {
+        "Text": {
+          "text": { "path": "/summary/skipped" },
+          "usageHint": "h2"
+        }
+      }
+    },
+    {
+      "id": "skipped-label",
+      "component": {
+        "Text": {
+          "text": { "literalString": "Skipped" },
+          "usageHint": "caption"
+        }
+      }
+    }
+  ],
+  "defaultData": {
+    "title": "Test Results",
+    "runTime": "2.5s",
+    "summary": {
+      "passed": "12",
+      "failed": "3",
+      "skipped": "0"
+    }
+  }
+}
