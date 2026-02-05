@@ -72,6 +72,11 @@ cargo run --package <crate-name>
 
 # Run single test
 cargo test --package <crate-name> <test_name>
+
+# Cluster commands
+make cluster        # Deploy cluster with Gateway and UI
+make cluster-clean  # Remove cluster deployments
+make cluster-reset  # Reset OrbStack Kubernetes
 ```
 
 ## Project Structure
