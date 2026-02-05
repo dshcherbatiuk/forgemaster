@@ -129,14 +129,26 @@ Scenario: E-commerce Backend API
 
 **Goal:** Implement TCP Controller, Agent Registry, and protocol stack. Connect to web portal.
 
-### 2.1 REST API Service
+### 2.1 API Gateway Service
 
+#### REST API (Request/Response)
 - [ ] Create Axum-based REST API
 - [ ] Implement task submission endpoint (`POST /api/v1/tasks`)
-- [ ] Add SSE progress streaming (`GET /api/v1/tasks/{id}/progress`)
+- [ ] Implement task status endpoint (`GET /api/v1/tasks/{id}`)
 - [ ] Implement result retrieval (`GET /api/v1/tasks/{id}/result`)
-- [ ] Add health check endpoint
-- [ ] Connect web portal to real API (replace mock)
+- [ ] Add health check endpoint (`GET /health`)
+- [ ] Add agent listing endpoint (`GET /api/v1/agents`)
+
+#### WebSocket (Real-time)
+- [ ] Implement WebSocket server (`/ws`)
+- [ ] Real-time task progress updates
+- [ ] Live log streaming
+- [ ] Agent status change notifications
+- [ ] TCP Controller decision broadcasts
+- [ ] Bidirectional: allow task cancellation, parameter updates
+
+#### Deployment
+- [ ] Connect web portal to real API
 - [ ] Containerize and deploy to K8s
 
 ### 2.2 TCP Controller
@@ -408,11 +420,11 @@ Scenario: E-commerce Backend API
 │   ┌─────────────────────────────────────────────────────────────────┐   │
 │   │                        WEB PORTAL                                │   │
 │   │                  (React + CopilotKit A2UI)                      │   │
-│   └─────────────────────────────┬───────────────────────────────────┘   │
-│                                 │ A2UI                                   │
-│   ┌─────────────────────────────▼───────────────────────────────────┐   │
-│   │                      REST API SERVICE                            │   │
-│   │                         (Axum)                                   │   │
+│   └───────────────────┬─────────────────┬───────────────────────────┘   │
+│                       │ REST            │ WebSocket                     │
+│   ┌───────────────────▼─────────────────▼───────────────────────────┐   │
+│   │                      API GATEWAY (Axum)                          │   │
+│   │              REST: /api/v1/*    WebSocket: /ws                   │   │
 │   └─────────────────────────────┬───────────────────────────────────┘   │
 │                                 │ K8s API                                │
 │   ┌─────────────────────────────▼───────────────────────────────────┐   │
@@ -452,7 +464,7 @@ forgemaster/
 │   ├── agent-registry/           # Agent Registry service
 │   ├── agent-runtime/            # Base agent execution runtime
 │   ├── k8s-operator/             # Kubernetes Operator
-│   ├── rest-api/                 # REST API for web portal
+│   ├── api-gateway/              # REST API + WebSocket for web portal
 │   ├── a2a-core/                 # A2A protocol types
 │   ├── a2a-server/               # A2A server implementation
 │   ├── a2a-client/               # A2A client implementation
