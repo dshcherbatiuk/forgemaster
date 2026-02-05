@@ -54,68 +54,9 @@ sequenceDiagram
     Agent->>Context: Save new results, decisions, artifacts
 ```
 
-### Context Injection (Before LLM Call)
-
-```rust
-async fn call_agent(task: &Task, agent: &Agent) -> Result<Response> {
-    // 1. Query relevant context from Redis
-    let context = context_store.get_task_context(&task.id).await?;
-    let history = context_store.get_iteration_history(&task.id, limit: 5).await?;
-    let failures = context_store.get_test_failures(&task.id).await?;
-
-    // 2. Build prompt with injected context
-    let prompt = format!(r#"
-## Task
-{task_description}
-
-## Previous Iterations (last 5)
-{history}
-
-## Current Failing Tests
-{failures}
-
-## Your Role
-{agent_system_prompt}
-
-## Instructions
-Continue from where we left off. Fix the failing tests.
-"#);
-
-    // 3. Call Claude API
-    let response = claude.messages.create(
-        model: "claude-sonnet-4-20250514",
-        messages: vec![Message { role: "user", content: prompt }],
-        max_tokens: 4096,
-    ).await?;
-
-    // 4. Save results back to context store
-    context_store.save_iteration(&task.id, &response).await?;
-
-    Ok(response)
-}
-```
-
 ### Smart Context Selection
 
-Don't inject ALL context (too large). Select what's relevant:
-
-```rust
-async fn get_relevant_context(task_id: &str, current_error: &str) -> RelevantContext {
-    // Recent history (last 3-5 iterations)
-    let recent = context_store.get_iteration_history(task_id, 5).await?;
-
-    // Current failing tests with details
-    let failures = context_store.get_test_failures(task_id).await?;
-
-    // Related decisions from TCP Controller
-    let decisions = context_store.get_recent_decisions(task_id, 3).await?;
-
-    // Current artifacts (code, tests)
-    let artifacts = context_store.get_current_artifacts(task_id).await?;
-
-    RelevantContext { recent, failures, decisions, artifacts }
-}
-```
+Don't inject ALL context (too large). Select what's relevant.
 
 ### What Gets Stored vs Injected
 
@@ -126,27 +67,6 @@ async fn get_relevant_context(task_id: &str, current_error: &str) -> RelevantCon
 | All decisions | Recent decisions |
 | Full test history | Failing tests only |
 | All agent outputs | Summaries |
-
-### Context Store Trait
-
-```rust
-trait ContextStore {
-    // Read operations
-    async fn get_task_context(&self, task_id: &str) -> Result<TaskContext>;
-    async fn get_iteration_history(&self, task_id: &str, limit: usize) -> Result<Vec<Iteration>>;
-    async fn get_test_failures(&self, task_id: &str) -> Result<Vec<TestFailure>>;
-    async fn get_recent_decisions(&self, task_id: &str, limit: usize) -> Result<Vec<Decision>>;
-    async fn get_current_artifacts(&self, task_id: &str) -> Result<Artifacts>;
-
-    // Write operations
-    async fn save_iteration(&self, task_id: &str, result: &AgentResponse) -> Result<()>;
-    async fn save_artifact(&self, task_id: &str, artifact: &Artifact) -> Result<()>;
-    async fn save_decision(&self, task_id: &str, decision: &Decision) -> Result<()>;
-
-    // Smart retrieval
-    async fn query_relevant(&self, task_id: &str, query: &str) -> Result<Vec<ContextChunk>>;
-}
-```
 
 > **Key Principle:** LLM sees a "window" into the context store. The store has everything. The LLM gets what's relevant for THIS call.
 
@@ -300,97 +220,6 @@ trait ContextStore {
 }
 ```
 
-## Context Operations
-
-### Read Context
-
-```rust
-// Agent reads task context
-async fn read_context(task_id: &str) -> Result<TaskContext> {
-    let redis = get_redis_connection().await?;
-    let key = format!("task:{}:context", task_id);
-
-    let context_json: String = redis.get(&key).await?;
-    let context: TaskContext = serde_json::from_str(&context_json)?;
-
-    Ok(context)
-}
-```
-
-### Write Context
-
-```rust
-// Agent updates context
-async fn update_context(
-    task_id: &str,
-    update: ContextUpdate,
-) -> Result<()> {
-    let redis = get_redis_connection().await?;
-    let key = format!("task:{}:context", task_id);
-
-    // Optimistic locking with version
-    let current: TaskContext = read_context(task_id).await?;
-
-    if update.expected_version != current.version {
-        return Err(anyhow!("Context version conflict"));
-    }
-
-    let updated = current.apply(update);
-    updated.version += 1;
-    updated.updated_at = Utc::now();
-
-    redis.set(&key, serde_json::to_string(&updated)?).await?;
-
-    // Publish update event
-    redis.publish(
-        format!("task:{}:context:updated", task_id),
-        updated.version.to_string()
-    ).await?;
-
-    Ok(())
-}
-```
-
-### Context Update Types
-
-```rust
-enum ContextUpdate {
-    // Add new artifact
-    AddArtifact {
-        artifact_type: String,
-        path: String,
-        created_by: String,
-    },
-
-    // Update test results
-    UpdateTestResults {
-        passed: u32,
-        failed: u32,
-        failures: Vec<TestFailure>,
-    },
-
-    // Record decision
-    RecordDecision {
-        tcp_signal: f64,
-        action: ControlAction,
-        details: String,
-    },
-
-    // Update execution state
-    UpdateExecution {
-        iteration: u32,
-        current_agent: Option<String>,
-        status: ExecutionStatus,
-    },
-
-    // Add/update agent
-    UpdateAgent {
-        agent_id: String,
-        status: AgentStatus,
-    },
-}
-```
-
 ## Context Flow Between Agents
 
 ### Flow Diagram
@@ -435,26 +264,6 @@ enum ContextUpdate {
 │     │  WRITE: decisions (via Orchestrator)                         │     │
 │     └─────────────────────────────────────────────────────────────┘     │
 └─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Agent Context Interface
-
-```rust
-// Context interface for agents
-trait AgentContext {
-    // Read operations
-    async fn get_task_requirements(&self) -> Result<TaskRequirements>;
-    async fn get_artifact(&self, artifact_type: &str) -> Result<Artifact>;
-    async fn get_test_results(&self) -> Result<TestResults>;
-    async fn get_history(&self) -> Result<Vec<HistoryEntry>>;
-
-    // Write operations
-    async fn store_artifact(&self, artifact: Artifact) -> Result<()>;
-    async fn update_status(&self, status: AgentStatus) -> Result<()>;
-
-    // Subscribe to updates
-    async fn subscribe_updates(&self) -> Result<UpdateStream>;
-}
 ```
 
 ## Context Storage

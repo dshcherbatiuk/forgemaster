@@ -97,20 +97,6 @@ feature_to_skills:
 
 ## Step 2: Registry Query
 
-### Query Existing Agents
-
-```rust
-// Query Agent Registry for matching agents
-let query = AgentQuery {
-    skills: required_skills,
-    min_proficiency: 0.7,
-    status: AgentStatus::Available,
-    exclude_namespaces: vec!["task-other-123"],  // Don't steal from other tasks
-};
-
-let available_agents = registry.find_agents(query).await?;
-```
-
 ### Agent Matching Algorithm
 
 ```

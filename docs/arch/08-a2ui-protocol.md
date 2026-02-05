@@ -1,4 +1,10 @@
-## User Interface: A2UI Protocol
+# A2UI Protocol Integration
+
+ForgeMaster uses [A2UI](https://github.com/google/A2UI) (Agent-to-User Interface) to provide a dynamic, interactive web portal for task submission, clarification, and real-time progress monitoring.
+
+> See [ADR-0002: A2UI for User Interface](../adr/0002-a2ui-for-user-interface.md) for the decision rationale.
+
+## Overview
 
 Agents interact with users using the **A2UI (Agent to User Interface)** protocol — a declarative UI protocol that lets agents generate rich, interactive interfaces without executing arbitrary code.
 
@@ -41,19 +47,311 @@ flowchart TB
 
 ### Why A2UI?
 
+| Benefit | Description |
+|---------|-------------|
+| **Security-First** | Declarative data format, not executable code |
+| **Dynamic UI** | System generates forms based on task type |
+| **Clarification Flow** | Agents can ask follow-up questions via UI |
+| **Real-time Updates** | Live progress, stages, and status display |
+| **Framework Agnostic** | Works with React, Flutter, Angular, etc. |
+
 **Traditional approach (text-only):**
 ```
 User: "Show me task status"
-Agent: "Task user-api-task is running. Iteration 3 of 10. 
-        Error: 0.35. Tests: 3/5 passed. Agents: code-generator 
+Agent: "Task ecommerce-backend is running. Iteration 3 of 10.
+        Error: 0.35. Tests: 3/5 passed. Agents: code-generator
         (completed), reviewer (running)..."
 ```
 
 **With A2UI (rich UI):**
 ```
-Agent generates → Dashboard with progress bar, test results table, 
+Agent generates → Dashboard with progress bar, test results table,
                   agent status cards, action buttons
 ```
+
+## Web Portal Task Flow
+
+### Design Principle: Minimal Questions, Maximum Autonomy
+
+ForgeMaster minimizes user interaction:
+
+| Policy | Description |
+|--------|-------------|
+| **Ask only critical** | External API keys, security-critical choices |
+| **Auto-decide rest** | Language, database, framework, architecture |
+| **Explain decisions** | Show "Chose X because Y" for each choice |
+| **Allow override** | User can change any decision during execution |
+
+### Task Submission Flow
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant P as Web Portal
+    participant S as ForgeMaster API
+    participant A as Analysis Agent
+
+    U->>P: Describe task (free text only)
+    P->>S: POST /api/v1/tasks/analyze
+    S->>A: Analyze and auto-decide
+
+    A-->>S: Auto-decisions with explanations
+    S-->>P: A2UI (decisions + critical questions only)
+
+    Note over P: "Language: Rust (best for APIs)"<br/>"Database: PostgreSQL (relational)"<br/>Each with [Override] button
+
+    alt Has critical questions
+        U->>P: Answer critical questions only
+    end
+
+    U->>P: Confirm or override
+    P->>S: POST /api/v1/tasks
+    S-->>P: Task started (SSE progress)
+
+    loop During execution
+        U-->>P: [Optional] Override decision
+        P-->>S: POST /api/v1/tasks/{id}/override
+    end
+```
+
+### A2UI: Minimal Task Form
+
+Only task description — no dropdowns:
+
+```json
+{
+  "version": "0.8",
+  "components": [
+    {
+      "id": "header",
+      "type": "text",
+      "properties": {
+        "content": "What do you want to build?",
+        "style": "headline"
+      }
+    },
+    {
+      "id": "description-input",
+      "type": "textField",
+      "properties": {
+        "label": "Describe your task",
+        "placeholder": "e.g., Create an e-commerce backend with product catalog, shopping cart, and Stripe checkout...",
+        "multiline": true,
+        "rows": 5,
+        "hint": "System will auto-select language, database, and architecture."
+      }
+    },
+    {
+      "id": "submit-btn",
+      "type": "button",
+      "properties": {
+        "label": "Analyze & Start",
+        "action": "submit",
+        "style": "primary"
+      }
+    }
+  ]
+}
+```
+
+### A2UI: Auto-Decisions with Override
+
+Show decisions with explanations and override capability:
+
+```json
+{
+  "version": "0.8",
+  "components": [
+    {
+      "id": "ready-header",
+      "type": "text",
+      "properties": {
+        "content": "Ready to build",
+        "style": "headline"
+      }
+    },
+    {
+      "id": "decisions",
+      "type": "decisionList",
+      "properties": {
+        "decisions": [
+          {
+            "key": "Language",
+            "value": "Rust",
+            "reason": "High-performance API, type safety for payments",
+            "overridable": true
+          },
+          {
+            "key": "Database",
+            "value": "PostgreSQL",
+            "reason": "Relational data (products, orders), ACID needed",
+            "overridable": true
+          },
+          {
+            "key": "Payment",
+            "value": "Stripe",
+            "reason": "Detected in description",
+            "overridable": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "critical-section",
+      "type": "card",
+      "properties": {
+        "title": "Required Information",
+        "children": ["stripe-key"]
+      }
+    },
+    {
+      "id": "stripe-key",
+      "type": "textField",
+      "properties": {
+        "label": "Stripe API Key",
+        "placeholder": "sk_live_... (or 'test' for test mode)",
+        "sensitive": true
+      }
+    },
+    {
+      "id": "start-btn",
+      "type": "button",
+      "properties": {
+        "label": "Start Building",
+        "action": "submit",
+        "style": "primary"
+      }
+    }
+  ]
+}
+```
+
+### A2UI: Live Progress View
+
+Real-time progress with stepper showing stages:
+
+```json
+{
+  "version": "0.8",
+  "components": [
+    {
+      "id": "task-header",
+      "type": "text",
+      "properties": {
+        "content": "Task: ecommerce-backend",
+        "style": "headline"
+      }
+    },
+    {
+      "id": "status-badge",
+      "type": "chip",
+      "properties": {
+        "label": "RUNNING",
+        "color": "blue"
+      }
+    },
+    {
+      "id": "progress-stepper",
+      "type": "stepper",
+      "properties": {
+        "steps": [
+          {"label": "Submitted", "status": "completed"},
+          {"label": "Preparing", "status": "completed"},
+          {"label": "Generating Tests", "status": "completed"},
+          {"label": "Writing Code", "status": "active"},
+          {"label": "Testing", "status": "pending"},
+          {"label": "Validating", "status": "pending"}
+        ]
+      }
+    },
+    {
+      "id": "iteration-info",
+      "type": "card",
+      "properties": {
+        "title": "Iteration 3 of 10",
+        "children": ["error-signal", "test-results"]
+      }
+    },
+    {
+      "id": "error-signal",
+      "type": "progressBar",
+      "properties": {
+        "label": "Error Signal",
+        "value": 0.25,
+        "max": 1.0,
+        "color": "green"
+      }
+    },
+    {
+      "id": "logs-panel",
+      "type": "expandable",
+      "properties": {
+        "title": "Live Logs",
+        "children": ["log-stream"]
+      }
+    },
+    {
+      "id": "log-stream",
+      "type": "logViewer",
+      "properties": {
+        "source": "/api/v1/tasks/task-a1b2c3d4/logs",
+        "streaming": true
+      }
+    }
+  ]
+}
+```
+
+### A2UI: Completion View
+
+```json
+{
+  "version": "0.8",
+  "components": [
+    {
+      "id": "success-banner",
+      "type": "alert",
+      "properties": {
+        "type": "success",
+        "title": "Task Completed Successfully",
+        "message": "Your e-commerce backend is ready!"
+      }
+    },
+    {
+      "id": "summary-stats",
+      "type": "keyValueList",
+      "properties": {
+        "items": [
+          {"key": "Duration", "value": "23 minutes"},
+          {"key": "Iterations", "value": "5"},
+          {"key": "Tests Passed", "value": "12/12"},
+          {"key": "Outcome Validated", "value": "Yes"}
+        ]
+      }
+    },
+    {
+      "id": "artifact-list",
+      "type": "list",
+      "properties": {
+        "items": [
+          {"icon": "github", "text": "Source Code", "action": "open_url"},
+          {"icon": "file", "text": "API Documentation", "action": "download"},
+          {"icon": "test", "text": "Test Suite", "action": "download"}
+        ]
+      }
+    }
+  ]
+}
+```
+
+## API Endpoints for A2UI
+
+| Method | Endpoint | Description | Response |
+|--------|----------|-------------|----------|
+| GET | `/api/v1/ui/task-form` | Get task submission form | A2UI JSON |
+| POST | `/api/v1/tasks/clarify` | Analyze task, get clarifications | A2UI JSON |
+| GET | `/api/v1/ui/tasks/{id}/progress` | Stream progress updates | SSE with A2UI |
+| GET | `/api/v1/ui/tasks/{id}/result` | Get completion view | A2UI JSON |
 
 ### A2UI Core Concepts
 
@@ -316,12 +614,12 @@ spec:
 
 ```mermaid
 sequenceDiagram
-    participant U as User
+    actor U as User
     participant Client as A2UI Client<br/>(Web/Mobile)
     participant OA as Orchestrator Agent<br/>(A2A + A2UI Server)
     participant Agents as Executor Agents<br/>(A2A)
 
-    U->>Client: "Create REST API for users"
+    U->>Client: "Create e-commerce backend with cart and checkout"
     Client->>OA: A2A Task + A2UI Request
     
     OA->>Client: A2UI Response (Initial UI)
