@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/forgemaster-core",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["CSM-101 <dima.scherbatyuk@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/forgemaster/forgemaster"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.43", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# UUID
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Builder pattern
+typed-builder = "0.20"
+
+# SmallVec for avoiding heap allocations
+smallvec = { version = "1.13", features = ["serde"] }
+
+# Internal crates
+forgemaster-core = { path = "crates/forgemaster-core" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
