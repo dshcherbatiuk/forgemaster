@@ -44,6 +44,9 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Create Ansible playbook for OrbStack cluster setup
 - [x] Configure kubectl and helm
 - [x] Verify cluster is operational
+- [x] Install Gateway API CRDs
+- [x] Install Envoy Gateway controller
+- [x] Create GatewayClass
 
 ### 1.3 UI Portal (Dry-Run Mode)
 
@@ -97,12 +100,16 @@ Scenario: E-commerce Backend API
 - [ ] Generate CRD manifests with kube-rs
 - [ ] Apply CRDs to cluster
 
-### 1.5 Helm Charts Structure
+### 1.5 Helm Charts & Deployment
 
-- [ ] Create Helm chart for forgemaster-system
-- [ ] Define values.yaml with configurable options
-- [ ] Create templates for deployments, services, configmaps
-- [ ] Test helm install/upgrade/rollback
+- [x] Create Helm chart for UI (ui/helm/)
+- [x] Define values.yaml with configurable options
+- [x] Create templates (deployment, service, gateway, httproute)
+- [x] Create Dockerfile for UI
+- [x] Create Ansible roles (gateway, ui)
+- [x] Create site.yml playbook
+- [x] Deploy UI to cluster via Gateway API
+- [ ] Create Helm charts for other services
 
 **Deliverables:**
 - Working local K8s cluster
