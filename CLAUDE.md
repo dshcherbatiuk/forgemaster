@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Rules
+
+- Follow documentation in `docs/` directory
+- Follow `docs/development-plan.md` for implementation tasks
+- Use `fm-` prefix for crate names
+- Don't create README files for individual crates
+- Step-by-step approach (don't create everything at once)
+- Commit messages: use `feat:`, `fix:`, `refactor:` without ticket numbers
+
 ## Project Overview
 
 **ForgeMAster** is a meta-agent system for the AgentForge Hackathon 2026. It implements autonomous agent orchestration using a TCP (Task-Context-Prediction) controller inspired by PID control theory. The system dynamically provisions AI agents and MCP servers, using E2E tests (Gherkin) as the setpoint for measuring success.
@@ -39,26 +48,21 @@ Control actions based on error:
 ## Build & Test Commands
 
 ```bash
-# Build (release mode first as per CLAUDE.md rules)
-cargo build --release
-cargo test
+# All-in-one (fmt, lint, test, build)
+make all
+
+# Individual commands
+make build    # cargo build --release
+make test     # cargo test
+make lint     # cargo clippy
+make fmt      # cargo fmt
+make clean    # cargo clean
 
 # Run individual crates
-cargo run --package tcp-controller
-cargo run --package agent-registry
+cargo run --package <crate-name>
 
 # Run single test
 cargo test --package <crate-name> <test_name>
-
-# Run workspace tests
-cargo test --workspace
-
-# Docker build
-docker build -f docker/Dockerfile.tcp-controller -t tcp-controller .
-
-# Deploy to Kind
-kind create cluster --name meta-agent
-helm install meta-agent ./helm/meta-agent
 ```
 
 ## Project Structure
