@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/fm-core",
+    "crates/fm-controller-agenttask",
 ]
 
 [workspace.package]
@@ -36,8 +37,27 @@ chrono = { version = "0.4", features = ["serde"] }
 # Builder pattern
 typed-builder = "0.20"
 
+# Async trait
+async-trait = "0.1"
+
+# Futures
+futures = "0.3"
+
+# Concurrent HashMap
+dashmap = "6.1"
+
 # SmallVec for avoiding heap allocations
 smallvec = { version = "1.13", features = ["serde"] }
+
+# Kubernetes
+kube = { version = "0.98", features = ["runtime", "derive"] }
+k8s-openapi = { version = "0.24", features = ["v1_32"] }
+schemars = "0.8"
+
+# Web framework
+axum = { version = "0.8", features = ["ws", "macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Internal crates
 fm-core = { path = "crates/fm-core" }

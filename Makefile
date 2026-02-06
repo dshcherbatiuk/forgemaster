@@ -19,9 +19,9 @@ all: fmt lint test build
 
 cluster:
 	orbctl start
-	@echo "Waiting for Kubernetes to be ready..."
+	@echo "⏳ Waiting for Kubernetes to be ready..."
 	@until kubectl cluster-info > /dev/null 2>&1; do sleep 2; done
-	ansible-playbook ansible/site.yml
+	ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook -v ansible/site.yml
 
 cluster-clean:
 	ansible-playbook ansible/cleanup-cluster.yml

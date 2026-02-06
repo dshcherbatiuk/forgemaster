@@ -1,0 +1,39 @@
+---
+- name: Build Docker image
+  ansible.builtin.include_tasks: build.yml
+  when: fm_controller_agenttask_build_enabled
+
+- name: Set image name
+  ansible.builtin.set_fact:
+    _fm_controller_agenttask_full_image: >-
+      {{ (fm_controller_agenttask_image_registry ~ '/' if fm_controller_agenttask_image_registry else '')
+      ~ fm_controller_agenttask_image_name }}
+
+- name: Install fm-controller-agenttask
+  ansible.builtin.command: >
+    helm upgrade --install fm-controller-agenttask
+    {{ fm_controller_agenttask_chart }}
+    --namespace {{ forgemaster_namespace }}
+    --create-namespace
+    --set crd.enabled={{ fm_controller_agenttask_crd_enabled }}
+    --set controller.enabled={{ fm_controller_agenttask_controller_enabled }}
+    --set controller.image.repository={{ _fm_controller_agenttask_full_image }}
+    --set controller.image.tag={{ fm_controller_agenttask_image_tag }}
+    --set controller.image.pullPolicy={{ fm_controller_agenttask_image_pull_policy }}
+  changed_when: false
+
+- name: Wait for AgentTask CRD
+  ansible.builtin.command: >
+    kubectl wait --for=condition=Established
+    crd/agenttasks.forgemaster.io
+    --timeout=60s
+  changed_when: false
+  when: fm_controller_agenttask_crd_enabled
+
+- name: Wait for controller deployment
+  ansible.builtin.command: >
+    kubectl rollout status deployment/fm-controller-agenttask
+    --namespace {{ forgemaster_namespace }}
+    --timeout=120s
+  changed_when: false
+  when: fm_controller_agenttask_controller_enabled

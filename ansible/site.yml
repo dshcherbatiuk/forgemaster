@@ -17,4 +17,5 @@
 
   roles:
     - gateway
+    - fm-controller-agenttask
     - ui

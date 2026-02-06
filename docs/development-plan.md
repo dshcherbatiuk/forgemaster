@@ -98,12 +98,11 @@ Scenario: E-commerce Backend API
 
 ### 1.4 Custom Resource Definitions (CRDs)
 
-- [ ] Define AgentTask CRD schema
+- [x] Define AgentTask CRD schema (Helm chart)
 - [ ] Define Agent CRD schema
 - [ ] Define MCPServer CRD schema
 - [ ] Define Domain CRD schema
-- [ ] Generate CRD manifests with kube-rs
-- [ ] Apply CRDs to cluster
+- [x] Apply AgentTask CRD to cluster
 
 ### 1.5 Helm Charts & Deployment
 
@@ -111,10 +110,10 @@ Scenario: E-commerce Backend API
 - [x] Define values.yaml with configurable options
 - [x] Create templates (deployment, service, gateway, httproute)
 - [x] Create Dockerfile for UI
-- [x] Create Ansible roles (gateway, ui)
+- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask)
 - [x] Create site.yml playbook
 - [x] Deploy UI to cluster via Gateway API
-- [ ] Create Helm charts for other services
+- [x] Create Helm chart for AgentTask CRD (crates/fm-controller-agenttask/helm/)
 
 **Deliverables:**
 - Working local K8s cluster
@@ -127,31 +126,21 @@ Scenario: E-commerce Backend API
 
 ## Phase 2: Core Engine & Protocols
 
-**Goal:** Implement TCP Controller, Agent Registry, and protocol stack. Connect to web portal.
+**Goal:** Implement Controllers, TCP Controller, Agent Registry, and protocol stack. Connect to web portal.
 
-### 2.1 API Gateway Service
+### 2.1 AgentTask Controller (fm-controller-agenttask)
 
-#### REST API (Request/Response)
-- [ ] Create Axum-based REST API
-- [ ] Implement task submission endpoint (`POST /api/v1/tasks`)
-- [ ] Implement task status endpoint (`GET /api/v1/tasks/{id}`)
-- [ ] Implement result retrieval (`GET /api/v1/tasks/{id}/result`)
-- [ ] Add health check endpoint (`GET /health`)
-- [ ] Add agent listing endpoint (`GET /api/v1/agents`)
-
-#### WebSocket (Real-time)
-- [ ] Implement WebSocket server (`/ws`)
-- [ ] Real-time task progress updates
-- [ ] Live log streaming
-- [ ] Agent status change notifications
-- [ ] TCP Controller decision broadcasts
-- [ ] Bidirectional: allow task cancellation, parameter updates
-
-#### Deployment
-- [ ] Connect web portal to real API
+- [x] Define AgentTask CRD schema
+- [x] Create Helm chart for CRD
+- [x] Deploy CRD to cluster
+- [ ] Implement AgentTask CRD structs in Rust
+- [ ] Implement HTTP API (`POST /tasks`, `GET /tasks/{id}`)
+- [ ] Implement WebSocket for real-time updates
+- [ ] Implement reconciliation loop
+- [ ] Add namespace lifecycle management
 - [ ] Containerize and deploy to K8s
 
-### 2.2 TCP Controller
+### 2.2 TCP Controller (fm-tcp-controller)
 
 - [ ] Implement core PID-like control logic
 - [ ] Create error signal calculation
@@ -190,20 +179,26 @@ Scenario: E-commerce Backend API
 - [ ] Implement SSE streaming for task updates
 - [ ] Test agent-to-agent communication
 
-### 2.6 Kubernetes Operator
+### 2.6 Agent Controller (fm-controller-agent)
 
-- [ ] Implement AgentTask controller
-- [ ] Implement Agent controller
-- [ ] Implement MCPServer controller
-- [ ] Add namespace lifecycle management
-- [ ] Implement reconciliation loops
-- [ ] Add status updates for CRDs
+- [ ] Define Agent CRD schema
+- [ ] Create Helm chart
+- [ ] Implement Agent CRD structs in Rust
+- [ ] Implement reconciliation loop
+- [ ] Containerize and deploy
+
+### 2.7 MCPServer Controller (fm-controller-mcpserver)
+
+- [ ] Define MCPServer CRD schema
+- [ ] Create Helm chart
+- [ ] Implement MCPServer CRD structs in Rust
+- [ ] Implement reconciliation loop
 - [ ] Containerize and deploy
 
 **Deliverables:**
+- AgentTask Controller running with HTTP API
 - TCP Controller service running
 - Agent Registry service running
-- REST API connected to web portal
 - MCP servers deployed and functional
 - A2A protocol working
 - K8s Operator managing CRDs
@@ -423,16 +418,12 @@ Scenario: E-commerce Backend API
 │   └───────────────────┬─────────────────┬───────────────────────────┘   │
 │                       │ REST            │ WebSocket                     │
 │   ┌───────────────────▼─────────────────▼───────────────────────────┐   │
-│   │                      API GATEWAY (Axum)                          │   │
-│   │              REST: /api/v1/*    WebSocket: /ws                   │   │
-│   └─────────────────────────────┬───────────────────────────────────┘   │
-│                                 │ K8s API                                │
-│   ┌─────────────────────────────▼───────────────────────────────────┐   │
 │   │                    CONTROL PLANE (forgemaster-system)            │   │
-│   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │   │
-│   │  │TCP Controller│  │Agent Registry│  │  K8s Operator │           │   │
-│   │  │  (PID Math)  │  │   (Redis)    │  │   (kube-rs)   │           │   │
-│   │  └──────────────┘  └──────────────┘  └──────────────┘           │   │
+│   │  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐       │   │
+│   │  │AgentTask         │  │TCP Controller│  │Agent Registry│       │   │
+│   │  │Controller        │  │  (PID Math)  │  │   (Redis)    │       │   │
+│   │  │(HTTP API + K8s)  │  └──────────────┘  └──────────────┘       │   │
+│   │  └──────────────────┘                                            │   │
 │   └─────────────────────────────┬───────────────────────────────────┘   │
 │                                 │ A2A                                    │
 │   ┌─────────────────────────────▼───────────────────────────────────┐   │
@@ -455,46 +446,47 @@ Scenario: E-commerce Backend API
 
 ## Crate Structure
 
+Each crate follows the pattern: crate + helm chart + ansible role per responsibility.
+
 ```
 forgemaster/
 ├── Cargo.toml                    # Workspace root
 ├── crates/
 │   ├── fm-core/                  # Shared types, traits, config
-│   ├── tcp-controller/           # TCP Controller service
-│   ├── agent-registry/           # Agent Registry service
-│   ├── agent-runtime/            # Base agent execution runtime
-│   ├── k8s-operator/             # Kubernetes Operator
-│   ├── api-gateway/              # REST API + WebSocket for web portal
-│   ├── a2a-core/                 # A2A protocol types
-│   ├── a2a-server/               # A2A server implementation
-│   ├── a2a-client/               # A2A client implementation
-│   ├── mcp-core/                 # MCP protocol types
-│   ├── mcp-client/               # MCP client for agents
-│   └── mcp-servers/              # Custom MCP servers
-│       ├── stripe-mcp/
-│       └── redis-mcp/
+│   │
+│   ├── fm-controller-agenttask/  # AgentTask CRD + Controller
+│   │   ├── helm/                 # Helm chart for this service
+│   │   └── src/
+│   │
+│   ├── fm-controller-agent/      # Agent CRD + Controller (future)
+│   │   └── helm/
+│   │
+│   ├── fm-controller-mcpserver/  # MCPServer CRD + Controller (future)
+│   │   └── helm/
+│   │
+│   ├── fm-tcp-controller/        # TCP Controller service (future)
+│   │   └── helm/
+│   │
+│   ├── fm-agent-registry/        # Agent Registry service (future)
+│   │   └── helm/
+│   │
+│   ├── fm-agent-runtime/         # Base agent execution runtime (future)
+│   │
+│   ├── fm-a2a/                   # A2A protocol (future)
+│   │
+│   └── fm-mcp/                   # MCP protocol (future)
+│
 ├── ui/                           # React + CopilotKit A2UI portal
-│   ├── src/
-│   │   ├── components/           # React components (A2UIRenderer wrapper)
-│   │   ├── hooks/                # React hooks (useSchema)
-│   │   ├── schemas/              # A2UI JSON schemas
-│   │   │   ├── dashboard.json    # Main layout with includes
-│   │   │   ├── schemaLoader.ts   # Component composition loader
-│   │   │   └── components/       # Reusable A2UI components
-│   │   │       ├── header.json
-│   │   │       ├── navigation.json
-│   │   │       ├── taskForm.json
-│   │   │       ├── agentCard.json
-│   │   │       ├── progressStepper.json
-│   │   │       ├── testResults.json
-│   │   │       └── tcpGauge.json
-│   │   ├── styles/               # CSS files
-│   │   └── services/             # API clients (future)
-│   └── package.json
-├── helm/
-│   └── forgemaster/              # Helm chart
-├── docker/                       # Dockerfiles
+│   ├── helm/                     # UI Helm chart
+│   └── src/
+│
 ├── ansible/                      # Infrastructure automation
+│   ├── site.yml
+│   └── roles/
+│       ├── gateway/
+│       ├── ui/
+│       └── fm-controller-agenttask/
+│
 └── docs/                         # Documentation
 ```
 

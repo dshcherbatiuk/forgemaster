@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fm-controller-agenttask
+description: AgentTask CRD and Controller for ForgeMaster
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

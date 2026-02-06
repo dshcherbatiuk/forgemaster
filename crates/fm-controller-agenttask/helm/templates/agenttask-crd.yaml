@@ -1,0 +1,183 @@
+{{- if .Values.crd.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agenttasks.forgemaster.io
+spec:
+  group: forgemaster.io
+  names:
+    kind: AgentTask
+    listKind: AgentTaskList
+    plural: agenttasks
+    singular: agenttask
+    shortNames:
+      - at
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - description
+              properties:
+                description:
+                  type: string
+                  description: Task description from user
+                timeout:
+                  type: string
+                  description: Maximum execution time (e.g., "30m", "1h")
+                  default: "30m"
+                clarifications:
+                  type: array
+                  description: Answers to clarification questions
+                  items:
+                    type: object
+                    required:
+                      - questionId
+                      - answer
+                      - source
+                    properties:
+                      questionId:
+                        type: string
+                        description: ID of the question being answered
+                      answer:
+                        type: string
+                        description: The answer value
+                      source:
+                        type: string
+                        description: Who provided the answer
+                        enum:
+                          - system
+                          - external
+                          - user
+                      sourceDetail:
+                        type: string
+                        description: Explanation of how answer was resolved
+                resourceQuota:
+                  type: object
+                  properties:
+                    maxAgents:
+                      type: integer
+                      default: 5
+                    maxMemory:
+                      type: string
+                      default: "4Gi"
+                    maxCpu:
+                      type: string
+                      default: "4"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Clarifying
+                    - Running
+                    - Succeeded
+                    - Failed
+                  default: Pending
+                pendingClarifications:
+                  type: array
+                  description: Questions that need answers
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - question
+                    properties:
+                      id:
+                        type: string
+                        description: Unique question ID
+                      question:
+                        type: string
+                        description: Question text
+                      options:
+                        type: array
+                        description: Suggested options (optional)
+                        items:
+                          type: string
+                      required:
+                        type: boolean
+                        description: Whether answer is required to proceed
+                        default: true
+                      attemptedSources:
+                        type: array
+                        description: Sources already tried to resolve this
+                        items:
+                          type: object
+                          properties:
+                            source:
+                              type: string
+                              enum:
+                                - system
+                                - external
+                            result:
+                              type: string
+                              description: Why this source could not answer
+                      blockedOnUser:
+                        type: boolean
+                        description: True if user input is needed (last resort)
+                        default: false
+                iteration:
+                  type: integer
+                  default: 0
+                error:
+                  type: number
+                  format: float
+                  description: Current error signal (0.0 - 1.0)
+                  default: 1.0
+                testsTotal:
+                  type: integer
+                  default: 0
+                testsPassed:
+                  type: integer
+                  default: 0
+                startTime:
+                  type: string
+                  format: date-time
+                completionTime:
+                  type: string
+                  format: date-time
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Iteration
+          type: integer
+          jsonPath: .status.iteration
+        - name: Error
+          type: number
+          jsonPath: .status.error
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+{{- end }}

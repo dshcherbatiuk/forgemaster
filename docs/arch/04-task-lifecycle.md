@@ -49,6 +49,62 @@ ForgeMaster is designed for **autonomous execution**. The system should:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Clarification Flow
+
+When the system needs information to proceed, it tries multiple sources before asking the user (last resort).
+
+```mermaid
+flowchart TD
+    Q[Question arises] --> S1
+
+    subgraph S1[1. System Lookup]
+        S1A[Check task description]
+        S1B[Check project config]
+        S1C[Check domain patterns]
+        S1D[Check user history]
+    end
+
+    S1 --> S1Check{Resolved?}
+    S1Check -->|YES| SysAnswer[Answer stored<br/>source: system]
+    S1Check -->|NO| S2
+
+    subgraph S2[2. External Sources]
+        S2A[Query external APIs]
+        S2B[Check connected services]
+        S2C[Lookup infrastructure]
+    end
+
+    S2 --> S2Check{Resolved?}
+    S2Check -->|YES| ExtAnswer[Answer stored<br/>source: external]
+    S2Check -->|NO| S3
+
+    subgraph S3[3. User - Last Resort]
+        S3A[phase: Clarifying]
+        S3B[blockedOnUser: true]
+        S3C[WebSocket notifies UI]
+    end
+
+    S3 --> UserInput[User answers]
+    UserInput --> UserAnswer[Answer stored<br/>source: user]
+
+    SysAnswer --> Continue[phase: Running]
+    ExtAnswer --> Continue
+    UserAnswer --> Continue
+```
+
+**Clarification stored in AgentTask CRD:**
+
+| Field | Location | Description |
+|-------|----------|-------------|
+| `spec.clarifications[]` | spec | Resolved answers |
+| `spec.clarifications[].source` | spec | Who answered: system, external, user |
+| `spec.clarifications[].sourceDetail` | spec | How it was resolved |
+| `status.pendingClarifications[]` | status | Unresolved questions |
+| `status.pendingClarifications[].attemptedSources[]` | status | Sources tried and why they failed |
+| `status.pendingClarifications[].blockedOnUser` | status | True if user input needed |
+
+> See [CRD Specifications](09-crd-specifications.md) for full schema.
+
 ### Task Submission Flow
 
 ```mermaid
@@ -553,13 +609,20 @@ POST /api/v1/tasks
 ```mermaid
 stateDiagram-v2
     [*] --> PENDING
+    PENDING --> CLARIFYING: needs info
     PENDING --> PREPARING: start
     PENDING --> CANCELLED: cancel
 
+    CLARIFYING --> CLARIFYING: more questions
+    CLARIFYING --> PREPARING: all answered
+    CLARIFYING --> CANCELLED: cancel
+
     PREPARING --> RUNNING: ready
+    PREPARING --> CLARIFYING: needs info
     PREPARING --> FAILED: error
 
     RUNNING --> CHECKING: output ready
+    RUNNING --> CLARIFYING: needs info
     RUNNING --> FAILED: error
 
     CHECKING --> VALIDATING: tests pass
@@ -581,6 +644,7 @@ stateDiagram-v2
 | State | Description | Actions |
 |-------|-------------|---------|
 | `PENDING` | Task submitted, awaiting processing | Validate, queue |
+| `CLARIFYING` | Waiting for clarification (system → external → user) | Try sources, notify user if blocked |
 | `PREPARING` | Creating namespace, deploying agents/MCPs | Provision resources |
 | `RUNNING` | Agents executing task | Monitor, collect output |
 | `CHECKING` | Running E2E tests against output | Execute test suite |
