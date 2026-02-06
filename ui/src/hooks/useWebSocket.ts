@@ -6,6 +6,7 @@ const INITIAL_RECONNECT_DELAY_MS = 3_000;
 interface UseWebSocketResult {
   connected: boolean;
   data: Record<string, unknown> | undefined;
+  sendAction: (actionId: string, data: Record<string, unknown>) => void;
 }
 
 export function useWebSocket(url: string): UseWebSocketResult {
@@ -64,5 +65,22 @@ export function useWebSocket(url: string): UseWebSocketResult {
     };
   }, [connect]);
 
-  return { connected, data };
+  const sendAction = useCallback(
+    (actionId: string, actionData: Record<string, unknown>) => {
+      const socket = wsRef.current;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        console.warn("[WS] Cannot send action: not connected");
+        return;
+      }
+      const message = JSON.stringify({
+        type: "action",
+        action_id: actionId,
+        data: actionData,
+      });
+      socket.send(message);
+    },
+    [],
+  );
+
+  return { connected, data, sendAction };
 }

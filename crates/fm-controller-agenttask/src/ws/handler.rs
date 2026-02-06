@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use tracing::info;
 use uuid::Uuid;
 
+use super::command::WsCommand;
 use super::connection_registry::ConnectionRegistry;
 use super::event::WsEvent;
 use super::schema_cache::SchemaCache;
@@ -50,14 +51,22 @@ pub async fn handle_connection(
         }
     });
 
-    // Inbound: WebSocket stream → log
+    // Inbound: WebSocket stream → parse WsCommand
     let inbound_client_id = client_id.clone();
     let inbound = tokio::spawn(async move {
         while let Some(Ok(message)) = ws_stream.next().await {
             match message {
-                Message::Text(text) => {
-                    info!("📩 From {inbound_client_id}: {text}");
-                }
+                Message::Text(text) => match serde_json::from_str::<WsCommand>(&text) {
+                    Ok(WsCommand::Connect) => {
+                        info!("🤝 Client {inbound_client_id} sent connect");
+                    }
+                    Ok(WsCommand::Action { action_id, data }) => {
+                        info!("🎯 Action from {inbound_client_id}: {action_id} {data}");
+                    }
+                    Err(err) => {
+                        info!("⚠️ Invalid command from {inbound_client_id}: {err}");
+                    }
+                },
                 Message::Close(_) => break,
                 _ => {}
             }
