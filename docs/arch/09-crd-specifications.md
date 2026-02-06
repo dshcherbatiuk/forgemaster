@@ -73,7 +73,7 @@ stateDiagram-v2
 
 **Purpose:** Individual agent instance that performs work using an LLM.
 
-**Created by:** AgentTask Controller (core agents) or Orchestrator Agent (dynamic agents).
+**Created by:** Agent Controller (Orchestrator) or Orchestrator Agent (executor agents).
 
 **Managed by:** Agent Controller — watches Agent CRs, creates Pods, manages lifecycle.
 
@@ -120,7 +120,7 @@ stateDiagram-v2
 
 **Purpose:** MCP (Model Context Protocol) server that provides tools to agents.
 
-**Created by:** AgentTask Controller based on task requirements.
+**Created by:** Orchestrator Agent based on task requirements.
 
 **Managed by:** MCPServer Controller — watches MCPServer CRs, creates Pods and Services, manages lifecycle.
 
@@ -167,13 +167,19 @@ sequenceDiagram
     actor User
     participant ATC as AgentTask Controller
     participant API as K8s API
-    participant AG as Agents
+    participant AGC as Agent Controller
+    participant OA as Orchestrator Agent
+    participant AG as Executor Agents
     participant MCP as MCPServers
 
     User->>ATC: Submit task (WebSocket)
     ATC->>API: Create AgentTask CR
-    ATC->>API: Create Agent CRs
-    ATC->>API: Create MCPServer CRs
+    AGC-->>API: Watch detects AgentTask CR (Running)
+    AGC->>API: Create Orchestrator Agent CR
+    AGC->>OA: Spawn Orchestrator pod
+    OA->>API: Create Agent CRs
+    OA->>API: Create MCPServer CRs
+    AGC->>AG: Spawn executor agent pods
     AG->>MCP: Use tools (read/write files)
     AG->>API: Update status (iteration, error)
     API-->>ATC: Status changes (watch)
