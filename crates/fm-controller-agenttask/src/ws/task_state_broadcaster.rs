@@ -100,6 +100,7 @@ mod tests {
             task_name: "task-abc12345".to_string(),
             namespace: "forgemaster-system".to_string(),
             description: "Build a REST API".to_string(),
+            created_at: Some(chrono::Utc::now()),
             phase: AgentTaskPhase::Running,
             iteration: 1,
             error: 0.6,

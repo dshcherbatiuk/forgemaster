@@ -70,11 +70,34 @@ impl ControllerContext {
 
         debug!("📝 Updated task {}/{} phase to {:?}", namespace, name, phase);
 
+        self.broadcast_state(task, phase);
+        Ok(())
+    }
+
+    /// Emits the current task state without changing phase.
+    /// Used by strategies that need to push live updates (e.g. Running).
+    pub fn emit_state(&self, task: &AgentTask) {
+        let phase = task
+            .status
+            .as_ref()
+            .map(|s| s.phase.clone())
+            .unwrap_or_default();
+        self.broadcast_state(task, phase);
+    }
+
+    fn broadcast_state(&self, task: &AgentTask, phase: AgentTaskPhase) {
+        let name = task.name_any();
+        let namespace = task
+            .namespace()
+            .unwrap_or_else(|| self.namespace.clone());
         let status = task.status.as_ref().cloned().unwrap_or_default();
+        let created_at = task.metadata.creation_timestamp.as_ref().map(|t| t.0);
+
         let event = TaskStateChanged {
             task_name: name.clone(),
             namespace,
             description: task.spec.description.clone(),
+            created_at,
             phase,
             iteration: status.iteration,
             error: status.error,
@@ -85,8 +108,6 @@ impl ControllerContext {
         if self.state_sender.send(event).is_err() {
             warn!("⚠️ No receivers for task state change: {}", name);
         }
-
-        Ok(())
     }
 }
 
@@ -145,6 +166,7 @@ mod tests {
             task_name: "task-123".to_string(),
             namespace: "test-ns".to_string(),
             description: "Test task".to_string(),
+            created_at: None,
             phase: AgentTaskPhase::Running,
             iteration: 0,
             error: 1.0,
@@ -163,6 +185,7 @@ mod tests {
             task_name: "task-abc".to_string(),
             namespace: "forgemaster-system".to_string(),
             description: "Build a REST API".to_string(),
+            created_at: Some(chrono::Utc::now()),
             phase: AgentTaskPhase::Running,
             iteration: 1,
             error: 0.5,

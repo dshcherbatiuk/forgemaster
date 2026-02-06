@@ -1,9 +1,28 @@
 //! Builds A2UI schema components for task status display.
 
+use chrono::Utc;
 use serde_json::{json, Value};
 use smallvec::{smallvec, SmallVec};
 
 use crate::task_state_changed::TaskStateChanged;
+
+/// Formats a duration as a human-readable age string (e.g. "2m 30s", "1h 5m").
+fn format_age(seconds: i64) -> String {
+    if seconds < 0 {
+        return "0s".to_string();
+    }
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let secs = seconds % 60;
+
+    if hours > 0 {
+        format!("{}h {}m", hours, minutes)
+    } else if minutes > 0 {
+        format!("{}m {}s", minutes, secs)
+    } else {
+        format!("{}s", secs)
+    }
+}
 
 /// Root component ID for the task status schema.
 pub const TASK_STATUS_ROOT: &str = "task-status-card";
@@ -35,6 +54,7 @@ pub fn build_task_status_schema(
                     "task-status-title",
                     "task-status-name-row",
                     "task-status-desc-row",
+                    "task-status-age-row",
                     "task-status-phase-row",
                     "task-status-iteration-row",
                     "task-status-error-row",
@@ -90,6 +110,28 @@ pub fn build_task_status_schema(
             "id": "task-status-desc-value",
             "component": { "Text": {
                 "text": { "path": "/task/description" },
+                "usageHint": "body"
+            } }
+        }),
+        // Age row
+        json!({
+            "id": "task-status-age-row",
+            "component": { "Row": {
+                "distribution": "spaceBetween",
+                "children": { "explicitList": ["task-status-age-label", "task-status-age-value"] }
+            } }
+        }),
+        json!({
+            "id": "task-status-age-label",
+            "component": { "Text": {
+                "text": { "literalString": "Age:" },
+                "usageHint": "body"
+            } }
+        }),
+        json!({
+            "id": "task-status-age-value",
+            "component": { "Text": {
+                "text": { "path": "/task/age" },
                 "usageHint": "body"
             } }
         }),
@@ -183,10 +225,16 @@ pub fn build_task_status_schema(
         }),
     ];
 
+    let age = event
+        .created_at
+        .map(|t| format_age((Utc::now() - t).num_seconds()))
+        .unwrap_or_else(|| "unknown".to_string());
+
     let data = json!({
         "task": {
             "name": event.task_name,
             "description": event.description,
+            "age": age,
             "phase": event.phase,
             "iteration": event.iteration,
             "error": event.error,
@@ -209,6 +257,7 @@ mod tests {
             task_name: "task-abc12345".to_string(),
             namespace: "forgemaster-system".to_string(),
             description: "Build a REST API".to_string(),
+            created_at: Some(Utc::now() - chrono::Duration::seconds(150)),
             phase: AgentTaskPhase::Running,
             iteration: 2,
             error: 0.4,
@@ -236,6 +285,7 @@ mod tests {
         assert!(ids.contains(&"task-status-title"));
         assert!(ids.contains(&"task-status-name-value"));
         assert!(ids.contains(&"task-status-desc-value"));
+        assert!(ids.contains(&"task-status-age-value"));
         assert!(ids.contains(&"task-status-phase-value"));
         assert!(ids.contains(&"task-status-iteration-value"));
         assert!(ids.contains(&"task-status-error-value"));
@@ -258,6 +308,7 @@ mod tests {
         let (_, _, data) = build_task_status_schema(&sample_event());
         assert_eq!(data["task"]["name"], "task-abc12345");
         assert_eq!(data["task"]["description"], "Build a REST API");
+        assert_eq!(data["task"]["age"], "2m 30s");
         assert_eq!(data["task"]["phase"], "Running");
         assert_eq!(data["task"]["iteration"], 2);
         assert_eq!(data["task"]["error"], 0.4);
@@ -279,6 +330,34 @@ mod tests {
     #[test]
     fn components_count() {
         let (_, components, _) = build_task_status_schema(&sample_event());
-        assert_eq!(components.len(), 22);
+        assert_eq!(components.len(), 25);
+    }
+
+    #[test]
+    fn format_age_seconds_only() {
+        assert_eq!(format_age(45), "45s");
+    }
+
+    #[test]
+    fn format_age_minutes_and_seconds() {
+        assert_eq!(format_age(150), "2m 30s");
+    }
+
+    #[test]
+    fn format_age_hours_and_minutes() {
+        assert_eq!(format_age(3725), "1h 2m");
+    }
+
+    #[test]
+    fn format_age_negative_returns_zero() {
+        assert_eq!(format_age(-5), "0s");
+    }
+
+    #[test]
+    fn age_unknown_when_no_created_at() {
+        let mut event = sample_event();
+        event.created_at = None;
+        let (_, _, data) = build_task_status_schema(&event);
+        assert_eq!(data["task"]["age"], "unknown");
     }
 }

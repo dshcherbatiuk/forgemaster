@@ -46,6 +46,9 @@ impl ReconcileStrategy for RunningStrategy {
         // TODO: Update iteration count
         // TODO: Check for completion or failure
 
+        // Emit current state so the UI stays live (age, iteration, etc.)
+        self.ctx.emit_state(task);
+
         Ok(Action::requeue(REQUEUE_DURATION))
     }
 }

@@ -1,16 +1,18 @@
 //! Event emitted when the reconciler transitions a task phase.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::crd::AgentTaskPhase;
 
-/// Emitted by the controller when a task transitions to a new phase.
+/// Emitted by the controller when a task state changes.
 /// Consumed by the WS broadcaster to push state to connected UI clients.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskStateChanged {
     pub task_name: String,
     pub namespace: String,
     pub description: String,
+    pub created_at: Option<DateTime<Utc>>,
     pub phase: AgentTaskPhase,
     pub iteration: i32,
     pub error: f64,
@@ -27,6 +29,7 @@ mod tests {
             task_name: "task-abc12345".to_string(),
             namespace: "forgemaster-system".to_string(),
             description: "Build a REST API".to_string(),
+            created_at: Some(Utc::now()),
             phase: AgentTaskPhase::Running,
             iteration: 2,
             error: 0.4,
@@ -53,6 +56,7 @@ mod tests {
         assert!(json.get("task_name").is_some());
         assert!(json.get("namespace").is_some());
         assert!(json.get("description").is_some());
+        assert!(json.get("created_at").is_some());
         assert!(json.get("phase").is_some());
         assert!(json.get("iteration").is_some());
         assert!(json.get("error").is_some());
