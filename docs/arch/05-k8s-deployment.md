@@ -25,11 +25,12 @@ flowchart TB
     end
 
     AT --> ATC
+    AT --> AGC
     AG --> AGC
     MCP --> MCPC
 
     ATC --> NS & CM
-    ATC -->|creates| AG & MCP
+    AGC -->|creates orchestrator| AG
     AGC --> Pods & CM
     MCPC --> Pods & SVC & SEC
 ```
@@ -383,10 +384,10 @@ flowchart TB
 **Task Flow:**
 
 1. User submits: "Create an e-commerce backend with product catalog, shopping cart, and checkout flow. Include Stripe integration."
-2. AgentTask Controller creates isolated namespace `task-ecommerce-abc123`
-3. Core agents spawn (orchestrator, test-generator, test-runner, feedback)
-4. Orchestrator analyzes task and provisions executor agents (API Architect, Stripe Integrator, Database Designer)
-5. MCP servers provision: github-mcp, postgres-mcp, stripe-mcp
+2. AgentTask Controller creates AgentTask CR and isolated namespace `task-ecommerce-abc123`
+3. Agent Controller detects new task (Running), creates Orchestrator Agent CR, spawns Orchestrator pod
+4. Orchestrator analyzes task (LLM), creates Agent CRs (test-gen, code-gen, test-runner, feedback) and MCPServer CRs (github, postgres, stripe)
+5. Agent Controller spawns executor agent pods, MCPServer Controller spawns MCP server pods
 6. Test Generator creates 12 Gherkin scenarios for product CRUD, cart operations, checkout flow
 7. TCP feedback loop runs until all tests pass
 
@@ -416,16 +417,16 @@ sequenceDiagram
 
     Note over ATC: Reconciler transitions: Pending → Running
 
-    ATC->>API: Create Orchestrator Agent CR
-    API->>AGC: Watch detects new Agent CR
+    AGC-->>API: Watch detects new AgentTask CR (Running)
+    AGC->>API: Create Orchestrator Agent CR
     AGC->>OA: Spawn Orchestrator pod
 
     OA->>OA: Analyze task (LLM reasoning)
     OA->>API: Create Agent CRs (code-gen, test-gen, test-runner, feedback)
     OA->>API: Create MCPServer CRs (github, postgres, stripe)
-    API->>AGC: Watch detects new Agent CRs
+    AGC-->>API: Watch detects new Agent CRs
     AGC->>EX: Spawn executor agent pods
-    API->>MCPC: Watch detects new MCPServer CRs
+    MCPC-->>API: Watch detects new MCPServer CRs
     MCPC->>MCP: Spawn MCP server pods
 
     loop TCP Feedback Loop (until error ≤ threshold)

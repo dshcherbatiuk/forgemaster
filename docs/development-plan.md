@@ -150,6 +150,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [ ] Define Agent CRD schema
 - [ ] Create Helm chart
 - [ ] Implement Agent CRD structs in Rust
+- [ ] Watch AgentTask CRs — create Orchestrator Agent CR when task enters Running
 - [ ] Implement reconciliation loop (create/manage agent pods)
 - [ ] Containerize and deploy
 
@@ -163,9 +164,9 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ### 2.5 Core Agents
 
-#### Orchestrator Agent
+#### Orchestrator Agent (per-task Agent CR, created by Agent Controller)
 - [ ] Implement task decomposition (analyze description, decide agents/MCPs)
-- [ ] Create Agent CRs and MCPServer CRs via K8s API
+- [ ] Create executor Agent CRs and MCPServer CRs via K8s API
 - [ ] Implement agent coordination via A2A
 - [ ] Test orchestration flow
 

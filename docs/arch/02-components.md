@@ -85,10 +85,11 @@ flowchart TB
 
     USER -->|WebSocket| ATC
     ATC --> AT
-    ATC --> AGT
-    ATC --> MCP
+    AC --> AT
     AC --> AGT
     MC --> MCP
+    OA --> AGT
+    OA --> MCP
 
     TCP --> REDIS
     REG --> REDIS
@@ -110,13 +111,12 @@ flowchart TB
 | A2UI Schema Relay | Receive A2UI schemas from agents, push to UI |
 | Schema Caching | Cache schemas, send diffs for efficiency |
 | Task Initialization | Create AgentTask CR |
-| Agent Provisioning | Create Agent CRs for required agents |
-| MCP Provisioning | Create MCPServer CRs for required tools |
+| Phase Transitions | Transition AgentTask through lifecycle phases |
 | Namespace Management | Create isolated namespace for each task |
 | Status Tracking | Update AgentTask status throughout lifecycle |
 | Cleanup | Delete namespace and resources when task completes |
 
-**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle
+**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle, Create Agent/MCPServer CRs
 
 ---
 
@@ -124,6 +124,8 @@ flowchart TB
 
 | Responsibility | Description |
 |----------------|-------------|
+| Task Watch | Watch AgentTask CRs, react to Running phase |
+| Orchestrator Provisioning | Create Orchestrator Agent CR when task starts |
 | Agent Lifecycle | Start, stop, restart Agent pods |
 | Health Monitoring | Watch agent health via Registry |
 | Scaling | Scale agent replicas based on load |
@@ -131,7 +133,7 @@ flowchart TB
 | Resource Limits | Enforce CPU/memory limits per agent |
 | Restart Policy | Handle agent crashes with exponential backoff |
 
-**Does NOT do:** Decide which agents to create, Route tasks to agents
+**Does NOT do:** Decide which executor agents to create (Orchestrator decides), Route tasks to agents
 
 ---
 
@@ -281,8 +283,8 @@ flowchart TB
 | CRD | Created by | Managed by | Purpose |
 |-----|-----------|------------|---------|
 | AgentTask | AgentTask Controller | AgentTask Controller | Task definition and status |
-| Agent | AgentTask Controller / Orchestrator | Agent Controller | Agent instance configuration |
-| MCPServer | AgentTask Controller | MCPServer Controller | MCP server configuration |
+| Agent | Agent Controller (Orchestrator) / Orchestrator Agent | Agent Controller | Agent instance configuration |
+| MCPServer | Orchestrator Agent | MCPServer Controller | MCP server configuration |
 
 ---
 
@@ -328,13 +330,17 @@ sequenceDiagram
 
     U->>UI: Submit task description
     UI->>ATC: Task via WebSocket
-    ATC->>ATC: Create AgentTask CR
-    ATC->>AC: Create Agent CRs
-    AC->>OA: Start Orchestrator
-    AC->>TGA: Start Test Generator
-    AC->>CGA: Start Code Generator
-    AC->>TRA: Start Test Runner
-    AC->>FBA: Start Feedback Agent
+    ATC->>ATC: Create AgentTask CR (Pending → Running)
+    AC-->>ATC: Watch detects AgentTask CR (Running)
+    AC->>AC: Create Orchestrator Agent CR
+    AC->>OA: Spawn Orchestrator pod
+
+    OA->>OA: Analyze task (LLM reasoning)
+    OA->>AC: Create Agent CRs (test-gen, code-gen, test-runner, feedback)
+    AC->>TGA: Spawn Test Generator
+    AC->>CGA: Spawn Code Generator
+    AC->>TRA: Spawn Test Runner
+    AC->>FBA: Spawn Feedback Agent
 
     OA->>ATC: A2UI schema (progress view)
     ATC->>UI: Push schema update
