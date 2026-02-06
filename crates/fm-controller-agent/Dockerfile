@@ -15,7 +15,7 @@ COPY crates/fm-controller-agenttask ./crates/fm-controller-agenttask
 COPY crates/fm-controller-agent ./crates/fm-controller-agent
 
 # Build release binary
-RUN cargo build --release -p fm-controller-agenttask
+RUN cargo build --release -p fm-controller-agent
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/fm-controller-agenttask /app/fm-controller-agenttask
+COPY --from=builder /app/target/release/fm-controller-agent /app/fm-controller-agent
 
 # Non-root user
 RUN groupadd -g 1000 forgemaster && \
@@ -37,4 +37,4 @@ USER forgemaster
 
 ENV RUST_LOG=info
 
-ENTRYPOINT ["/app/fm-controller-agenttask"]
+ENTRYPOINT ["/app/fm-controller-agent"]

@@ -1,0 +1,47 @@
+{{- if .Values.controller.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fm-controller-agent
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: fm-controller-agent
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: forgemaster
+spec:
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fm-controller-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fm-controller-agent
+        app.kubernetes.io/component: controller
+        app.kubernetes.io/part-of: forgemaster
+    spec:
+      serviceAccountName: fm-controller-agent
+      containers:
+        - name: controller
+          image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+          imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: fm-controller-agent
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+{{- end }}
