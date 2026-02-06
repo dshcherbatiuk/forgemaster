@@ -1,0 +1,176 @@
+{{- if .Values.crd.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agents.forgemaster.io
+spec:
+  group: forgemaster.io
+  names:
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    singular: agent
+    shortNames:
+      - ag
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+                - type
+                - model
+                - systemPrompt
+              properties:
+                type:
+                  type: string
+                  description: Agent type (e.g., orchestrator, code-generator, architect, designer)
+                model:
+                  type: object
+                  description: LLM configuration
+                  required:
+                    - provider
+                    - name
+                  properties:
+                    provider:
+                      type: string
+                      description: LLM provider
+                      default: anthropic
+                      enum:
+                        - anthropic
+                        - openai
+                        - local
+                    name:
+                      type: string
+                      description: Model name (e.g., "claude-sonnet-4-20250514")
+                    temperature:
+                      type: number
+                      format: float
+                      description: "Sampling temperature (0.0 - 2.0). Lower values (0.2) produce deterministic output for code generation, higher values (1.0+) increase creativity."
+                      default: 0.7
+                    maxTokens:
+                      type: integer
+                      description: "Maximum tokens the LLM can generate per response (~4 chars/token). 4096 ≈ 3000 words, sufficient for typical code files."
+                      default: 4096
+                systemPrompt:
+                  type: string
+                  description: "Instruction text defining the agent's role, behavior, and output format. Sent as the first message to the LLM before any task input."
+                mcpServers:
+                  type: array
+                  description: "MCP servers this agent can use. Can be updated dynamically during task execution — the controller reconciles changes."
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        description: MCPServer CR name
+                resources:
+                  type: object
+                  description: Resource limits and requests
+                  properties:
+                    limits:
+                      type: object
+                      properties:
+                        memory:
+                          type: string
+                          description: Memory limit (e.g., "512Mi")
+                        cpu:
+                          type: string
+                          description: CPU limit (e.g., "500m")
+                    requests:
+                      type: object
+                      properties:
+                        memory:
+                          type: string
+                          description: Memory request (e.g., "256Mi")
+                        cpu:
+                          type: string
+                          description: CPU request (e.g., "250m")
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Succeeded
+                    - Failed
+                  default: Pending
+                startTime:
+                  type: string
+                  format: date-time
+                  description: When the agent started
+                completionTime:
+                  type: string
+                  format: date-time
+                  description: When the agent completed
+                tokensUsed:
+                  type: integer
+                  description: Total tokens consumed
+                  default: 0
+                iterationsCompleted:
+                  type: integer
+                  description: Iterations this agent participated in
+                  default: 0
+                podRef:
+                  type: object
+                  description: Reference to the running Pod
+                  properties:
+                    name:
+                      type: string
+                      description: Pod name
+                    uid:
+                      type: string
+                      description: Pod UID
+                output:
+                  type: object
+                  description: Reference to agent output
+                  properties:
+                    configMapRef:
+                      type: string
+                      description: ConfigMap name with agent output
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.type
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Tokens
+          type: integer
+          jsonPath: .status.tokensUsed
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+{{- end }}

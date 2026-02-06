@@ -1,0 +1,18 @@
+---
+- name: Install fm-controller-agent
+  ansible.builtin.command: >
+    helm upgrade --install fm-controller-agent
+    {{ fm_controller_agent_chart }}
+    --namespace {{ forgemaster_namespace }}
+    --create-namespace
+    --set crd.enabled={{ fm_controller_agent_crd_enabled }}
+    --set controller.enabled={{ fm_controller_agent_controller_enabled }}
+  changed_when: false
+
+- name: Wait for Agent CRD
+  ansible.builtin.command: >
+    kubectl wait --for=condition=Established
+    crd/agents.forgemaster.io
+    --timeout=60s
+  changed_when: false
+  when: fm_controller_agent_crd_enabled

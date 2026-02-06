@@ -72,7 +72,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 ### 1.4 Custom Resource Definitions (CRDs)
 
 - [x] Define AgentTask CRD schema (Helm chart)
-- [ ] Define Agent CRD schema
+- [x] Define Agent CRD schema
 - [ ] Define MCPServer CRD schema
 - [x] Apply AgentTask CRD to cluster
 
@@ -82,7 +82,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Define values.yaml with configurable options
 - [x] Create templates (deployment, service, gateway, httproute)
 - [x] Create Dockerfile for UI
-- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask)
+- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask, fm-controller-agent)
 - [x] Create site.yml playbook
 - [x] Deploy UI to cluster via Gateway API
 - [x] Create Helm chart for AgentTask CRD (crates/fm-controller-agenttask/helm/)
@@ -147,8 +147,8 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ### 2.3 Agent Controller (fm-controller-agent)
 
-- [ ] Define Agent CRD schema
-- [ ] Create Helm chart
+- [x] Define Agent CRD schema
+- [x] Create Helm chart
 - [ ] Implement Agent CRD structs in Rust
 - [ ] Watch AgentTask CRs — create Orchestrator Agent CR when task enters Running
 - [ ] Implement reconciliation loop (create/manage agent pods)
