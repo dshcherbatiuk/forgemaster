@@ -216,7 +216,7 @@ Scenario: E-commerce Backend API
 - [ ] Containerize and deploy
 
 **Deliverables:**
-- AgentTask Controller running with HTTP API
+- AgentTask Controller running with WebSocket API
 - TCP Controller service running
 - Agent Registry service running
 - MCP servers deployed and functional
@@ -584,6 +584,6 @@ forgemaster/
 1. **Initialize Rust workspace** — Set up crate structure
 2. **Create Kind cluster** — Ansible playbook for local K8s
 3. **Build UI Portal** — React + Lit with dry-run mode
-4. **Implement REST API** — Connect portal to backend
+4. **Connect UI to backend** — WebSocket integration
 5. **Implement TCP Controller** — Core feedback loop logic
 6. **Deploy first agent** — Test Generator as proof of concept

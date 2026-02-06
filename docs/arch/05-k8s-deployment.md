@@ -329,7 +329,7 @@ flowchart TB
             API[K8s API]
             TCPC[TCP Controller<br/>PID feedback loop]
             subgraph Operator["forgemaster-operator"]
-                ATC[AgentTask Controller<br/>HTTP API + Reconciler]
+                ATC[AgentTask Controller<br/>WebSocket + Reconciler]
                 AGC[Agent Controller]
                 MCPC[MCPServer Controller]
             end
@@ -364,10 +364,9 @@ flowchart TB
     end
 
     U -->|"submit task"| WEB
-    WEB -->|"POST /tasks"| ATC
+    WEB <-->|"WebSocket"| ATC
     ATC -->|"create AgentTask CR"| API
     ATC <-.->|"watch status"| API
-    WEB <-.->|"WebSocket progress"| ATC
 
     TCPC -->|"error signal"| OA
     TCPC <-->|"read metrics"| FBA
@@ -412,7 +411,7 @@ sequenceDiagram
     participant FBA as Feedback Agent
 
     U->>WEB: Submit "Create e-commerce backend with Stripe"
-    WEB->>ATC: POST /tasks {description}
+    WEB->>ATC: WebSocket: submit_task {description}
     ATC->>API: Create AgentTask CR
     ATC->>API: Watch AgentTask status
 

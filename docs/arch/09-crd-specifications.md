@@ -36,7 +36,7 @@ flowchart TB
 
 **Purpose:** Top-level resource representing a user's task request.
 
-**Created by:** AgentTask Controller (via HTTP API) when user submits a task.
+**Created by:** AgentTask Controller (via WebSocket command) when user submits a task.
 
 **Managed by:** AgentTask Controller — watches AgentTask CRs and reconciles state.
 
@@ -170,7 +170,7 @@ sequenceDiagram
     participant AG as Agents
     participant MCP as MCPServers
 
-    User->>ATC: Submit task (HTTP API)
+    User->>ATC: Submit task (WebSocket)
     ATC->>API: Create AgentTask CR
     ATC->>API: Create Agent CRs
     ATC->>API: Create MCPServer CRs

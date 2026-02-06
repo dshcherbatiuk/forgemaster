@@ -83,7 +83,7 @@ flowchart TB
         MCP[MCPServer CR]
     end
 
-    USER -->|HTTP API| ATC
+    USER -->|WebSocket| ATC
     ATC --> AT
     ATC --> AGT
     ATC --> MCP

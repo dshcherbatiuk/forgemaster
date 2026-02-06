@@ -41,7 +41,7 @@ flowchart LR
 ┌─────────────────────────────────────────────────────────────┐
 │  Web Portal (React + CopilotKit A2UI)                       │
 ├─────────────────────────────────────────────────────────────┤
-│  REST API Service                                           │
+│  AgentTask Controller (WebSocket + Reconciler)              │
 ├─────────────────────────────────────────────────────────────┤
 │  TCP Controller  │  Agent Registry  │  K8s Operator        │
 ├─────────────────────────────────────────────────────────────┤
