@@ -2,4 +2,5 @@
 //!
 //! This crate provides the Agent Custom Resource Definition and its controller.
 
+pub mod controller;
 pub mod crd;
