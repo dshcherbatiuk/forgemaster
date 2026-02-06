@@ -31,7 +31,8 @@
       "component": {
         "TextField": {
           "label": { "literalString": "Description" },
-          "text": { "path": "/task/description" }
+          "text": { "path": "/task/description" },
+          "textFieldType": "longText"
         }
       }
     },

@@ -2,86 +2,52 @@
   "root": "app-container",
   "includes": [
     "header",
-    "navigation",
-    "taskForm",
-    "agentCard",
-    "progressStepper",
-    "testResults",
-    "tcpGauge"
+    "taskForm"
   ],
   "layout": [
     {
       "id": "app-container",
       "component": {
         "Column": {
-          "children": { "explicitList": ["header", "nav-row", "main-content"] }
+          "children": { "explicitList": ["header", "hero-section"] }
         }
       }
     },
     {
-      "id": "main-content",
-      "component": {
-        "Row": {
-          "children": { "explicitList": ["left-panel", "center-panel", "right-panel"] }
-        }
-      }
-    },
-    {
-      "id": "left-panel",
+      "id": "hero-section",
       "component": {
         "Column": {
-          "children": { "explicitList": ["task-card", "agent-card"] }
+          "children": { "explicitList": ["hero-tagline", "hero-subtitle", "task-card"] }
         }
       }
     },
     {
-      "id": "center-panel",
+      "id": "hero-tagline",
       "component": {
-        "Column": {
-          "children": { "explicitList": ["progress-card", "test-results-card"] }
+        "Text": {
+          "text": { "path": "/hero/tagline" },
+          "usageHint": "h1"
         }
       }
     },
     {
-      "id": "right-panel",
+      "id": "hero-subtitle",
       "component": {
-        "Column": {
-          "children": { "explicitList": ["tcp-card"] }
+        "Text": {
+          "text": { "path": "/hero/subtitle" },
+          "usageHint": "body"
         }
       }
     }
   ],
   "defaultData": {
     "appName": "ForgeMaster",
-    "status": "Ready",
+    "hero": {
+      "tagline": "AI-Powered Code Generation",
+      "subtitle": "Describe your task. Let agents build it. Tests drive the loop."
+    },
     "task": {
       "description": ""
-    },
-    "agent": {
-      "name": "CodeGen Agent",
-      "role": "Code Generator",
-      "status": "Idle",
-      "iterations": "0",
-      "testsPassed": "0/0"
-    },
-    "progress": {
-      "steps": [
-        { "icon": "🔍", "label": "Analyze" },
-        { "icon": "📝", "label": "Gen Tests" },
-        { "icon": "⚙️", "label": "Gen Code" },
-        { "icon": "🧪", "label": "Run Tests" },
-        { "icon": "✅", "label": "Complete" }
-      ]
-    },
-    "tests": {
-      "runTime": "0.0s",
-      "passed": "0",
-      "failed": "0",
-      "skipped": "0"
-    },
-    "tcp": {
-      "value": "0.00",
-      "description": "Test Case Passing ratio"
     }
   }
 }

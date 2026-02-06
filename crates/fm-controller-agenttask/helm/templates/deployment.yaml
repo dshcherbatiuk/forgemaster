@@ -25,13 +25,18 @@ spec:
         - name: controller
           image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
           imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          ports:
+            - name: ws
+              containerPort: {{ .Values.controller.ws.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: fm-controller-agenttask
           env:
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            - name: RUST_LOG
-              value: "info"
           resources:
             {{- toYaml .Values.controller.resources | nindent 12 }}
           securityContext:

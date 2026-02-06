@@ -4,7 +4,7 @@
 
 **Team:** CSM-101
 
-**Last Updated:** 2026-02-05
+**Last Updated:** 2026-02-06
 
 ---
 
@@ -60,7 +60,7 @@ Build the web portal early with mock data to visualize the complete flow before 
 - [x] Create component composition system (includes-based merging)
 - [x] Create unified dashboard schema with reusable components:
   - [x] `dashboard.json` — Full layout with includes
-  - [x] `components/header.json` — App header with title and status
+  - [x] `components/header.json` — App header with title
   - [x] `components/navigation.json` — Navigation buttons
   - [x] `components/taskForm.json` — Task input with description field
   - [x] `components/progressStepper.json` — Shows phases: Analyze → Gen Tests → Gen Code → Run Tests → Complete
@@ -133,12 +133,22 @@ Scenario: E-commerce Backend API
 - [x] Define AgentTask CRD schema
 - [x] Create Helm chart for CRD
 - [x] Deploy CRD to cluster
-- [ ] Implement AgentTask CRD structs in Rust
-- [ ] Implement HTTP API (`POST /tasks`, `GET /tasks/{id}`)
-- [ ] Implement WebSocket for real-time updates
-- [ ] Implement reconciliation loop
+- [x] Implement AgentTask CRD structs in Rust
+- [x] Implement ReconcileStrategy trait pattern
+- [x] Implement phase-based reconciliation (Pending, Clarifying, Running, Succeeded, Failed)
+- [x] Implement DashMap dispatcher for strategy routing
+- [x] Containerize and deploy to K8s
+- [x] Implement WebSocket server with `/ws` endpoint (see [WS Protocol](arch/15-ws-protocol.md))
+- [x] Implement connection registry (DashMap-based client tracking)
+- [x] Implement WsEvent/WsCommand message types (snake_case JSON)
+- [x] Implement SchemaCache for late-joiner data push
+- [x] Implement UI WebSocket hook with auto-reconnect
+- [x] Implement ConnectionStatus component
+- [x] Add Helm templates (Service, HTTPRoute, ConfigMap)
+- [ ] Implement UI → Server action commands (WsCommand::Action)
+- [ ] Implement clarification relay (agent → UI → agent)
+- [ ] Implement A2UI schema diff (push only changes)
 - [ ] Add namespace lifecycle management
-- [ ] Containerize and deploy to K8s
 
 ### 2.2 TCP Controller (fm-tcp-controller)
 
@@ -413,24 +423,26 @@ Scenario: E-commerce Backend API
 │                         FORGEMASTER ARCHITECTURE                         │
 │                                                                          │
 │   ┌─────────────────────────────────────────────────────────────────┐   │
-│   │                        WEB PORTAL                                │   │
-│   │                  (React + CopilotKit A2UI)                      │   │
-│   └───────────────────┬─────────────────┬───────────────────────────┘   │
-│                       │ REST            │ WebSocket                     │
-│   ┌───────────────────▼─────────────────▼───────────────────────────┐   │
+│   │                     UI (A2UIRenderer only)                       │   │
+│   │              Renders A2UI schemas from agents                    │   │
+│   └───────────────────────────┬─────────────────────────────────────┘   │
+│                               │ WebSocket (A2UI schemas)                 │
+│   ┌───────────────────────────▼─────────────────────────────────────┐   │
 │   │                    CONTROL PLANE (forgemaster-system)            │   │
 │   │  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐       │   │
 │   │  │AgentTask         │  │TCP Controller│  │Agent Registry│       │   │
 │   │  │Controller        │  │  (PID Math)  │  │   (Redis)    │       │   │
-│   │  │(HTTP API + K8s)  │  └──────────────┘  └──────────────┘       │   │
+│   │  │(WebSocket + K8s) │  └──────────────┘  └──────────────┘       │   │
+│   │  │+ Schema Cache    │                                            │   │
 │   │  └──────────────────┘                                            │   │
 │   └─────────────────────────────┬───────────────────────────────────┘   │
-│                                 │ A2A                                    │
+│                                 │ A2A + A2UI schemas                     │
 │   ┌─────────────────────────────▼───────────────────────────────────┐   │
 │   │                    TASK NAMESPACE (task-xxxxx)                   │   │
 │   │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │   │
 │   │  │Orchestrator│ │Test Gen    │ │Code Gen    │ │Test Runner │   │   │
 │   │  │   Agent    │ │  Agent     │ │  Agent     │ │   Agent    │   │   │
+│   │  │ + A2UI Gen │ │ + A2UI Gen │ │ + A2UI Gen │ │            │   │   │
 │   │  └─────┬──────┘ └────────────┘ └────────────┘ └────────────┘   │   │
 │   │        │ MCP                                                     │   │
 │   │  ┌─────▼──────────────────────────────────────────────────────┐ │   │
@@ -440,6 +452,22 @@ Scenario: E-commerce Backend API
 │   └─────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### A2UI Data Flow
+
+```
+┌─────────┐    ┌────────────────────┐    ┌─────────────────┐
+│  Agent  │───▶│ AgentTask Controller│───▶│ UI (A2UIRenderer)│
+│         │    │                    │    │                 │
+│ Generate│    │ • Cache schema     │    │ • Render schema │
+│ A2UI    │    │ • Compute diff     │    │ • User input    │
+│ schema  │    │ • Push via WS      │    │                 │
+└─────────┘    └────────────────────┘    └─────────────────┘
+     │                  ▲                         │
+     │                  │                         │
+     └──────────────────┴─────────────────────────┘
+              Clarification answers via WebSocket
 ```
 
 ---
@@ -508,7 +536,7 @@ forgemaster/
 | **Agent Protocol** | A2A |
 | **Tool Protocol** | MCP |
 | **Container Runtime** | Docker |
-| **Orchestration** | Kubernetes (Kind) |
+| **Orchestration** | Kubernetes (OrbStack) |
 | **Package Manager** | Helm |
 | **Infra Automation** | Ansible |
 

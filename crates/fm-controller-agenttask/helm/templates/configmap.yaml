@@ -1,0 +1,14 @@
+{{- if .Values.controller.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fm-controller-agenttask
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: fm-controller-agenttask
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: forgemaster
+data:
+  WS_PORT: "{{ .Values.controller.ws.port }}"
+  RUST_LOG: "info"
+{{- end }}

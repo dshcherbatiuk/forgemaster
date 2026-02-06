@@ -1,0 +1,20 @@
+{{- if .Values.controller.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: fm-controller-agenttask
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: fm-controller-agenttask
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: forgemaster
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fm-controller-agenttask
+  ports:
+    - name: ws
+      port: {{ .Values.controller.ws.port }}
+      targetPort: ws
+      protocol: TCP
+{{- end }}

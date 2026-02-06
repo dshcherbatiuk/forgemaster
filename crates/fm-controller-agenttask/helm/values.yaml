@@ -8,6 +8,8 @@ controller:
     repository: fm-controller-agenttask
     tag: latest
     pullPolicy: IfNotPresent
+  ws:
+    port: 8080
   resources:
     limits:
       memory: "256Mi"

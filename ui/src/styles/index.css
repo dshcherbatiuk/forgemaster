@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+/* Card styling - teal tint instead of white */
+[class*="rounded-lg"][class*="bg-white"],
+[class*="rounded-xl"][class*="bg-white"],
+[class*="card"],
+.bg-white {
+  background-color: rgb(153 246 228) !important; /* teal-200 */
+  border: 1px solid rgb(94 234 212) !important; /* teal-300 */
+}
+
+/* Input fields */
+input, textarea {
+  background-color: rgb(240 253 250) !important; /* teal-50 */
+  border-color: rgb(153 246 228) !important; /* teal-200 */
+}
+
+input:focus, textarea:focus {
+  border-color: rgb(20 184 166) !important; /* teal-500 */
+  outline-color: rgb(20 184 166) !important;
+}

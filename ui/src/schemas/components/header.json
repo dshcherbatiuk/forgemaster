@@ -4,17 +4,18 @@
     {
       "id": "header",
       "component": {
-        "Card": {
-          "child": "header-content"
+        "Column": {
+          "children": { "explicitList": ["header-row", "header-divider"] }
         }
       }
     },
     {
-      "id": "header-content",
+      "id": "header-row",
       "component": {
         "Row": {
           "distribution": "spaceBetween",
-          "children": { "explicitList": ["app-title", "status-badge"] }
+          "alignment": "center",
+          "children": { "explicitList": ["app-title"] }
         }
       }
     },
@@ -23,16 +24,15 @@
       "component": {
         "Text": {
           "text": { "path": "/appName" },
-          "usageHint": "h1"
+          "usageHint": "h2"
         }
       }
     },
     {
-      "id": "status-badge",
+      "id": "header-divider",
       "component": {
-        "Text": {
-          "text": { "path": "/status" },
-          "usageHint": "caption"
+        "Divider": {
+          "axis": "horizontal"
         }
       }
     }

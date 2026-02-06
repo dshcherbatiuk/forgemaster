@@ -107,7 +107,9 @@ flowchart TB
 
 | Responsibility | Description |
 |----------------|-------------|
-| HTTP API | Expose REST endpoints for task submission (`POST /tasks`) |
+| WebSocket Hub | Real-time communication with UI via WebSocket |
+| A2UI Schema Relay | Receive A2UI schemas from agents, push to UI |
+| Schema Caching | Cache schemas, send diffs for efficiency |
 | Domain Matching | Match incoming tasks against Domain CRs to select configuration |
 | Task Initialization | Create AgentTask CR with matched domain config |
 | Agent Provisioning | Create Agent CRs for required agents |
@@ -116,7 +118,7 @@ flowchart TB
 | Status Tracking | Update AgentTask status throughout lifecycle |
 | Cleanup | Delete namespace and resources when task completes |
 
-**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle
+**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle, Generate A2UI schemas
 
 ---
 
@@ -205,6 +207,8 @@ flowchart TB
 | Progress Tracking | Monitor subtask completion |
 | Result Aggregation | Combine results from multiple agents |
 | Dynamic Provisioning | Request new agents if needed |
+| A2UI Generation | Generate dashboard A2UI schemas for current task state |
+| Clarification UI | Generate context-aware clarification components |
 
 **Does NOT do:** Execute tasks directly, Run tests, Calculate error signal
 
@@ -295,11 +299,20 @@ flowchart TB
 
 ---
 
+## A2UI Architecture
+
+> **See:** [07-a2ui-architecture.md](07-a2ui-architecture.md) for full A2UI architecture documentation.
+
+The UI is a pure A2UI renderer with no business logic. Agents generate UI schemas dynamically based on task context. The AgentTask Controller acts as a WebSocket hub, caching schemas and pushing diffs to the UI.
+
+---
+
 ## Entity Interaction Summary
 
 ```mermaid
 sequenceDiagram
     actor U as User
+    participant UI as UI (A2UIRenderer)
     participant ATC as AgentTask Controller
     participant AC as Agent Controller
     participant OA as Orchestrator Agent
@@ -309,7 +322,15 @@ sequenceDiagram
     participant FBA as Feedback Agent
     participant TCP as TCP Controller
 
-    U->>ATC: POST /tasks
+    U->>UI: Open dashboard
+    UI->>ATC: WebSocket connect
+    ATC->>OA: Request initial UI
+    OA->>ATC: A2UI schema (dashboard)
+    ATC->>UI: Push schema
+    UI->>UI: Render dashboard
+
+    U->>UI: Submit task description
+    UI->>ATC: Task via WebSocket
     ATC->>ATC: Match Domain
     ATC->>ATC: Create AgentTask CR
     ATC->>AC: Create Agent CRs
@@ -319,8 +340,17 @@ sequenceDiagram
     AC->>TRA: Start Test Runner
     AC->>FBA: Start Feedback Agent
 
+    OA->>ATC: A2UI schema (progress view)
+    ATC->>UI: Push schema update
+
     OA->>TGA: Generate tests
-    TGA->>TRA: Tests ready (ConfigMap)
+    TGA->>ATC: A2UI (clarification needed)
+    ATC->>UI: Push clarification component
+    U->>UI: Answer clarification
+    UI->>ATC: User response
+    ATC->>TGA: Forward answer
+
+    TGA->>TRA: Tests ready
     OA->>CGA: Generate code
     CGA->>TRA: Code ready
     TRA->>TRA: Run tests
@@ -329,5 +359,11 @@ sequenceDiagram
     TCP->>TCP: Calculate control signal
     TCP->>OA: Adjustment parameters
 
+    OA->>ATC: A2UI schema (iteration update)
+    ATC->>UI: Push schema diff
+
     Note over OA,TCP: Loop until error ≈ 0
+
+    OA->>ATC: A2UI schema (results view)
+    ATC->>UI: Push final schema
 ```
