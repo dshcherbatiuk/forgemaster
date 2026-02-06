@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/fm-core",
     "crates/fm-controller-agenttask",
+    "crates/fm-controller-agent",
 ]
 
 [workspace.package]
