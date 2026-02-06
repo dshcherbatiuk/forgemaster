@@ -145,7 +145,18 @@ Scenario: E-commerce Backend API
 - [x] Implement UI WebSocket hook with auto-reconnect
 - [x] Implement ConnectionStatus component
 - [x] Add Helm templates (Service, HTTPRoute, ConfigMap)
-- [ ] Implement UI → Server action commands (WsCommand::Action)
+- [x] Implement UI → Server action commands (typed WsCommand variants + ActionDispatcher)
+- [x] Implement WsAction trait with DashMap-based action routing
+- [x] Implement SubmitTaskAction (creates AgentTask CRD from UI)
+- [x] Fix update_phase to patch only phase field (preserve existing status)
+- [x] Implement broadcast channel (tokio::sync::broadcast) for controller → WS state propagation
+- [x] Implement TaskStateBroadcaster (listens on channel, builds A2UI schema, pushes to clients)
+- [x] Implement server-generated A2UI schemas (build_task_status_schema in Rust)
+- [x] Add WsEvent::Schema variant for pushing components + data to UI
+- [x] Implement ID-based schema merging in UI (server components override static by ID)
+- [x] Read real CRD status values in update_phase (spec description + status fields from AgentTask)
+- [x] Task Status card with full details (Name, Description, Phase, Iteration, Error Signal, Tests)
+- [x] Late joiner support (SchemaCache sends cached schema + data on connect)
 - [ ] Implement clarification relay (agent → UI → agent)
 - [ ] Implement A2UI schema diff (push only changes)
 - [ ] Add namespace lifecycle management

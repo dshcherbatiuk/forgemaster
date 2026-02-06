@@ -8,9 +8,14 @@ This document defines the WebSocket message protocol between the AgentTask Contr
 
 The AgentTask Controller exposes a WebSocket endpoint at `/ws`. The UI connects to receive real-time updates and send user actions. Messages are JSON-encoded.
 
-Two message types:
+Two message directions:
 - **WsEvent** — Controller → UI (server pushes events)
 - **WsCommand** — UI → Controller (client sends commands)
+
+Three event types are implemented:
+- `connected` — connection acknowledgment
+- `data` — raw data updates
+- `schema` — A2UI component definitions + data (primary mechanism for dynamic UI)
 
 ---
 
@@ -23,21 +28,28 @@ sequenceDiagram
 
     UI->>Controller: WebSocket connect /ws
     Controller->>UI: WsEvent::Connected { client_id }
-    Controller->>UI: WsEvent::Data { data }
+    Controller->>UI: WsEvent::Schema { root, components, data } (cached, if task active)
+    Controller->>UI: WsEvent::Data { data } (cached dashboard data)
 
-    loop Real-time updates
-        Controller->>UI: WsEvent::Data { data }
-    end
+    UI->>Controller: WsCommand::SubmitTask { description }
+    Note over Controller: Creates AgentTask CRD
 
-    UI->>Controller: WsCommand::Action { action_id, data }
-
-    opt Clarification needed
-        Controller->>UI: WsEvent::Clarification { id, question, options }
-        UI->>Controller: WsCommand::ClarificationResponse { id, answer }
+    loop Reconciler phase transitions
+        Controller->>UI: WsEvent::Schema { root, components, data }
     end
 
     UI->>Controller: WebSocket close
 ```
+
+### Late Joiner Support
+
+When a client connects after a task is already running, the handler sends cached state:
+
+1. `WsEvent::Connected` — assigns client ID
+2. Cached `schema` — last pushed A2UI schema (components + data) so the client sees current task status
+3. Cached `dashboard` data — default data state
+
+The `SchemaCache` stores both the schema and dashboard data, updated by the `TaskStateBroadcaster` on every phase transition.
 
 ---
 
@@ -56,132 +68,156 @@ Sent immediately after WebSocket upgrade. Confirms the connection and assigns a 
 
 ### Data
 
-Pushes the current data state to the UI. Sent on initial connect and whenever state changes (progress, agent status, test results, TCP signal, etc.).
+Pushes raw data state to the UI. Sent on initial connect with cached dashboard data.
 
 ```json
 {
   "type": "data",
   "data": {
-    "status": "Running",
+    "hero": { "tagline": "AI-Powered Code Generation" },
+    "task": { "description": "" }
+  }
+}
+```
+
+The UI merges `data` with the A2UI schema's `defaultData` — WebSocket data takes precedence over defaults.
+
+### Schema
+
+Pushes A2UI component definitions and data from the controller. This is the primary mechanism for dynamic UI — the controller decides what components the UI renders.
+
+```json
+{
+  "type": "schema",
+  "root": "task-status-card",
+  "components": [
+    {
+      "id": "hero-section",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["hero-tagline", "hero-subtitle", "task-card", "task-status-card"] }
+        }
+      }
+    },
+    {
+      "id": "task-status-card",
+      "component": { "Card": { "child": "task-status-col" } }
+    },
+    {
+      "id": "task-status-col",
+      "component": {
+        "Column": {
+          "children": { "explicitList": ["task-status-title", "task-status-name-row", "task-status-desc-row", "task-status-phase-row", "task-status-iteration-row", "task-status-error-row", "task-status-tests-row"] }
+        }
+      }
+    }
+  ],
+  "data": {
     "task": {
-      "description": "Create an e-commerce API"
-    },
-    "progress": {
-      "steps": [
-        { "label": "Analyze", "icon": "✅" },
-        { "label": "Gen Tests", "icon": "✅" },
-        { "label": "Gen Code", "icon": "⏳" },
-        { "label": "Run Tests", "icon": "⬚" },
-        { "label": "Complete", "icon": "⬚" }
-      ]
-    },
-    "tcp": {
-      "value": "0.40",
-      "description": "Continue iteration"
-    },
-    "agent": {
-      "name": "CodeGenerator",
-      "role": "code-gen",
-      "status": "Working",
-      "iterations": 2,
-      "testsPassed": 3
-    },
-    "tests": {
-      "runTime": "1.2s",
-      "passed": 3,
-      "failed": 2,
-      "skipped": 0
+      "name": "task-3f012dea",
+      "description": "Create an e-commerce API",
+      "phase": "Running",
+      "iteration": 0,
+      "error": 1.0,
+      "testsTotal": 0,
+      "testsPassed": 0,
+      "testsDisplay": "0/0"
     }
   }
 }
 ```
 
-The `data` object carries only **dynamic runtime state**. Static content (app name, tagline, subtitle) stays in the A2UI schema `defaultData`. The UI merges both — WebSocket data takes precedence over defaults.
+**Schema merging in the UI**: The UI maintains a static base schema (`dashboard.json`) and merges server-pushed components using ID-based override — server components with the same ID replace static ones. This allows the controller to inject new components (task status card) and modify the layout (override `hero-section` children) without replacing the entire UI.
 
-### Clarification
+**Component format**: A2UI v0.8 `ComponentInstance` — each component has an `id` and a `component` object keyed by type (`Column`, `Row`, `Card`, `Text`, `TextField`, `Button`).
 
-Sent when an agent needs user input to proceed. The UI renders an appropriate input component.
-
-```json
-{
-  "type": "clarification",
-  "id": "q-001",
-  "question": "Which database should we use?",
-  "options": ["PostgreSQL", "MySQL", "MongoDB"]
-}
-```
-
-The `options` field is optional — omitted when free-text input is expected:
-
-```json
-{
-  "type": "clarification",
-  "id": "q-002",
-  "question": "Enter your API key"
-}
-```
-
-### Error
-
-Sent when something goes wrong server-side.
-
-```json
-{
-  "type": "error",
-  "message": "Failed to create AgentTask: namespace quota exceeded"
-}
-```
+**Data binding**: Components reference data via `{ "path": "/task/phase" }` for dynamic values or `{ "literalString": "Phase:" }` for static text.
 
 ---
 
 ## WsCommand (UI → Controller)
 
+Commands use serde tagged enum format (`#[serde(tag = "type", rename_all = "snake_case")]`).
+
 ### Connect
 
-Sent by the UI after WebSocket opens. Optional client ID for reconnection.
+Sent by the UI after WebSocket opens. Currently no payload.
 
 ```json
 {
-  "type": "connect",
-  "client_id": null
+  "type": "connect"
 }
 ```
 
-### Action
+### SubmitTask
 
-Sent when the user interacts with the UI (button click, form submit, navigation).
+Sent when the user submits a task description from the UI form. The A2UI button action resolves the form field value and sends it as a command.
 
 ```json
 {
-  "type": "action",
-  "action_id": "submitTask",
-  "data": {
-    "description": "Create an e-commerce backend API with product catalog and shopping cart"
-  }
+  "type": "submit_task",
+  "description": "Create an e-commerce backend API with product catalog and shopping cart"
 }
 ```
 
-```json
-{
-  "type": "action",
-  "action_id": "navigate",
-  "data": {
-    "view": "progress"
-  }
-}
+The `ActionDispatcher` routes this to `SubmitTaskAction`, which creates an `AgentTask` CRD in Kubernetes.
+
+---
+
+## Data Flow
+
+```mermaid
+flowchart LR
+    subgraph UI
+        A2UI[A2UIRenderer]
+        WS[useWebSocket]
+    end
+
+    subgraph Controller
+        Handler[WS Handler]
+        Dispatcher[ActionDispatcher]
+        Broadcaster[TaskStateBroadcaster]
+        Cache[SchemaCache]
+        Reconciler[Reconciler]
+    end
+
+    subgraph K8s
+        CRD[AgentTask CRD]
+    end
+
+    WS -->|WsCommand::SubmitTask| Handler
+    Handler -->|dispatch| Dispatcher
+    Dispatcher -->|create| CRD
+    CRD -->|watch| Reconciler
+    Reconciler -->|TaskStateChanged| Broadcaster
+    Broadcaster -->|WsEvent::Schema| WS
+    Broadcaster -->|cache| Cache
+    Handler -->|read cache| Cache
+    WS -->|merge schema + data| A2UI
 ```
 
-### ClarificationResponse
+### Broadcast Channel
 
-Sent when the user answers a clarification question.
+The reconciler emits `TaskStateChanged` events via a `tokio::sync::broadcast` channel. The `TaskStateBroadcaster` listens on this channel and:
 
-```json
-{
-  "type": "clarification_response",
-  "id": "q-001",
-  "answer": "PostgreSQL"
-}
-```
+1. Builds A2UI component definitions via `build_task_status_schema()`
+2. Caches the schema and data in `SchemaCache` (for late joiners)
+3. Broadcasts `WsEvent::Schema` to all connected clients via `ConnectionRegistry`
+
+### TaskStateChanged Event
+
+Emitted by the controller on every phase transition:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `task_name` | `String` | CRD resource name |
+| `namespace` | `String` | Kubernetes namespace |
+| `description` | `String` | Task description from spec |
+| `phase` | `AgentTaskPhase` | Current phase (Pending, Clarifying, Running, ...) |
+| `iteration` | `i32` | TCP controller iteration count |
+| `error` | `f64` | Error signal (0.0 - 1.0) |
+| `tests_total` | `i32` | Total test count |
+| `tests_passed` | `i32` | Passed test count |
 
 ---
 
@@ -213,23 +249,23 @@ Sent when the user answers a clarification question.
     },
     {
       "type": "object",
-      "required": ["type", "id", "question"],
+      "required": ["type", "root", "components", "data"],
       "properties": {
-        "type": { "const": "clarification" },
-        "id": { "type": "string" },
-        "question": { "type": "string" },
-        "options": {
+        "type": { "const": "schema" },
+        "root": { "type": "string", "description": "Root component ID" },
+        "components": {
           "type": "array",
-          "items": { "type": "string" }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": ["type", "message"],
-      "properties": {
-        "type": { "const": "error" },
-        "message": { "type": "string" }
+          "items": {
+            "type": "object",
+            "required": ["id", "component"],
+            "properties": {
+              "id": { "type": "string" },
+              "component": { "type": "object" }
+            }
+          },
+          "description": "A2UI v0.8 ComponentInstance array"
+        },
+        "data": { "type": "object", "description": "Data for populating component bindings" }
       }
     }
   ]
@@ -248,26 +284,15 @@ Sent when the user answers a clarification question.
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "const": "connect" },
-        "client_id": { "type": ["string", "null"] }
+        "type": { "const": "connect" }
       }
     },
     {
       "type": "object",
-      "required": ["type", "action_id", "data"],
+      "required": ["type", "description"],
       "properties": {
-        "type": { "const": "action" },
-        "action_id": { "type": "string" },
-        "data": { "type": "object" }
-      }
-    },
-    {
-      "type": "object",
-      "required": ["type", "id", "answer"],
-      "properties": {
-        "type": { "const": "clarification_response" },
-        "id": { "type": "string" },
-        "answer": { "type": "string" }
+        "type": { "const": "submit_task" },
+        "description": { "type": "string" }
       }
     }
   ]

@@ -7,18 +7,24 @@ use kube::api::Api;
 use kube::runtime::watcher::Config as WatcherConfig;
 use kube::runtime::Controller;
 use kube::Client;
+use tokio::sync::broadcast;
 use tracing::info;
 
 use crate::crd::AgentTask;
+use crate::task_state_changed::TaskStateChanged;
 
 use super::context::create_context;
 use super::dispatcher::Dispatcher;
 
 /// Runs the AgentTask controller.
-pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
+pub async fn run(
+    client: Client,
+    namespace: &str,
+    state_sender: broadcast::Sender<TaskStateChanged>,
+) -> anyhow::Result<()> {
     info!("🚀 Starting AgentTask controller in namespace: {}", namespace);
 
-    let ctx = create_context(client.clone(), namespace.to_string());
+    let ctx = create_context(client.clone(), namespace.to_string(), state_sender);
     let dispatcher = Arc::new(Dispatcher::new(Arc::clone(&ctx)));
 
     let api: Api<AgentTask> = Api::namespaced(client, namespace);

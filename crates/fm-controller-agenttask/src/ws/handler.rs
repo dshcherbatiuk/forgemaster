@@ -35,6 +35,19 @@ pub async fn handle_connection(
         let _ = ws_sink.send(Message::text(json)).await;
     }
 
+    // Send cached schema to late joiners (if a task is active)
+    if let Some(cached_schema) = schema_cache.get("schema") {
+        let schema_event = serde_json::json!({
+            "type": "schema",
+            "root": cached_schema["root"],
+            "components": cached_schema["components"],
+            "data": cached_schema["data"],
+        });
+        if let Ok(json) = serde_json::to_string(&schema_event) {
+            let _ = ws_sink.send(Message::text(json)).await;
+        }
+    }
+
     // Send cached dashboard data so late joiners get current state
     if let Some(data) = schema_cache.get("dashboard") {
         let data_event = WsEvent::Data { data };

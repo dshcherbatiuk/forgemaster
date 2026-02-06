@@ -11,7 +11,7 @@ use tracing::{debug, info};
 use crate::crd::{AgentTask, AgentTaskPhase};
 
 use super::super::context::ControllerContext;
-use super::super::error::{ReconcileError, ReconcileResult};
+use super::super::error::ReconcileResult;
 use super::ReconcileStrategy;
 
 /// Requeue duration for clarifying tasks.
@@ -41,16 +41,13 @@ impl ClarifyingStrategy {
 impl ReconcileStrategy for ClarifyingStrategy {
     async fn reconcile(&self, task: &AgentTask) -> ReconcileResult<Action> {
         let name = task.name_any();
-        let namespace = task.namespace().ok_or_else(|| {
-            ReconcileError::MissingField("namespace".to_string())
-        })?;
 
         debug!("❓ Task {} is clarifying, checking pending clarifications", name);
 
         let pending = Self::pending_count(task);
 
         if pending == 0 {
-            self.ctx.update_phase(&namespace, &name, AgentTaskPhase::Running).await?;
+            self.ctx.update_phase(task, AgentTaskPhase::Running).await?;
             info!("✅ Task {} clarifications resolved, transitioning to Running", name);
         } else {
             debug!("⏳ Task {} waiting for {} clarifications", name, pending);

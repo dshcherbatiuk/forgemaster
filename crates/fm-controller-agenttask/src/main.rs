@@ -1,13 +1,16 @@
 //! AgentTask Controller binary.
 
 use anyhow::Result;
-use fm_controller_agenttask::ws::WsServer;
+use fm_controller_agenttask::task_state_changed::TaskStateChanged;
+use fm_controller_agenttask::ws::{TaskStateBroadcaster, WsServer};
 use kube::Client;
+use tokio::sync::broadcast;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 const DEFAULT_NAMESPACE: &str = "forgemaster-system";
 const DEFAULT_WS_PORT: u16 = 8080;
+const STATE_CHANNEL_CAPACITY: usize = 64;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,15 +30,25 @@ async fn main() -> Result<()> {
     let client = Client::try_default().await?;
     info!("📡 Connected to Kubernetes cluster");
 
+    let (state_sender, state_receiver) =
+        broadcast::channel::<TaskStateChanged>(STATE_CHANNEL_CAPACITY);
+
     let ws_server = WsServer::new(ws_port, client.clone(), namespace.clone());
 
+    let broadcaster = TaskStateBroadcaster::new(
+        state_receiver,
+        ws_server.schema_cache(),
+        ws_server.registry(),
+    );
+
     tokio::select! {
-        result = fm_controller_agenttask::controller::run(client, &namespace) => {
+        result = fm_controller_agenttask::controller::run(client, &namespace, state_sender) => {
             result?;
         }
         result = ws_server.run() => {
             result?;
         }
+        _ = broadcaster.run() => {}
     }
 
     Ok(())

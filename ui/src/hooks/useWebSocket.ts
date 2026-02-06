@@ -3,15 +3,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const INITIAL_RECONNECT_DELAY_MS = 3_000;
 
+export interface ServerSchema {
+  root: string;
+  components: unknown[];
+  data: Record<string, unknown>;
+}
+
 interface UseWebSocketResult {
   connected: boolean;
   data: Record<string, unknown> | undefined;
+  serverSchema: ServerSchema | undefined;
   sendCommand: (type: string, fields: Record<string, unknown>) => void;
 }
 
 export function useWebSocket(url: string): UseWebSocketResult {
   const [connected, setConnected] = useState(false);
   const [data, setData] = useState<Record<string, unknown> | undefined>();
+  const [serverSchema, setServerSchema] = useState<ServerSchema | undefined>();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -33,6 +41,12 @@ export function useWebSocket(url: string): UseWebSocketResult {
 
         if (message.type === "data") {
           setData(message.data);
+        } else if (message.type === "schema") {
+          setServerSchema({
+            root: message.root,
+            components: message.components,
+            data: message.data,
+          });
         }
       } catch {
         console.warn("[WS] Failed to parse message");
@@ -77,5 +91,5 @@ export function useWebSocket(url: string): UseWebSocketResult {
     [],
   );
 
-  return { connected, data, sendCommand };
+  return { connected, data, serverSchema, sendCommand };
 }

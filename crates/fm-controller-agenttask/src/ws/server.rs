@@ -60,6 +60,16 @@ impl WsServer {
         }
     }
 
+    /// Returns a clone of the schema cache.
+    pub fn schema_cache(&self) -> Arc<SchemaCache> {
+        Arc::clone(&self.schema_cache)
+    }
+
+    /// Returns a clone of the connection registry.
+    pub fn registry(&self) -> Arc<ConnectionRegistry> {
+        Arc::clone(&self.registry)
+    }
+
     /// Start the server. Blocks until shutdown.
     pub async fn run(self) -> Result<()> {
         let state = WsState {
