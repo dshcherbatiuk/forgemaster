@@ -33,10 +33,7 @@ impl WsServer {
         let schema_cache = Arc::new(SchemaCache::new());
         let registry = Arc::new(ConnectionRegistry::new());
         let task_creator = Arc::new(TaskCreator::new(client, namespace));
-        let dispatcher = Arc::new(ActionDispatcher::new(
-            task_creator,
-            Arc::clone(&registry),
-        ));
+        let dispatcher = Arc::new(ActionDispatcher::new(task_creator, Arc::clone(&registry)));
 
         // Seed initial dashboard state matching the UI's defaultData
         schema_cache.set(

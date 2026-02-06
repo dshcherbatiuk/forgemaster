@@ -3,10 +3,10 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use kube::api::Api;
-use kube::runtime::watcher::Config as WatcherConfig;
-use kube::runtime::Controller;
 use kube::Client;
+use kube::api::Api;
+use kube::runtime::Controller;
+use kube::runtime::watcher::Config as WatcherConfig;
 use tokio::sync::broadcast;
 use tracing::info;
 
@@ -22,7 +22,10 @@ pub async fn run(
     namespace: &str,
     state_sender: broadcast::Sender<TaskStateChanged>,
 ) -> anyhow::Result<()> {
-    info!("🚀 Starting AgentTask controller in namespace: {}", namespace);
+    info!(
+        "🚀 Starting AgentTask controller in namespace: {}",
+        namespace
+    );
 
     let ctx = create_context(client.clone(), namespace.to_string(), state_sender);
     let dispatcher = Arc::new(Dispatcher::new(Arc::clone(&ctx)));

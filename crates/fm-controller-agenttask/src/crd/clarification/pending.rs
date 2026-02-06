@@ -72,10 +72,12 @@ mod tests {
                 "MongoDB".to_string(),
             ])
             .required(true)
-            .attempted_sources(vec![AttemptedSource::builder()
-                .source(ClarificationSource::System)
-                .result("No match".to_string())
-                .build()])
+            .attempted_sources(vec![
+                AttemptedSource::builder()
+                    .source(ClarificationSource::System)
+                    .result("No match".to_string())
+                    .build(),
+            ])
             .blocked_on_user(true)
             .build();
 

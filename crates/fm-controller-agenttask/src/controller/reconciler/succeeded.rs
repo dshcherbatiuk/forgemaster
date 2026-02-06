@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use kube::runtime::controller::Action;
 use kube::ResourceExt;
+use kube::runtime::controller::Action;
 use tracing::info;
 
 use crate::crd::AgentTask;

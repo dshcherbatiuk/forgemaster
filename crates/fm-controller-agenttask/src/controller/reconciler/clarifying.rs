@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use kube::runtime::controller::Action;
 use kube::ResourceExt;
+use kube::runtime::controller::Action;
 use tracing::{debug, info};
 
 use crate::crd::{AgentTask, AgentTaskPhase};
@@ -42,13 +42,19 @@ impl ReconcileStrategy for ClarifyingStrategy {
     async fn reconcile(&self, task: &AgentTask) -> ReconcileResult<Action> {
         let name = task.name_any();
 
-        debug!("❓ Task {} is clarifying, checking pending clarifications", name);
+        debug!(
+            "❓ Task {} is clarifying, checking pending clarifications",
+            name
+        );
 
         let pending = Self::pending_count(task);
 
         if pending == 0 {
             self.ctx.update_phase(task, AgentTaskPhase::Running).await?;
-            info!("✅ Task {} clarifications resolved, transitioning to Running", name);
+            info!(
+                "✅ Task {} clarifications resolved, transitioning to Running",
+                name
+            );
         } else {
             debug!("⏳ Task {} waiting for {} clarifications", name, pending);
         }

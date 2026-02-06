@@ -78,7 +78,9 @@ mod tests {
     fn schema_serializes_with_correct_tag() {
         let event = WsEvent::Schema {
             root: "task-status-card".to_string(),
-            components: smallvec::smallvec![serde_json::json!({"id": "c1", "component": {"Text": {"text": {"literalString": "Hello"}}}})],
+            components: smallvec::smallvec![
+                serde_json::json!({"id": "c1", "component": {"Text": {"text": {"literalString": "Hello"}}}})
+            ],
             data: serde_json::json!({"task": {"phase": "Running"}}),
         };
         let serialized = serde_json::to_value(&event).unwrap();

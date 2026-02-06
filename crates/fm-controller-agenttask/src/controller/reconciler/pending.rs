@@ -4,14 +4,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use kube::runtime::controller::Action;
 use kube::ResourceExt;
+use kube::runtime::controller::Action;
 use tracing::{debug, info};
 
 use crate::crd::{AgentTask, AgentTaskPhase};
 
 use super::super::context::ControllerContext;
 use super::super::error::ReconcileResult;
+use super::super::namespace_lifecycle::NamespaceLifecycle;
 use super::ReconcileStrategy;
 
 /// Requeue duration for pending tasks.
@@ -42,14 +43,28 @@ impl ReconcileStrategy for PendingStrategy {
     async fn reconcile(&self, task: &AgentTask) -> ReconcileResult<Action> {
         let name = task.name_any();
 
-        debug!("📋 Task {} is pending, checking if clarifications needed", name);
+        debug!(
+            "📋 Task {} is pending, checking if clarifications needed",
+            name
+        );
 
         if Self::needs_clarification(task) {
-            self.ctx.update_phase(task, AgentTaskPhase::Clarifying).await?;
-            info!("❓ Task {} needs clarifications, transitioning to Clarifying", name);
+            self.ctx
+                .update_phase(task, AgentTaskPhase::Clarifying)
+                .await?;
+            info!(
+                "❓ Task {} needs clarifications, transitioning to Clarifying",
+                name
+            );
         } else {
+            let ns_name = NamespaceLifecycle::create(self.ctx.client(), task).await?;
+            info!("📦 Task {} namespace ready: {}", name, ns_name);
+
             self.ctx.update_phase(task, AgentTaskPhase::Running).await?;
-            info!("🚀 Task {} starting execution, transitioning to Running", name);
+            info!(
+                "🚀 Task {} starting execution, transitioning to Running",
+                name
+            );
         }
 
         Ok(Action::requeue(REQUEUE_DURATION))

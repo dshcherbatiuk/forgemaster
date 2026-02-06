@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use kube::api::{Api, Patch, PatchParams};
 use kube::Client;
+use kube::api::{Api, Patch, PatchParams};
 use tokio::sync::broadcast;
 use tracing::{debug, warn};
 
@@ -68,7 +68,10 @@ impl ControllerContext {
         .await
         .map_err(ReconcileError::UpdateStatus)?;
 
-        debug!("📝 Updated task {}/{} phase to {:?}", namespace, name, phase);
+        debug!(
+            "📝 Updated task {}/{} phase to {:?}",
+            namespace, name, phase
+        );
 
         self.broadcast_state(task, phase);
         Ok(())
@@ -87,9 +90,7 @@ impl ControllerContext {
 
     fn broadcast_state(&self, task: &AgentTask, phase: AgentTaskPhase) {
         let name = task.name_any();
-        let namespace = task
-            .namespace()
-            .unwrap_or_else(|| self.namespace.clone());
+        let namespace = task.namespace().unwrap_or_else(|| self.namespace.clone());
         let status = task.status.as_ref().cloned().unwrap_or_default();
         let created_at = task.metadata.creation_timestamp.as_ref().map(|t| t.0);
 

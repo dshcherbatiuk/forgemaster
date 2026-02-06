@@ -6,7 +6,7 @@ use fm_controller_agenttask::ws::{TaskStateBroadcaster, WsServer};
 use kube::Client;
 use tokio::sync::broadcast;
 use tracing::info;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 const DEFAULT_NAMESPACE: &str = "forgemaster-system";
 const DEFAULT_WS_PORT: u16 = 8080;

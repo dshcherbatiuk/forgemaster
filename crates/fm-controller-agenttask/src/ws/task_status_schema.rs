@@ -1,8 +1,8 @@
 //! Builds A2UI schema components for task status display.
 
 use chrono::Utc;
-use serde_json::{json, Value};
-use smallvec::{smallvec, SmallVec};
+use serde_json::{Value, json};
+use smallvec::{SmallVec, smallvec};
 
 use crate::task_state_changed::TaskStateChanged;
 
@@ -300,7 +300,12 @@ mod tests {
             .find(|c| c["id"] == "hero-section")
             .unwrap();
         let children = &hero_section["component"]["Column"]["children"]["explicitList"];
-        assert!(children.as_array().unwrap().contains(&json!("task-status-card")));
+        assert!(
+            children
+                .as_array()
+                .unwrap()
+                .contains(&json!("task-status-card"))
+        );
     }
 
     #[test]
@@ -324,7 +329,10 @@ mod tests {
             .iter()
             .find(|c| c["id"] == "task-status-name-value")
             .unwrap();
-        assert_eq!(name_value["component"]["Text"]["text"]["path"], "/task/name");
+        assert_eq!(
+            name_value["component"]["Text"]["text"]["path"],
+            "/task/name"
+        );
     }
 
     #[test]

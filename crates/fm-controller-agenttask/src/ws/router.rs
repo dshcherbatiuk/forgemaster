@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Router;
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::Router;
 
 use super::action::ActionDispatcher;
 use super::connection_registry::ConnectionRegistry;
@@ -25,13 +25,12 @@ pub struct WsState {
 
 /// Creates the router with the `/ws` endpoint.
 pub fn ws_router(state: WsState) -> Router {
-    Router::new().route("/ws", get(ws_upgrade)).with_state(state)
+    Router::new()
+        .route("/ws", get(ws_upgrade))
+        .with_state(state)
 }
 
-async fn ws_upgrade(
-    ws: WebSocketUpgrade,
-    State(state): State<WsState>,
-) -> impl IntoResponse {
+async fn ws_upgrade(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket| {
         handle_connection(socket, state.registry, state.schema_cache, state.dispatcher)
     })

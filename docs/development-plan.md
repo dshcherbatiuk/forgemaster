@@ -134,7 +134,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Late joiner support (SchemaCache sends cached schema + data on connect)
 - [ ] Implement clarification relay (agent → UI → agent)
 - [ ] Implement A2UI schema diff (push only changes)
-- [ ] Add namespace lifecycle management
+- [x] Add namespace lifecycle management (create namespace on Pending→Running, delete on task deletion with finalizer)
 
 ### 2.2 Agent Runtime (fm-agent-runtime)
 

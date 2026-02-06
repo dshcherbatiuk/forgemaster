@@ -36,7 +36,7 @@ fn default_timeout() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crd::{ClarificationSource, Clarification};
+    use crate::crd::{Clarification, ClarificationSource};
 
     #[test]
     fn build_agent_task_spec_minimal() {
@@ -55,11 +55,13 @@ mod tests {
         let spec = AgentTaskSpec::builder()
             .description("Build a REST API".to_string())
             .timeout("1h".to_string())
-            .clarifications(vec![Clarification::builder()
-                .question_id("db".to_string())
-                .answer("PostgreSQL".to_string())
-                .source(ClarificationSource::User)
-                .build()])
+            .clarifications(vec![
+                Clarification::builder()
+                    .question_id("db".to_string())
+                    .answer("PostgreSQL".to_string())
+                    .source(ClarificationSource::User)
+                    .build(),
+            ])
             .resource_quota(ResourceQuota::builder().max_agents(10).build())
             .build();
 

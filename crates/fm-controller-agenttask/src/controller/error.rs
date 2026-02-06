@@ -57,7 +57,8 @@ mod tests {
 
     #[test]
     fn reconcile_error_invalid_state() {
-        let error = ReconcileError::InvalidState("cannot transition from Failed to Running".to_string());
+        let error =
+            ReconcileError::InvalidState("cannot transition from Failed to Running".to_string());
         assert!(error.to_string().contains("cannot transition"));
     }
 

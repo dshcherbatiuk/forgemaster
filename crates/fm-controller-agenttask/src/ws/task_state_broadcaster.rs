@@ -109,8 +109,7 @@ mod tests {
         }
     }
 
-    fn create_broadcaster_with_client(
-    ) -> (TaskStateBroadcaster, mpsc::UnboundedReceiver<String>) {
+    fn create_broadcaster_with_client() -> (TaskStateBroadcaster, mpsc::UnboundedReceiver<String>) {
         let (sender, _) = broadcast::channel::<TaskStateChanged>(16);
         let schema_cache = Arc::new(SchemaCache::new());
         let registry = Arc::new(ConnectionRegistry::new());
