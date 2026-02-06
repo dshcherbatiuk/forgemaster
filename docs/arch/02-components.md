@@ -11,7 +11,7 @@ This document describes every entity in the ForgeMaster system and its responsib
 | **Controllers** | Kubernetes operators that watch and reconcile CRDs | Single `forgemaster-operator` Deployment | AgentTask Controller, Agent Controller |
 | **Backend Services** | HTTP services that don't reconcile CRDs | Separate Deployments | TCP Controller, Agent Registry |
 | **Agents** | LLM-powered workers that execute tasks | Dynamic pods per task | Orchestrator, Code Generator |
-| **CRDs** | Kubernetes Custom Resources (data, not processes) | Stored in etcd | AgentTask, Agent, Domain |
+| **CRDs** | Kubernetes Custom Resources (data, not processes) | Stored in etcd | AgentTask, Agent, MCPServer |
 | **Infrastructure** | Stateful storage systems | Helm-managed Deployments | Redis |
 
 **Why this grouping?**
@@ -81,7 +81,6 @@ flowchart TB
         AT[AgentTask CR]
         AGT[Agent CR]
         MCP[MCPServer CR]
-        DOM[Domain CR]
     end
 
     USER -->|HTTP API| ATC
@@ -110,15 +109,14 @@ flowchart TB
 | WebSocket Hub | Real-time communication with UI via WebSocket |
 | A2UI Schema Relay | Receive A2UI schemas from agents, push to UI |
 | Schema Caching | Cache schemas, send diffs for efficiency |
-| Domain Matching | Match incoming tasks against Domain CRs to select configuration |
-| Task Initialization | Create AgentTask CR with matched domain config |
+| Task Initialization | Create AgentTask CR |
 | Agent Provisioning | Create Agent CRs for required agents |
-| MCP Provisioning | Create MCPServer CRs based on domain configuration |
+| MCP Provisioning | Create MCPServer CRs for required tools |
 | Namespace Management | Create isolated namespace for each task |
 | Status Tracking | Update AgentTask status throughout lifecycle |
 | Cleanup | Delete namespace and resources when task completes |
 
-**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle, Generate A2UI schemas
+**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle
 
 ---
 
@@ -174,7 +172,7 @@ flowchart TB
 | **C (Context)** | Leverage history, learned patterns from past iterations |
 | **P (Prediction)** | Anticipate failures, adapt proactively |
 
-**Does NOT do:** Create agents, Run tests, Domain matching
+**Does NOT do:** Create agents, Run tests
 
 ---
 
@@ -285,7 +283,6 @@ flowchart TB
 | AgentTask | AgentTask Controller | AgentTask Controller | Task definition and status |
 | Agent | AgentTask Controller / Orchestrator | Agent Controller | Agent instance configuration |
 | MCPServer | AgentTask Controller | MCPServer Controller | MCP server configuration |
-| Domain | Cluster administrator | AgentTask Controller (read-only) | Domain-specific configuration |
 
 ---
 
@@ -331,7 +328,6 @@ sequenceDiagram
 
     U->>UI: Submit task description
     UI->>ATC: Task via WebSocket
-    ATC->>ATC: Match Domain
     ATC->>ATC: Create AgentTask CR
     ATC->>AC: Create Agent CRs
     AC->>OA: Start Orchestrator

@@ -10,7 +10,6 @@ flowchart TB
         AT[AgentTask]
         AG[Agent]
         MCP[MCPServer]
-        DOM[Domain]
     end
 
     subgraph Hierarchy["Resource Hierarchy"]
@@ -18,7 +17,6 @@ flowchart TB
         AT -->|owns| AG
         AT -->|owns| MCP
         AT -->|owns| CM[ConfigMaps]
-        DOM -->|provides templates| AT
     end
 ```
 
@@ -27,7 +25,6 @@ flowchart TB
 | AgentTask | `forgemaster.io/v1alpha1` | Top-level task resource | Namespaced |
 | Agent | `forgemaster.io/v1alpha1` | Agent instance | Namespaced |
 | MCPServer | `forgemaster.io/v1alpha1` | MCP server instance | Namespaced |
-| Domain | `forgemaster.io/v1alpha1` | Domain templates | Cluster-scoped |
 
 > **Note:** Test definitions are stored in ConfigMaps (created by Test Generator Agent), not as a separate CRD.
 
@@ -64,7 +61,6 @@ stateDiagram-v2
 | Field | Description |
 |-------|-------------|
 | `spec.description` | Natural language task description |
-| `spec.domain` | Matched domain reference and score |
 | `spec.controller` | TCP coefficients (T, C, P weights) |
 | `status.phase` | Pending → Initializing → Running → Succeeded/Failed |
 | `status.currentError` | Error signal from TCP Controller (0.0-1.0) |
@@ -124,7 +120,7 @@ stateDiagram-v2
 
 **Purpose:** MCP (Model Context Protocol) server that provides tools to agents.
 
-**Created by:** AgentTask Controller based on Domain requirements.
+**Created by:** AgentTask Controller based on task requirements.
 
 **Managed by:** MCPServer Controller — watches MCPServer CRs, creates Pods and Services, manages lifecycle.
 
@@ -164,47 +160,6 @@ stateDiagram-v2
 
 ---
 
-### Domain
-
-**Purpose:** Cluster-scoped template registry defining agent configurations and task matching rules.
-
-**Created by:** Cluster administrator at setup time.
-
-**Managed by:** AgentTask Controller — reads templates during task initialization, updates usage statistics after task completion.
-
-**Scope:** Cluster-wide (not namespaced) — shared across all tasks.
-
-**Provides:**
-- Agent templates with pre-configured system prompts
-- Task matching rules (keywords, patterns)
-- Required MCP server configurations
-- Success metrics and statistics
-
-**Lifecycle:**
-
-```mermaid
-stateDiagram-v2
-    [*] --> Active: Admin creates Domain CR
-    Active --> Active: Task matched → templates provided
-    Active --> Active: Task completed → stats updated
-    Active --> Deprecated: Admin marks deprecated
-    Deprecated --> Disabled: No longer accepting tasks
-    Disabled --> [*]: Admin deletes
-```
-
-**Key fields:**
-
-| Field | Description |
-|-------|-------------|
-| `spec.displayName` | Human-readable domain name |
-| `spec.skills` | List of skills this domain provides |
-| `spec.matching` | Keywords and patterns for task matching |
-| `spec.agentTemplates` | Pre-configured agent definitions |
-| `spec.mcpServers` | Required/optional MCP servers |
-| `status.successRate` | Historical success rate (0.0-1.0) |
-
----
-
 ## Resource Flow
 
 ```mermaid
@@ -212,14 +167,11 @@ sequenceDiagram
     actor User
     participant ATC as AgentTask Controller
     participant API as K8s API
-    participant DOM as Domain
     participant AG as Agents
     participant MCP as MCPServers
 
     User->>ATC: Submit task (HTTP API)
     ATC->>API: Create AgentTask CR
-    ATC->>DOM: Match task to domain
-    DOM-->>ATC: Return templates (score: 0.94)
     ATC->>API: Create Agent CRs
     ATC->>API: Create MCPServer CRs
     AG->>MCP: Use tools (read/write files)
@@ -242,17 +194,9 @@ kind: AgentTask
 metadata:
   name: string                    # Task identifier (e.g., "ecommerce-backend")
   namespace: string               # Task namespace (e.g., "task-abc123")
-  labels:
-    forgemaster.io/domain: string # Matched domain name
 spec:
   # Task Description (required)
   description: string             # Natural language task description
-
-  # Domain Configuration
-  domain:
-    name: string                  # Domain name (e.g., "web-development")
-    autoSelected: boolean         # Whether domain was auto-matched
-    matchScore: number            # Match confidence (0.0 - 1.0)
 
   # TCP Controller Configuration
   controller:
@@ -320,8 +264,6 @@ kind: AgentTask
 metadata:
   name: ecommerce-backend
   namespace: task-ecommerce-abc123
-  labels:
-    forgemaster.io/domain: web-development
 spec:
   description: |
     Create an e-commerce backend API with:
@@ -329,11 +271,6 @@ spec:
     - Shopping cart management
     - Checkout with Stripe integration
     - Order history
-
-  domain:
-    name: web-development
-    autoSelected: true
-    matchScore: 0.94
 
   controller:
     taskWeight: 1.0
@@ -407,7 +344,7 @@ metadata:
   labels:
     forgemaster.io/task: string   # Parent AgentTask name
     forgemaster.io/type: string   # Agent type
-    forgemaster.io/domain: string # Domain name
+
   ownerReferences:                # Garbage collection
     - apiVersion: forgemaster.io/v1alpha1
       kind: AgentTask
@@ -495,7 +432,7 @@ metadata:
   labels:
     forgemaster.io/task: ecommerce-backend
     forgemaster.io/type: code-generator
-    forgemaster.io/domain: web-development
+
   ownerReferences:
     - apiVersion: forgemaster.io/v1alpha1
       kind: AgentTask
@@ -730,203 +667,6 @@ status:
 
 ---
 
-## Domain CRD
-
-Cluster-scoped resource defining domain templates and matching rules.
-
-### Schema
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Domain
-metadata:
-  name: string                    # Domain identifier (cluster-scoped, no namespace)
-spec:
-  # Display Information
-  displayName: string             # Human-readable name
-  description: string             # Domain description
-
-  # Skills
-  skills: []string                # Skills this domain provides
-
-  # Task Matching
-  matching:
-    patterns: []string            # Regex patterns to match task descriptions
-    keywords:                     # Keyword weights for scoring
-      - keyword: string
-        weight: number            # 0.0 - 1.0
-    minScore: number              # Minimum match score (default: 0.7)
-
-  # Agent Templates
-  agentTemplates:
-    - name: string                # Template name
-      type: string                # Agent type
-      model:
-        provider: string
-        name: string
-        temperature: number
-        maxTokens: integer
-      systemPrompt: string        # System prompt template
-      mcpServers: []string        # Required MCP servers
-
-  # Shared Agent References
-  sharedAgentRefs: []string       # References to shared agents
-
-  # Required MCP Servers
-  mcpServers:
-    - name: string                # MCP server type
-      required: boolean           # Required or optional
-      config: map[string]string   # Default configuration
-
-status:
-  # Domain Status
-  phase: string                   # Active | Deprecated | Disabled
-
-  # Usage Statistics
-  stats:
-    totalTasks: integer           # Total tasks using this domain
-    activeTasks: integer          # Currently running tasks
-    successRate: number           # Success rate (0.0 - 1.0)
-    avgIterations: number         # Average iterations to completion
-
-  # Last Used
-  lastUsed: string                # ISO 8601 timestamp
-
-  # Conditions
-  conditions:
-    - type: string
-      status: string
-      reason: string
-      message: string
-      lastTransitionTime: string
-```
-
-### Example
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Domain
-metadata:
-  name: web-development
-spec:
-  displayName: Web Development
-  description: |
-    Full-stack web applications, REST APIs, frontend frameworks,
-    and common integrations (payments, auth, databases).
-
-  skills:
-    - rest-api
-    - graphql
-    - authentication
-    - database-integration
-    - frontend-spa
-    - payment-processing
-
-  matching:
-    patterns:
-      - ".*REST API.*"
-      - ".*web (app|application).*"
-      - ".*frontend.*"
-      - ".*e-commerce.*"
-      - ".*backend.*API.*"
-    keywords:
-      - keyword: REST
-        weight: 0.9
-      - keyword: API
-        weight: 0.8
-      - keyword: web
-        weight: 0.7
-      - keyword: frontend
-        weight: 0.8
-      - keyword: backend
-        weight: 0.8
-      - keyword: Stripe
-        weight: 0.9
-      - keyword: checkout
-        weight: 0.85
-      - keyword: e-commerce
-        weight: 0.95
-    minScore: 0.7
-
-  agentTemplates:
-    - name: api-architect
-      type: code-generator
-      model:
-        provider: anthropic
-        name: claude-sonnet-4-20250514
-        temperature: 0.7
-        maxTokens: 4096
-      systemPrompt: |
-        You are an API Architect specializing in REST and GraphQL APIs.
-        Design clean, scalable API structures following best practices.
-        Use appropriate HTTP methods, status codes, and error handling.
-      mcpServers:
-        - github
-        - postgres
-
-    - name: frontend-developer
-      type: code-generator
-      model:
-        provider: anthropic
-        name: claude-sonnet-4-20250514
-        temperature: 0.7
-        maxTokens: 4096
-      systemPrompt: |
-        You are a Frontend Developer specializing in React and TypeScript.
-        Build responsive, accessible user interfaces.
-        Follow component-based architecture and modern React patterns.
-      mcpServers:
-        - github
-        - filesystem
-
-    - name: stripe-integrator
-      type: code-generator
-      model:
-        provider: anthropic
-        name: claude-sonnet-4-20250514
-        temperature: 0.5
-        maxTokens: 4096
-      systemPrompt: |
-        You are a Payment Integration specialist for Stripe.
-        Implement secure payment flows following PCI compliance.
-        Handle webhooks, refunds, and subscription billing.
-      mcpServers:
-        - github
-        - stripe
-
-  sharedAgentRefs:
-    - test-generator
-    - test-runner
-    - reviewer
-
-  mcpServers:
-    - name: github
-      required: true
-    - name: postgres
-      required: false
-    - name: stripe
-      required: false
-    - name: redis
-      required: false
-
-status:
-  phase: Active
-  stats:
-    totalTasks: 156
-    activeTasks: 3
-    successRate: 0.87
-    avgIterations: 4.2
-  lastUsed: "2026-02-05T11:30:00Z"
-  conditions:
-    - type: Ready
-      status: "True"
-      reason: DomainActive
-      message: Domain is active and accepting tasks
-      lastTransitionTime: "2026-02-01T00:00:00Z"
-```
-
----
-
 ## Generating CRDs with kube-rs
 
 ### Rust Struct Definitions
@@ -953,9 +693,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct AgentTaskSpec {
     pub description: String,
-
-    #[serde(default)]
-    pub domain: Option<DomainRef>,
 
     #[serde(default)]
     pub controller: ControllerConfig,
@@ -1013,7 +750,7 @@ pub enum TaskPhase {
 ```rust
 // crates/fm-core/src/bin/gen_crds.rs
 
-use fm_core::crds::{AgentTask, Agent, MCPServer, Domain};
+use fm_core::crds::{AgentTask, Agent, MCPServer};
 use kube::CustomResourceExt;
 use std::fs;
 
@@ -1022,7 +759,6 @@ fn main() {
         serde_yaml::to_string(&AgentTask::crd()).unwrap(),
         serde_yaml::to_string(&Agent::crd()).unwrap(),
         serde_yaml::to_string(&MCPServer::crd()).unwrap(),
-        serde_yaml::to_string(&Domain::crd()).unwrap(),
     ];
 
     let output = crds.join("---\n");
@@ -1058,7 +794,6 @@ kubectl get crds | grep forgemaster
 # agenttasks.forgemaster.io      2026-02-05T12:00:00Z
 # agents.forgemaster.io          2026-02-05T12:00:00Z
 # mcpservers.forgemaster.io      2026-02-05T12:00:00Z
-# domains.forgemaster.io         2026-02-05T12:00:00Z
 ```
 
 ### Helm Chart

@@ -5,7 +5,6 @@
 ```mermaid
 flowchart TB
     subgraph CRDs["Custom Resource Definitions"]
-        DOM[Domain CRD]
         AT[AgentTask CRD]
         AG[Agent CRD]
         MCP[MCPServer CRD]
@@ -25,7 +24,6 @@ flowchart TB
         SEC[Secrets]
     end
 
-    DOM -.->|templates| ATC
     AT --> ATC
     AG --> AGC
     MCP --> MCPC
@@ -36,105 +34,7 @@ flowchart TB
     MCPC --> Pods & SVC & SEC
 ```
 
-> **Note:** Controllers run as a single Operator Deployment, not as separate CRDs. Domain is cluster-scoped configuration managed by administrators.
-
-### Domain CRD
-
-Defines a domain — a specialized area of expertise with proven agent combinations, MCP servers, and task patterns.
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Domain
-metadata:
-  name: web-development
-  namespace: forgemaster-system
-spec:
-  # Domain identification
-  displayName: "Web Development"
-  description: "Full-stack web applications, REST APIs, frontend frameworks"
-
-  # Skills this domain provides
-  skills:
-    - rest-api
-    - graphql
-    - authentication
-    - database-integration
-    - frontend-spa
-    - payment-processing
-
-  # Task patterns this domain can handle (regex patterns)
-  taskPatterns:
-    - ".*REST API.*"
-    - ".*web (app|application).*"
-    - ".*frontend.*"
-    - ".*e-commerce.*"
-    - ".*checkout.*"
-
-  # Agent templates available in this domain
-  agentTemplates:
-    domainSpecific:
-      - name: api-architect
-        type: code-generator
-        systemPrompt: |
-          You are an API architect specializing in REST and GraphQL APIs.
-          Design clean, scalable API structures.
-        model:
-          provider: anthropic
-          name: claude-sonnet-4-20250514
-          temperature: 0.7
-
-      - name: stripe-integrator
-        type: code-generator
-        systemPrompt: |
-          You are a payment integration specialist.
-          Implement secure Stripe payment flows.
-        model:
-          provider: anthropic
-          name: claude-sonnet-4-20250514
-          temperature: 0.5
-
-    # References to shared agents (defined separately)
-    sharedAgentRefs:
-      - test-generator
-      - reviewer
-      - doc-generator
-
-  # MCP servers required by this domain
-  mcpServers:
-    - name: github-mcp
-      required: true
-    - name: postgres-mcp
-      required: false
-    - name: stripe-mcp
-      required: false
-
-  # Matching configuration
-  matching:
-    minMatchScore: 0.75
-    keywordWeights:
-      "REST": 0.9
-      "API": 0.8
-      "web": 0.7
-      "frontend": 0.8
-      "Stripe": 0.9
-      "checkout": 0.85
-
-  # Domain composition rules
-  composition:
-    canComposeWith:
-      - data-engineering
-      - testing-qa
-    compositionPatterns:
-      - pattern: ".*real-time.*analytics.*"
-        composeDomains: ["web-development", "data-engineering"]
-
-status:
-  phase: Active  # Active | Deprecated | Disabled
-  registeredAgents: 5
-  activeTasks: 3
-  successRate: 0.87
-  lastUsed: "2026-01-19T14:00:00Z"
-```
+> **Note:** Controllers run as a single Operator Deployment, not as separate CRDs.
 
 ### AgentTask CRD
 
@@ -150,13 +50,6 @@ spec:
   description: |
     Create an e-commerce backend with product catalog, shopping cart,
     and checkout flow. Include Stripe integration.
-
-  # Domain reference (auto-selected or user-specified)
-  domain:
-    name: web-development
-    autoSelected: true
-    matchScore: 0.94
-    reason: "Task mentions e-commerce, checkout, Stripe — matched web-development domain"
 
   # TCP Controller settings
   controller:
@@ -205,7 +98,6 @@ metadata:
   labels:
     forgemaster.io/task: ecommerce-backend
     forgemaster.io/type: code-generator
-    forgemaster.io/domain: web-development
 spec:
   type: code-generator
 
@@ -443,17 +335,9 @@ flowchart TB
             end
         end
 
-        subgraph DomainRegistry["Domain Registry"]
-            DOM1[Domain: web-development]
-            DOM2[Domain: data-engineering]
-            DOM3[Domain: testing-qa]
-            DOM4[Domain: ml-ai]
-        end
-
         subgraph TaskNS["task-ecommerce-abc123 namespace"]
             subgraph Task1["AgentTask: ecommerce-backend"]
                 direction TB
-                DomainRef["Domain: web-development<br/>matchScore: 0.94"]
                 subgraph CoreAgents["Core Agents (Shared)"]
                     TGA[Test Generator Agent]
                     OA[Orchestrator Agent]
@@ -490,7 +374,6 @@ flowchart TB
     OA -->|"create/adjust agents"| API
 
     ATC -->|"reconcile"| Task1
-    DOM1 -.->|"provides templates"| Task1
     AGC -->|"manages"| CoreAgents & ExecutorAgents
     MCPC -->|"manages"| MCPServers
     TGA -->|"creates"| CM1
@@ -501,13 +384,12 @@ flowchart TB
 **Task Flow:**
 
 1. User submits: "Create an e-commerce backend with product catalog, shopping cart, and checkout flow. Include Stripe integration."
-2. Domain Controller matches to `web-development` domain (score: 0.94)
-3. AgentTask Controller creates isolated namespace `task-ecommerce-abc123`
-4. Core agents spawn (shared across all domains)
-5. Domain provides templates for: API Architect, Stripe Integrator, Database Designer
-6. MCP servers provision: github-mcp, postgres-mcp, stripe-mcp
-7. Test Generator creates 12 Gherkin scenarios for product CRUD, cart operations, checkout flow
-8. TCP feedback loop runs until all tests pass
+2. AgentTask Controller creates isolated namespace `task-ecommerce-abc123`
+3. Core agents spawn (orchestrator, test-generator, test-runner, feedback)
+4. Orchestrator analyzes task and provisions executor agents (API Architect, Stripe Integrator, Database Designer)
+5. MCP servers provision: github-mcp, postgres-mcp, stripe-mcp
+6. Test Generator creates 12 Gherkin scenarios for product CRUD, cart operations, checkout flow
+7. TCP feedback loop runs until all tests pass
 
 ### Operator Reconciliation Loop
 
@@ -520,7 +402,6 @@ sequenceDiagram
     participant ATC as AgentTask Controller
     participant API as K8s API
     participant TCPC as TCP Controller
-    participant DOM as Domain CR
     participant AGC as Agent Controller
     participant MCPC as MCPServer Controller
     participant TGA as Test Generator Agent
@@ -535,12 +416,7 @@ sequenceDiagram
     ATC->>API: Create AgentTask CR
     ATC->>API: Watch AgentTask status
 
-    ATC->>DOM: Match task to domain
-    ATC->>ATC: Calculate match scores
-    Note over ATC: e-commerce, checkout, Stripe → web-development (0.94)
-    ATC->>API: Update AgentTask with domain (web-development)
-
-    ATC->>AGC: Create core agents (shared)
+    ATC->>AGC: Create core agents
     AGC->>TGA: Spawn Test Generator
     AGC->>OA: Spawn Orchestrator
     AGC->>TRA: Spawn Test Runner
@@ -550,8 +426,7 @@ sequenceDiagram
     Note over TGA: 12 scenarios: products, cart, checkout
     TGA->>API: Create tests ConfigMap
 
-    OA->>DOM: Get domain agent templates
-    DOM->>OA: Return: api-architect, stripe-integrator, db-designer
+    OA->>OA: Analyze task, select agents
     OA->>API: Create Agent CRs
     OA->>API: Create MCPServer CRs
     API->>MCPC: MCPServer CRs created
@@ -583,7 +458,6 @@ sequenceDiagram
             OA->>API: Request additional MCP if needed
         else error <= threshold
             TCPC->>API: Mark task Succeeded
-            ATC->>DOM: Update domain success metrics
             MCPC->>MCP: Terminate MCP servers
             ATC->>WEB: Task completed
             WEB->>U: Task completed successfully
@@ -597,7 +471,6 @@ sequenceDiagram
 - **HPA** — scale agents based on load
 - **Pod lifecycle** — terminate on completion
 - **MCP servers as sidecars** — co-located with agents
-- **Domain registry** — cluster-wide shared resource
 
 ### Helm Chart Deployment
 
@@ -608,18 +481,15 @@ flowchart TB
     subgraph HelmCharts["Helm Charts"]
         MC[forgemaster-crds]
         MO[forgemaster-operator]
-        MD[forgemaster-domains]
     end
 
     subgraph Deployed["Deployed Resources"]
         CRDs[Custom Resource Definitions]
         Controllers[Controllers & Operators]
-        Domains[Domain Registry]
     end
 
     MC -->|"helm install"| CRDs
     MO -->|"helm install"| Controllers
-    MD -->|"helm install"| Domains
 ```
 
 **Quick Start:**
@@ -635,35 +505,6 @@ helm install forgemaster-crds forgemaster/forgemaster-crds
 helm install forgemaster-operator forgemaster/forgemaster-operator \
   --namespace forgemaster-system \
   --create-namespace
-
-# Install default domains
-helm install forgemaster-domains forgemaster/forgemaster-domains \
-  --namespace forgemaster-system
-```
-
-**Custom Domain Installation:**
-
-```bash
-# Install with custom domain values
-helm install forgemaster-domains forgemaster/forgemaster-domains \
-  --namespace forgemaster-system \
-  -f custom-domains.yaml
-```
-
-Example `custom-domains.yaml`:
-
-```yaml
-domains:
-  - name: fintech
-    displayName: "FinTech Development"
-    skills:
-      - payment-processing
-      - fraud-detection
-      - regulatory-compliance
-    agentTemplates:
-      - name: compliance-checker
-        type: reviewer
-        systemPrompt: "You verify PCI-DSS and SOX compliance..."
 ```
 
 ---

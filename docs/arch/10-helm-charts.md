@@ -10,7 +10,6 @@ meta-agent/
 │   ├── _helpers.tpl
 │   ├── namespace.yaml
 │   ├── crds/
-│   │   ├── domain-crd.yaml
 │   │   ├── agenttask-crd.yaml
 │   │   ├── agent-crd.yaml
 │   │   └── mcpserver-crd.yaml
@@ -19,11 +18,6 @@ meta-agent/
 │   │   ├── agenttask-controller-deployment.yaml
 │   │   ├── agent-controller-deployment.yaml
 │   │   └── mcpserver-controller-deployment.yaml
-│   ├── domains/
-│   │   ├── web-development-domain.yaml
-│   │   ├── data-engineering-domain.yaml
-│   │   ├── testing-qa-domain.yaml
-│   │   └── ml-ai-domain.yaml
 │   ├── rbac/
 │   │   ├── serviceaccount.yaml
 │   │   ├── clusterrole.yaml
@@ -83,94 +77,6 @@ dependencies:
 global:
   namespace: forgemaster-system
   imagePullPolicy: IfNotPresent
-
-# Domain Configuration
-domains:
-  # Domain Controller
-  controller:
-    enabled: true
-    image:
-      repository: forgemaster/domain-controller
-      tag: latest
-    resources:
-      limits:
-        memory: "256Mi"
-        cpu: "250m"
-    matching:
-      defaultMinScore: 0.75
-
-  # Default Domains
-  webDevelopment:
-    enabled: true
-    displayName: "Web Development"
-    skills:
-      - rest-api
-      - graphql
-      - authentication
-      - database-integration
-      - frontend-spa
-      - payment-processing
-    agentTemplates:
-      - name: api-architect
-        type: code-generator
-      - name: stripe-integrator
-        type: code-generator
-    mcpServers:
-      - github-mcp
-      - postgres-mcp
-      - stripe-mcp
-
-  dataEngineering:
-    enabled: true
-    displayName: "Data Engineering"
-    skills:
-      - etl-pipelines
-      - data-warehousing
-      - stream-processing
-      - data-quality
-    agentTemplates:
-      - name: kafka-processor
-        type: code-generator
-      - name: airflow-architect
-        type: code-generator
-    mcpServers:
-      - kafka-mcp
-      - airflow-mcp
-      - snowflake-mcp
-
-  testingQA:
-    enabled: true
-    displayName: "Testing & QA"
-    skills:
-      - e2e-testing
-      - load-testing
-      - security-testing
-      - api-testing
-    agentTemplates:
-      - name: playwright-specialist
-        type: test-generator
-      - name: security-scanner
-        type: reviewer
-    mcpServers:
-      - playwright-mcp
-      - k6-mcp
-
-  mlAI:
-    enabled: true
-    displayName: "ML/AI Development"
-    skills:
-      - model-training
-      - mlops
-      - feature-engineering
-      - model-deployment
-    agentTemplates:
-      - name: model-trainer
-        type: code-generator
-      - name: mlflow-integrator
-        type: code-generator
-    mcpServers:
-      - mlflow-mcp
-      - kubeflow-mcp
 
 # TCP Controller Configuration
 tcpController:
@@ -412,61 +318,6 @@ helm upgrade meta-agent ./meta-agent \
 helm uninstall meta-agent --namespace forgemaster-system
 ```
 
-### Template Example: Domain
-
-```yaml
-# templates/domains/web-development-domain.yaml
-{{- if .Values.domains.webDevelopment.enabled }}
-apiVersion: forgemaster.io/v1alpha1
-kind: Domain
-metadata:
-  name: web-development
-  namespace: {{ .Values.global.namespace }}
-  labels:
-    {{- include "meta-agent.labels" . | nindent 4 }}
-spec:
-  displayName: {{ .Values.domains.webDevelopment.displayName }}
-  description: "Full-stack web applications, REST APIs, frontend frameworks"
-
-  skills:
-    {{- toYaml .Values.domains.webDevelopment.skills | nindent 4 }}
-
-  taskPatterns:
-    - ".*REST API.*"
-    - ".*web (app|application).*"
-    - ".*frontend.*"
-    - ".*e-commerce.*"
-    - ".*checkout.*"
-
-  agentTemplates:
-    domainSpecific:
-      {{- range .Values.domains.webDevelopment.agentTemplates }}
-      - name: {{ .name }}
-        type: {{ .type }}
-        model:
-          provider: {{ $.Values.llm.provider }}
-          name: {{ $.Values.llm.defaultModel }}
-          temperature: 0.7
-      {{- end }}
-    sharedAgentRefs:
-      - test-generator
-      - reviewer
-      - doc-generator
-
-  mcpServers:
-    {{- range .Values.domains.webDevelopment.mcpServers }}
-    - name: {{ . }}
-      required: false
-    {{- end }}
-
-  matching:
-    minMatchScore: {{ .Values.domains.controller.matching.defaultMinScore }}
-
-status:
-  phase: Active
-{{- end }}
-```
-
 ### Template Example: Core Agent
 
 ```yaml
@@ -704,7 +555,6 @@ observability:
 flowchart TB
     subgraph HelmRelease["Helm Release: meta-agent"]
         subgraph CRDs["CRDs (installed first)"]
-            CRD0[Domain CRD]
             CRD1[AgentTask CRD]
             CRD2[Agent CRD]
             CRD3[MCPServer CRD]
@@ -712,17 +562,9 @@ flowchart TB
 
         subgraph Controllers["Controllers"]
             TC[TCP Controller]
-            DC[Domain Controller]
             ATC[AgentTask Controller]
             AGC[Agent Controller]
             MC[MCPServer Controller]
-        end
-
-        subgraph Domains["Domain Registry"]
-            D1[web-development]
-            D2[data-engineering]
-            D3[testing-qa]
-            D4[ml-ai]
         end
 
         subgraph CoreAgents["Core Agents (Shared)"]
@@ -750,5 +592,4 @@ flowchart TB
 
     HelmCLI[helm install] --> HelmRelease
     Values[values.yaml] --> HelmCLI
-    DC -->|"manages"| Domains
 ```

@@ -84,7 +84,7 @@ Deploy agents as serverless functions.
 
 ### Option 4: Kubernetes with Custom Resource Definitions (CRDs)
 
-Use Kubernetes as the orchestration platform with CRDs to model domain concepts.
+Use Kubernetes as the orchestration platform with CRDs to model system concepts.
 
 **Pros:**
 - **Declarative model** — Describe desired state, K8s reconciles
@@ -94,7 +94,7 @@ Use Kubernetes as the orchestration platform with CRDs to model domain concepts.
 - **Resource management** — CPU/memory limits, quotas
 - **Scaling** — HPA, pod autoscaling
 - **Observability** — Metrics, logs, events built-in
-- **CRDs** — Model domain concepts (AgentTask, Agent, MCPServer)
+- **CRDs** — Model system concepts (AgentTask, Agent, MCPServer)
 - **Controller pattern** — Proven reconciliation loop pattern
 - **Ecosystem** — Helm, Prometheus, Grafana, etc.
 - **Local development** — Kind, OrbStack, Minikube
@@ -126,7 +126,7 @@ Use HashiCorp Nomad for workload orchestration.
 
 Kubernetes provides the exact primitives ForgeMaster needs:
 
-### 1. CRDs Model Domain Concepts Naturally
+### 1. CRDs Model System Concepts Naturally
 
 ```yaml
 # AgentTask — maps directly to user's task request
@@ -270,7 +270,6 @@ MCPServer Controller watches MCPServer
 | P0 | Agent | Agent instance |
 | P1 | MCPServer | MCP server instance |
 | P1 | TestSuite | Gherkin test suite |
-| P2 | Domain | Domain templates |
 
 ### Controller Order
 

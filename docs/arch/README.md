@@ -18,7 +18,6 @@ flowchart TB
         TL[04-task-lifecycle.md]
         AC[04a-agent-creation.md]
         OS[04b-orchestrator-spec.md]
-        SR[04c-domain-reuse.md]
         CM[04d-context-management.md]
     end
 
@@ -67,7 +66,6 @@ flowchart TB
 | [04-task-lifecycle.md](04-task-lifecycle.md) | Task submission, state machine, namespace lifecycle |
 | [04a-agent-creation.md](04a-agent-creation.md) | Agent instantiation algorithm, templates, custom agents |
 | [04b-orchestrator-spec.md](04b-orchestrator-spec.md) | Orchestrator decision logic, signal interpretation |
-| [04c-domain-reuse.md](04c-domain-reuse.md) | Domain templates, matching, composition |
 | [04d-context-management.md](04d-context-management.md) | Context schema, flow between agents, API |
 
 ### Architecture Decision Records
@@ -107,8 +105,7 @@ flowchart TB
 2. Read **[01-overview.md](01-overview.md)** for core concepts
 3. Review **[ADR-0001](../adr/0001-tcp-controller-vs-llm-agents.md)** to understand the key TCP Controller vs LLM split
 4. Explore **[04-task-lifecycle.md](04-task-lifecycle.md)** for how tasks flow through the system
-5. Check **[04c-domain-reuse.md](04c-domain-reuse.md)** for domain reuse patterns
-6. See **[05-k8s-deployment.md](05-k8s-deployment.md)** for deployment details
+5. See **[05-k8s-deployment.md](05-k8s-deployment.md)** for deployment details
 
 ## Key Concepts
 

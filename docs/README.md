@@ -74,7 +74,7 @@ flowchart LR
 | [06-agent-registry](arch/06-agent-registry.md) | Agent discovery and health management |
 | [07-a2a-protocol](arch/07-a2a-protocol.md) | Agent-to-Agent communication |
 | [08-a2ui-protocol](arch/08-a2ui-protocol.md) | Agent-to-User Interface |
-| [09-crd-specifications](arch/09-crd-specifications.md) | CRD schemas (AgentTask, Agent, MCPServer, etc.) |
+| [09-crd-specifications](arch/09-crd-specifications.md) | CRD schemas (AgentTask, Agent, MCPServer) |
 
 ### Architecture Decision Records (ADRs)
 
@@ -129,7 +129,6 @@ flowchart LR
 | **TCP Controller** | PID-like feedback loop (Task-Context-Prediction) |
 | **Error Signal** | `(failed_tests + failed_outcomes) / total_checks` |
 | **Gherkin Setpoint** | E2E tests define dynamic success criteria |
-| **Domain Templates** | Reusable agent configurations by expertise area |
 | **Dual Validation** | Tests verify HOW, outcomes verify WHAT |
 
 ---

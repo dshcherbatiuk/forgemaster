@@ -101,7 +101,6 @@ Scenario: E-commerce Backend API
 - [x] Define AgentTask CRD schema (Helm chart)
 - [ ] Define Agent CRD schema
 - [ ] Define MCPServer CRD schema
-- [ ] Define Domain CRD schema
 - [x] Apply AgentTask CRD to cluster
 
 ### 1.5 Helm Charts & Deployment
@@ -285,30 +284,22 @@ Scenario: E-commerce Backend API
 
 **Goal:** Full system integration, testing, and hackathon demo preparation.
 
-### 4.1 Domain Templates
-
-- [ ] Create e-commerce domain template
-- [ ] Create data-pipeline domain template
-- [ ] Implement domain matching logic
-- [ ] Test template reuse
-
-### 4.2 Context Management
+### 4.1 Context Management
 
 - [ ] Implement context store (Redis)
 - [ ] Add artifact storage (GitHub)
 - [ ] Implement checkpoint/restore
 - [ ] Test context persistence across iterations
 
-### 4.3 End-to-End Testing
+### 4.2 End-to-End Testing
 
 - [ ] Create integration test suite
 - [ ] Test complete task lifecycle:
   - [ ] Task submission → Agent creation → Execution → Completion
 - [ ] Test failure scenarios and recovery
-- [ ] Test domain reuse
 - [ ] Performance testing
 
-### 4.4 Demo Scenario
+### 4.3 Demo Scenario
 
 - [ ] Finalize demo task: "E-commerce backend API"
 - [ ] Create demo script with talking points
@@ -317,7 +308,7 @@ Scenario: E-commerce Backend API
 - [ ] Test demo flow multiple times
 - [ ] Prepare dry-run mode as fallback
 
-### 4.5 Documentation
+### 4.4 Documentation
 
 - [ ] Update README with quick start
 - [ ] Create user guide
@@ -576,7 +567,6 @@ forgemaster/
 - [ ] Single working demo: E-commerce API generation
 
 **Nice to Have:**
-- [ ] Domain template reuse
 - [ ] Outcome validation
 - [ ] Full A2UI component catalog
 - [ ] Multiple MCP servers
