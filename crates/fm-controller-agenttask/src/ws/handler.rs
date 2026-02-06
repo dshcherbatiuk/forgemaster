@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use tracing::info;
 use uuid::Uuid;
 
-use super::command::WsCommand;
+use super::action::ActionDispatcher;
 use super::connection_registry::ConnectionRegistry;
 use super::event::WsEvent;
 use super::schema_cache::SchemaCache;
@@ -18,6 +18,7 @@ pub async fn handle_connection(
     socket: WebSocket,
     registry: Arc<ConnectionRegistry>,
     schema_cache: Arc<SchemaCache>,
+    dispatcher: Arc<ActionDispatcher>,
 ) {
     let client_id = Uuid::new_v4().to_string();
     let (mut ws_sink, mut ws_stream) = socket.split();
@@ -51,22 +52,14 @@ pub async fn handle_connection(
         }
     });
 
-    // Inbound: WebSocket stream → parse WsCommand
+    // Inbound: WebSocket stream → dispatch to action handlers
     let inbound_client_id = client_id.clone();
     let inbound = tokio::spawn(async move {
         while let Some(Ok(message)) = ws_stream.next().await {
             match message {
-                Message::Text(text) => match serde_json::from_str::<WsCommand>(&text) {
-                    Ok(WsCommand::Connect) => {
-                        info!("🤝 Client {inbound_client_id} sent connect");
-                    }
-                    Ok(WsCommand::Action { action_id, data }) => {
-                        info!("🎯 Action from {inbound_client_id}: {action_id} {data}");
-                    }
-                    Err(err) => {
-                        info!("⚠️ Invalid command from {inbound_client_id}: {err}");
-                    }
-                },
+                Message::Text(text) => {
+                    dispatcher.dispatch(&text, &inbound_client_id).await;
+                }
                 Message::Close(_) => break,
                 _ => {}
             }

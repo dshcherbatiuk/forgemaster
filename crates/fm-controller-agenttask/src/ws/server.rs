@@ -3,14 +3,17 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use kube::Client;
 use serde_json::json;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use tracing::info;
 
+use super::action::ActionDispatcher;
 use super::connection_registry::ConnectionRegistry;
 use super::router::{WsState, ws_router};
 use super::schema_cache::SchemaCache;
+use super::task_creator::TaskCreator;
 
 /// WebSocket server exposing the `/ws` endpoint.
 pub struct WsServer {
@@ -20,12 +23,20 @@ pub struct WsServer {
     registry: Arc<ConnectionRegistry>,
     /// Cached dashboard data pushed to late joiners.
     schema_cache: Arc<SchemaCache>,
+    /// Dispatches commands to action handlers.
+    dispatcher: Arc<ActionDispatcher>,
 }
 
 impl WsServer {
-    /// Creates a new server on the given port with default dashboard data.
-    pub fn new(port: u16) -> Self {
+    /// Creates a new server on the given port with K8s client for task creation.
+    pub fn new(port: u16, client: Client, namespace: String) -> Self {
         let schema_cache = Arc::new(SchemaCache::new());
+        let registry = Arc::new(ConnectionRegistry::new());
+        let task_creator = Arc::new(TaskCreator::new(client, namespace));
+        let dispatcher = Arc::new(ActionDispatcher::new(
+            task_creator,
+            Arc::clone(&registry),
+        ));
 
         // Seed initial dashboard state matching the UI's defaultData
         schema_cache.set(
@@ -43,19 +54,10 @@ impl WsServer {
 
         Self {
             port,
-            registry: Arc::new(ConnectionRegistry::new()),
+            registry,
             schema_cache,
+            dispatcher,
         }
-    }
-
-    /// Access the connection registry (for sharing with other components).
-    pub fn registry(&self) -> Arc<ConnectionRegistry> {
-        Arc::clone(&self.registry)
-    }
-
-    /// Access the schema cache (for pushing data updates).
-    pub fn schema_cache(&self) -> Arc<SchemaCache> {
-        Arc::clone(&self.schema_cache)
     }
 
     /// Start the server. Blocks until shutdown.
@@ -63,6 +65,7 @@ impl WsServer {
         let state = WsState {
             registry: self.registry,
             schema_cache: self.schema_cache,
+            dispatcher: self.dispatcher,
         };
 
         let app = ws_router(state).layer(CorsLayer::permissive());

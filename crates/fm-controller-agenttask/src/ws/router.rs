@@ -7,6 +7,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 
+use super::action::ActionDispatcher;
 use super::connection_registry::ConnectionRegistry;
 use super::handler::handle_connection;
 use super::schema_cache::SchemaCache;
@@ -18,6 +19,8 @@ pub struct WsState {
     pub registry: Arc<ConnectionRegistry>,
     /// Cached dashboard data for late joiners.
     pub schema_cache: Arc<SchemaCache>,
+    /// Dispatches commands to action handlers.
+    pub dispatcher: Arc<ActionDispatcher>,
 }
 
 /// Creates the router with the `/ws` endpoint.
@@ -30,6 +33,6 @@ async fn ws_upgrade(
     State(state): State<WsState>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| {
-        handle_connection(socket, state.registry, state.schema_cache)
+        handle_connection(socket, state.registry, state.schema_cache, state.dispatcher)
     })
 }

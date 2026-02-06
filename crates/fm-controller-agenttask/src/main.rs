@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     let client = Client::try_default().await?;
     info!("📡 Connected to Kubernetes cluster");
 
-    let ws_server = WsServer::new(ws_port);
+    let ws_server = WsServer::new(ws_port, client.clone(), namespace.clone());
 
     tokio::select! {
         result = fm_controller_agenttask::controller::run(client, &namespace) => {

@@ -50,7 +50,15 @@
       "component": {
         "Button": {
           "child": "task-submit-btn-text",
-          "action": { "name": "submitTask" }
+          "action": {
+            "name": "submit_task",
+            "context": [
+              {
+                "key": "description",
+                "value": { "path": "/task/description" }
+              }
+            ]
+          }
         }
       }
     },

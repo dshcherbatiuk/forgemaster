@@ -6,7 +6,7 @@ use kube::api::{Api, Patch, PatchParams};
 use kube::Client;
 use tracing::debug;
 
-use crate::crd::{AgentTask, AgentTaskPhase, AgentTaskStatus};
+use crate::crd::{AgentTask, AgentTaskPhase};
 
 use super::error::{ReconcileError, ReconcileResult};
 
@@ -42,10 +42,8 @@ impl ControllerContext {
     ) -> ReconcileResult<()> {
         let api: Api<AgentTask> = Api::namespaced(self.client.clone(), namespace);
 
-        let status = AgentTaskStatus::builder().phase(phase.clone()).build();
-
         let patch = serde_json::json!({
-            "status": status
+            "status": { "phase": phase }
         });
 
         api.patch_status(
@@ -68,9 +66,26 @@ pub fn create_context(client: Client, namespace: String) -> Arc<ControllerContex
 
 #[cfg(test)]
 mod tests {
+    use crate::crd::AgentTaskPhase;
+
     #[test]
     fn context_namespace_not_empty() {
         let namespace = "forgemaster-system";
         assert!(!namespace.is_empty());
+    }
+
+    #[test]
+    fn phase_patch_contains_only_phase() {
+        let phase = AgentTaskPhase::Running;
+        let patch = serde_json::json!({
+            "status": { "phase": phase }
+        });
+
+        let status = patch.get("status").unwrap();
+        assert_eq!(status.get("phase").unwrap(), "Running");
+        assert!(status.get("error").is_none(), "patch must not overwrite error with default");
+        assert!(status.get("iteration").is_none(), "patch must not overwrite iteration");
+        assert!(status.get("tests_total").is_none(), "patch must not overwrite tests_total");
+        assert!(status.get("tests_passed").is_none(), "patch must not overwrite tests_passed");
     }
 }

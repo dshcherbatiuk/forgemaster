@@ -7,11 +7,11 @@ const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8080/ws";
 
 function App() {
   const schema = useSchema("dashboard");
-  const { connected, data, sendAction } = useWebSocket(WS_URL);
+  const { connected, data, sendCommand } = useWebSocket(WS_URL);
 
   const handleAction = (action: { actionName: string; context?: Record<string, unknown> }) => {
     console.log("Action:", action);
-    sendAction(action.actionName, action.context ?? {});
+    sendCommand(action.actionName, action.context ?? {});
   };
 
   if (!schema) {
