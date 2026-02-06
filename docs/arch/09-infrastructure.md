@@ -91,7 +91,7 @@ all:
     kind_workers: 2
     
     # Meta-agent settings
-    meta_agent_namespace: meta-agent-system
+    meta_agent_namespace: forgemaster-system
     meta_agent_chart_path: "../helm/meta-agent"
     
     # Local registry
@@ -106,7 +106,7 @@ all:
 ---
 # Common variables for all environments
 project_name: meta-agent
-domain: metaagent.local
+domain: forgemaster.local
 
 # Tool versions
 kubectl_version: "1.28.0"
@@ -280,7 +280,7 @@ ingress_host: "agents.local"
         kind: Pod
         namespace: "{{ meta_agent_namespace }}"
         label_selectors:
-          - "metaagent.io/type in (orchestrator, test-generator, test-runner, feedback)"
+          - "forgemaster.io/type in (orchestrator, test-generator, test-runner, feedback)"
       register: agent_pods
       until: >
         agent_pods.resources | length >= 4 and
@@ -327,7 +327,7 @@ ingress_host: "agents.local"
       kubernetes.core.k8s:
         state: present
         definition:
-          apiVersion: metaagent.io/v1alpha1
+          apiVersion: forgemaster.io/v1alpha1
           kind: AgentTask
           metadata:
             name: "{{ test_task_name }}"
@@ -751,16 +751,16 @@ clean: destroy
 	docker rm -f kind-registry 2>/dev/null || true
 
 logs:
-	kubectl logs -n meta-agent-system -l app=meta-agent --tail=100 -f
+	kubectl logs -n forgemaster-system -l app=meta-agent --tail=100 -f
 
 port-forward:
-	kubectl port-forward -n meta-agent-system svc/a2a-gateway 8080:80
+	kubectl port-forward -n forgemaster-system svc/a2a-gateway 8080:80
 
 status:
 	@echo "=== Cluster Status ==="
 	kubectl cluster-info
 	@echo "\n=== Pods ==="
-	kubectl get pods -n meta-agent-system
+	kubectl get pods -n forgemaster-system
 	@echo "\n=== Agent Tasks ==="
 	kubectl get agenttasks -n meta-agent-tasks
 ```

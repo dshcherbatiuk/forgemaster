@@ -296,7 +296,7 @@ apiVersion: forgemaster.io/v1alpha1
 kind: DomainTemplate
 metadata:
   name: ecommerce-backend
-  namespace: metaagent-system
+  namespace: forgemaster-system
   labels:
     forgemaster.io/task-type: web-api
     forgemaster.io/language: rust

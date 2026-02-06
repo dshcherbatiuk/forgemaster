@@ -10,7 +10,6 @@ flowchart TB
         AT[AgentTask]
         AG[Agent]
         MCP[MCPServer]
-        TS[TestSuite]
         DOM[Domain]
     end
 
@@ -18,7 +17,7 @@ flowchart TB
         AT -->|creates| NS[Namespace]
         AT -->|owns| AG
         AT -->|owns| MCP
-        AT -->|owns| TS
+        AT -->|owns| CM[ConfigMaps]
         DOM -->|provides templates| AT
     end
 ```
@@ -28,8 +27,206 @@ flowchart TB
 | AgentTask | `forgemaster.io/v1alpha1` | Top-level task resource | Namespaced |
 | Agent | `forgemaster.io/v1alpha1` | Agent instance | Namespaced |
 | MCPServer | `forgemaster.io/v1alpha1` | MCP server instance | Namespaced |
-| TestSuite | `forgemaster.io/v1alpha1` | Gherkin test suite | Namespaced |
 | Domain | `forgemaster.io/v1alpha1` | Domain templates | Cluster-scoped |
+
+> **Note:** Test definitions are stored in ConfigMaps (created by Test Generator Agent), not as a separate CRD.
+
+---
+
+## CRD Descriptions
+
+### AgentTask
+
+**Purpose:** Top-level resource representing a user's task request.
+
+**Created by:** AgentTask Controller (via HTTP API) when user submits a task.
+
+**Managed by:** AgentTask Controller — watches AgentTask CRs and reconciles state.
+
+**Owns:** Namespace, Agent CRs, MCPServer CRs, ConfigMaps.
+
+**Lifecycle:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: User submits task
+    Pending --> Initializing: AgentTask Controller picks up
+    Initializing --> Running: Namespace + Agents created
+    Running --> Running: TCP iterations (error > threshold)
+    Running --> Succeeded: error ≤ threshold
+    Running --> Failed: max iterations or fatal error
+    Succeeded --> [*]
+    Failed --> [*]
+```
+
+**Key fields:**
+
+| Field | Description |
+|-------|-------------|
+| `spec.description` | Natural language task description |
+| `spec.domain` | Matched domain reference and score |
+| `spec.controller` | TCP coefficients (T, C, P weights) |
+| `status.phase` | Pending → Initializing → Running → Succeeded/Failed |
+| `status.currentError` | Error signal from TCP Controller (0.0-1.0) |
+| `status.iteration` | Current iteration number |
+| `status.tests` | Test results (total, passed, failed) |
+
+---
+
+### Agent
+
+**Purpose:** Individual agent instance that performs work using an LLM.
+
+**Created by:** AgentTask Controller (core agents) or Orchestrator Agent (dynamic agents).
+
+**Managed by:** Agent Controller — watches Agent CRs, creates Pods, manages lifecycle.
+
+**Owned by:** AgentTask (garbage collected when task is deleted).
+
+**Types:**
+
+| Type | Role |
+|------|------|
+| `orchestrator` | Coordinates other agents, manages workflow |
+| `code-generator` | Generates code based on requirements/tests |
+| `test-generator` | Creates Gherkin test scenarios |
+| `test-runner` | Executes tests and reports results |
+| `feedback` | Analyzes results, calculates error signal |
+| `reviewer` | Reviews code quality and suggests improvements |
+
+**Lifecycle:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Agent CR created
+    Pending --> Running: Pod scheduled + started
+    Running --> Running: Processing (LLM calls, MCP tools)
+    Running --> Succeeded: Work completed
+    Running --> Failed: Error or timeout
+    Succeeded --> [*]: Output in ConfigMap
+    Failed --> [*]: Error logged
+```
+
+**Key fields:**
+
+| Field | Description |
+|-------|-------------|
+| `spec.type` | Agent type (orchestrator, code-generator, etc.) |
+| `spec.model` | LLM configuration (provider, name, temperature) |
+| `spec.systemPrompt` | Instructions for the agent |
+| `spec.mcpServers` | List of MCP servers this agent can use |
+| `status.phase` | Pending → Running → Succeeded/Failed |
+| `status.tokensUsed` | Total tokens consumed |
+
+---
+
+### MCPServer
+
+**Purpose:** MCP (Model Context Protocol) server that provides tools to agents.
+
+**Created by:** AgentTask Controller based on Domain requirements.
+
+**Managed by:** MCPServer Controller — watches MCPServer CRs, creates Pods and Services, manages lifecycle.
+
+**Owned by:** AgentTask (garbage collected when task is deleted).
+
+**Types:**
+
+| Type | Tools Provided |
+|------|----------------|
+| `github` | read_file, write_file, create_branch, create_pr |
+| `filesystem` | read, write, list, delete files |
+| `postgres` | query, execute, schema operations |
+| `stripe` | create_payment, refund, manage_customers |
+| `redis` | get, set, delete, pub/sub |
+
+**Lifecycle:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: MCPServer CR created
+    Pending --> Running: Pod + Service created
+    Running --> Running: Serving tool requests
+    Running --> Terminated: AgentTask completed/deleted
+    Terminated --> [*]: Garbage collected
+```
+
+**Key fields:**
+
+| Field | Description |
+|-------|-------------|
+| `spec.type` | Server type (github, postgres, etc.) |
+| `spec.image` | Container image for MCP server |
+| `spec.credentialsSecret` | Secret reference for API keys |
+| `status.phase` | Pending → Running → Failed |
+| `status.endpoint` | Service URL for agents to connect |
+| `status.tools` | List of available MCP tools |
+
+---
+
+### Domain
+
+**Purpose:** Cluster-scoped template registry defining agent configurations and task matching rules.
+
+**Created by:** Cluster administrator at setup time.
+
+**Managed by:** AgentTask Controller — reads templates during task initialization, updates usage statistics after task completion.
+
+**Scope:** Cluster-wide (not namespaced) — shared across all tasks.
+
+**Provides:**
+- Agent templates with pre-configured system prompts
+- Task matching rules (keywords, patterns)
+- Required MCP server configurations
+- Success metrics and statistics
+
+**Lifecycle:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: Admin creates Domain CR
+    Active --> Active: Task matched → templates provided
+    Active --> Active: Task completed → stats updated
+    Active --> Deprecated: Admin marks deprecated
+    Deprecated --> Disabled: No longer accepting tasks
+    Disabled --> [*]: Admin deletes
+```
+
+**Key fields:**
+
+| Field | Description |
+|-------|-------------|
+| `spec.displayName` | Human-readable domain name |
+| `spec.skills` | List of skills this domain provides |
+| `spec.matching` | Keywords and patterns for task matching |
+| `spec.agentTemplates` | Pre-configured agent definitions |
+| `spec.mcpServers` | Required/optional MCP servers |
+| `status.successRate` | Historical success rate (0.0-1.0) |
+
+---
+
+## Resource Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ATC as AgentTask Controller
+    participant API as K8s API
+    participant DOM as Domain
+    participant AG as Agents
+    participant MCP as MCPServers
+
+    User->>ATC: Submit task (HTTP API)
+    ATC->>API: Create AgentTask CR
+    ATC->>DOM: Match task to domain
+    DOM-->>ATC: Return templates (score: 0.94)
+    ATC->>API: Create Agent CRs
+    ATC->>API: Create MCPServer CRs
+    AG->>MCP: Use tools (read/write files)
+    AG->>API: Update status (iteration, error)
+    API-->>ATC: Status changes (watch)
+    ATC-->>User: Real-time progress (WebSocket)
+```
 
 ---
 
@@ -533,176 +730,6 @@ status:
 
 ---
 
-## TestSuite CRD
-
-Represents the Gherkin test suite (setpoint for TCP controller).
-
-### Schema
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: TestSuite
-metadata:
-  name: string                    # Test suite identifier
-  namespace: string               # Task namespace
-  labels:
-    forgemaster.io/task: string   # Parent AgentTask name
-  ownerReferences:
-    - apiVersion: forgemaster.io/v1alpha1
-      kind: AgentTask
-      name: string
-      uid: string
-spec:
-  # Test Format (required)
-  format: string                  # gherkin | pytest | jest
-
-  # Test Framework
-  framework: string               # behave | pytest | jest | cucumber
-
-  # Features (Gherkin)
-  features:
-    - name: string                # Feature name
-      content: string             # Gherkin feature content
-
-  # Or reference ConfigMap
-  featuresConfigMapRef:
-    name: string                  # ConfigMap name
-
-  # Test Runner Configuration
-  runner:
-    image: string                 # Test runner image
-    timeout: string               # Overall timeout
-    parallel: boolean             # Run tests in parallel
-    retries: integer              # Retry failed tests
-
-status:
-  # Suite Phase
-  phase: string                   # Pending | Running | Completed
-
-  # Last Run
-  lastRun: string                 # ISO 8601 timestamp
-  duration: string                # Run duration
-
-  # Results
-  results:
-    total: integer                # Total scenarios
-    passed: integer               # Passed scenarios
-    failed: integer               # Failed scenarios
-    skipped: integer              # Skipped scenarios
-    error: number                 # Error signal (failed/total)
-
-  # Failed Scenarios
-  failedScenarios:
-    - feature: string             # Feature name
-      scenario: string            # Scenario name
-      error: string               # Error message
-
-  # Conditions
-  conditions:
-    - type: string
-      status: string
-      reason: string
-      message: string
-      lastTransitionTime: string
-```
-
-### Example
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: TestSuite
-metadata:
-  name: ecommerce-tests
-  namespace: task-ecommerce-abc123
-  labels:
-    forgemaster.io/task: ecommerce-backend
-  ownerReferences:
-    - apiVersion: forgemaster.io/v1alpha1
-      kind: AgentTask
-      name: ecommerce-backend
-      uid: abc123-def456-ghi789
-spec:
-  format: gherkin
-  framework: behave
-
-  features:
-    - name: product-catalog
-      content: |
-        Feature: Product Catalog API
-          As an API client
-          I want to manage products
-          So that I can build a catalog
-
-          Scenario: Create a new product
-            Given the API is running
-            When I POST to "/products" with:
-              | name     | price  | category    |
-              | Headphones | 99.99 | electronics |
-            Then the response status is 201
-            And the response contains "id"
-
-          Scenario: List products by category
-            Given products exist in "electronics"
-            When I GET "/products?category=electronics"
-            Then the response status is 200
-            And the response is a list
-
-    - name: shopping-cart
-      content: |
-        Feature: Shopping Cart
-          Scenario: Add item to cart
-            Given a product "prod-123" exists
-            And I have a cart session
-            When I POST to "/cart/items" with productId "prod-123"
-            Then the response status is 200
-            And the cart total is updated
-
-    - name: checkout
-      content: |
-        Feature: Checkout with Stripe
-          Scenario: Successful checkout
-            Given I have items in cart
-            And I have valid payment method
-            When I POST to "/checkout"
-            Then the response status is 200
-            And I receive order confirmation
-
-          Scenario: Payment failure
-            Given I have items in cart
-            And I have invalid payment method
-            When I POST to "/checkout"
-            Then the response status is 402
-
-  runner:
-    image: forgemaster/test-runner:latest
-    timeout: 5m
-    parallel: false
-    retries: 1
-
-status:
-  phase: Completed
-  lastRun: "2026-02-05T12:05:00Z"
-  duration: 45s
-  results:
-    total: 5
-    passed: 4
-    failed: 1
-    skipped: 0
-    error: 0.2
-  failedScenarios:
-    - feature: checkout
-      scenario: Payment failure
-      error: "Expected status 402, got 500"
-  conditions:
-    - type: Complete
-      status: "True"
-      reason: TestsFinished
-      message: Test run completed with 1 failure
-      lastTransitionTime: "2026-02-05T12:05:45Z"
-```
-
----
-
 ## Domain CRD
 
 Cluster-scoped resource defining domain templates and matching rules.
@@ -986,7 +1013,7 @@ pub enum TaskPhase {
 ```rust
 // crates/fm-core/src/bin/gen_crds.rs
 
-use fm_core::crds::{AgentTask, Agent, MCPServer, TestSuite, Domain};
+use fm_core::crds::{AgentTask, Agent, MCPServer, Domain};
 use kube::CustomResourceExt;
 use std::fs;
 
@@ -995,7 +1022,6 @@ fn main() {
         serde_yaml::to_string(&AgentTask::crd()).unwrap(),
         serde_yaml::to_string(&Agent::crd()).unwrap(),
         serde_yaml::to_string(&MCPServer::crd()).unwrap(),
-        serde_yaml::to_string(&TestSuite::crd()).unwrap(),
         serde_yaml::to_string(&Domain::crd()).unwrap(),
     ];
 
@@ -1032,7 +1058,6 @@ kubectl get crds | grep forgemaster
 # agenttasks.forgemaster.io      2026-02-05T12:00:00Z
 # agents.forgemaster.io          2026-02-05T12:00:00Z
 # mcpservers.forgemaster.io      2026-02-05T12:00:00Z
-# testsuites.forgemaster.io      2026-02-05T12:00:00Z
 # domains.forgemaster.io         2026-02-05T12:00:00Z
 ```
 

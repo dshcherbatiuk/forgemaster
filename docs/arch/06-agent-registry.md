@@ -82,11 +82,11 @@ sequenceDiagram
 ### Registry CRD
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: AgentRegistry
 metadata:
   name: meta-agent-registry
-  namespace: meta-agent-system
+  namespace: forgemaster-system
 spec:
   # Storage backend
   storage:
@@ -130,19 +130,19 @@ spec:
 ### Agent Registration Record
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: AgentRegistration
 metadata:
   name: code-generator-abc123
-  namespace: meta-agent-system
+  namespace: forgemaster-system
   labels:
-    metaagent.io/type: executor
-    metaagent.io/skill: code-generation
+    forgemaster.io/type: executor
+    forgemaster.io/skill: code-generation
 spec:
   # Agent identity
   agentRef:
     name: code-generator-abc123
-    namespace: meta-agent-system
+    namespace: forgemaster-system
     
   # Skills this agent provides (searchable)
   skills:
@@ -347,7 +347,7 @@ agentRegistry:
   enabled: true
   
   image:
-    repository: metaagent/agent-registry
+    repository: forgemaster/agent-registry
     tag: latest
     
   replicas: 2  # HA
@@ -385,7 +385,7 @@ agentRegistry:
 ```mermaid
 flowchart TB
     subgraph Cluster["Kubernetes Cluster"]
-        subgraph ControlPlane["metaagent-system namespace"]
+        subgraph ControlPlane["forgemaster-system namespace"]
             REG[Agent Registry]
             TCPC[TCP Controller]
             ATC[AgentTask Controller]

@@ -83,14 +83,14 @@ sequenceDiagram
 ### GitHub MCP Server Config
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: MCPServer
 metadata:
   name: github-mcp
-  namespace: meta-agent-system
+  namespace: forgemaster-system
 spec:
   type: github
-  image: metaagent/mcp-github:latest
+  image: forgemaster/mcp-github:latest
   
   config:
     # Repository for artifacts

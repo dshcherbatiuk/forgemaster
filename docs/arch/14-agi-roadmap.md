@@ -113,7 +113,7 @@ flowchart LR
 
 ```yaml
 # Future: AGI-like enhancements
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: AgentTask
 spec:
   # Current: TCP Controller
@@ -310,7 +310,7 @@ flowchart TB
 #### Memory CRDs
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: MemoryStore
 metadata:
   name: meta-agent-memory
@@ -387,7 +387,7 @@ flowchart TB
 #### Skill Library
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: SkillLibrary
 metadata:
   name: learned-skills

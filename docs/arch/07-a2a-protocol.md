@@ -45,7 +45,7 @@ Each agent exposes an **Agent Card** — a JSON manifest describing its capabili
   "name": "test-generator-agent",
   "description": "Generates Gherkin E2E tests from task descriptions",
   "version": "1.0.0",
-  "endpoint": "https://agents.metaagent.io/test-generator",
+  "endpoint": "https://agents.forgemaster.io/test-generator",
   "capabilities": {
     "streaming": true,
     "pushNotifications": true
@@ -60,7 +60,7 @@ Each agent exposes an **Agent Card** — a JSON manifest describing its capabili
   ],
   "authentication": {
     "type": "oauth2",
-    "authorizationUrl": "https://auth.metaagent.io/oauth/authorize"
+    "authorizationUrl": "https://auth.forgemaster.io/oauth/authorize"
   }
 }
 ```
@@ -122,7 +122,7 @@ stateDiagram-v2
 ### Agent CRD with A2A Configuration
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: test-generator-agent
@@ -209,11 +209,11 @@ metadata:
   name: test-generator-agent-a2a
   namespace: tasks
   labels:
-    metaagent.io/agent: test-generator-agent
-    metaagent.io/protocol: a2a
+    forgemaster.io/agent: test-generator-agent
+    forgemaster.io/protocol: a2a
 spec:
   selector:
-    metaagent.io/agent: test-generator-agent
+    forgemaster.io/agent: test-generator-agent
   ports:
     - name: a2a
       port: 8080
@@ -231,7 +231,7 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   rules:
-    - host: agents.metaagent.io
+    - host: agents.forgemaster.io
       http:
         paths:
           - path: /test-generator/.well-known/agent.json

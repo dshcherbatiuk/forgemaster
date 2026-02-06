@@ -9,47 +9,45 @@ flowchart TB
         AT[AgentTask CRD]
         AG[Agent CRD]
         MCP[MCPServer CRD]
-        TS[TestSuite CRD]
     end
 
-    subgraph Controllers["Custom Controllers"]
-        DOMC[Domain Controller]
+    subgraph Operator["forgemaster-operator Deployment"]
         ATC[AgentTask Controller]
         AGC[Agent Controller]
         MCPC[MCPServer Controller]
-        TSC[TestSuite Controller]
     end
 
     subgraph Resources["Managed Resources"]
+        NS[Namespaces]
         Pods[Pods]
         SVC[Services]
         CM[ConfigMaps]
         SEC[Secrets]
     end
 
-    DOM --> DOMC
+    DOM -.->|templates| ATC
     AT --> ATC
     AG --> AGC
     MCP --> MCPC
-    TS --> TSC
 
-    DOMC --> CM
-    ATC --> Pods & SVC
+    ATC --> NS & CM
+    ATC -->|creates| AG & MCP
     AGC --> Pods & CM
     MCPC --> Pods & SVC & SEC
-    TSC --> Pods & CM
 ```
+
+> **Note:** Controllers run as a single Operator Deployment, not as separate CRDs. Domain is cluster-scoped configuration managed by administrators.
 
 ### Domain CRD
 
 Defines a domain — a specialized area of expertise with proven agent combinations, MCP servers, and task patterns.
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Domain
 metadata:
   name: web-development
-  namespace: metaagent-system
+  namespace: forgemaster-system
 spec:
   # Domain identification
   displayName: "Web Development"
@@ -143,7 +141,7 @@ status:
 Top-level resource that defines a task to be executed.
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: AgentTask
 metadata:
   name: ecommerce-backend
@@ -199,15 +197,15 @@ status:
 Defines an individual agent instance.
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: api-architect-abc123
   namespace: task-ecommerce-abc123
   labels:
-    metaagent.io/task: ecommerce-backend
-    metaagent.io/type: code-generator
-    metaagent.io/domain: web-development
+    forgemaster.io/task: ecommerce-backend
+    forgemaster.io/type: code-generator
+    forgemaster.io/domain: web-development
 spec:
   type: code-generator
 
@@ -251,18 +249,18 @@ status:
 Defines an MCP server instance.
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: MCPServer
 metadata:
   name: stripe-mcp
   namespace: task-ecommerce-abc123
   labels:
-    metaagent.io/task: ecommerce-backend
+    forgemaster.io/task: ecommerce-backend
 spec:
   type: stripe
 
   # MCP server image
-  image: metaagent/mcp-stripe:latest
+  image: forgemaster/mcp-stripe:latest
 
   # Server configuration
   config:
@@ -291,121 +289,53 @@ status:
     - handle_webhook
 ```
 
-### TestSuite CRD
+### Test Storage (ConfigMaps)
 
-Defines the Gherkin test suite (setpoint).
+Test definitions are stored in ConfigMaps rather than a separate CRD. The Test Generator Agent creates these, and the Test Runner Agent executes them.
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
-kind: TestSuite
+apiVersion: v1
+kind: ConfigMap
 metadata:
   name: ecommerce-tests
   namespace: task-ecommerce-abc123
   labels:
-    metaagent.io/task: ecommerce-backend
-spec:
+    forgemaster.io/task: ecommerce-backend
+    forgemaster.io/type: test-suite
+data:
   format: gherkin
   framework: behave
-
-  # Gherkin feature inline or from ConfigMap
-  features:
-    - name: product-catalog
-      content: |
-        Feature: Product Catalog API
-          As an e-commerce client
-          I want to manage products via REST API
-          So that I can build a product catalog
-
-          Scenario: Create a new product
-            Given the API is running
-            When I send a POST request to "/products" with body:
-              """
-              {
-                "name": "Wireless Headphones",
-                "price": 99.99,
-                "category": "electronics"
-              }
-              """
-            Then the response status should be 201
-            And the response should contain "id"
-
-          Scenario: List products by category
-            Given products exist in category "electronics"
-            When I send a GET request to "/products?category=electronics"
-            Then the response status should be 200
-            And the response should contain a list of products
-
-    - name: shopping-cart
-      content: |
-        Feature: Shopping Cart
-          As a customer
-          I want to manage my shopping cart
-          So that I can purchase multiple items
-
-          Scenario: Add item to cart
-            Given a product exists with id "prod-123"
-            And I have an active cart session
-            When I send a POST request to "/cart/items" with body:
-              """
-              {
-                "productId": "prod-123",
-                "quantity": 2
-              }
-              """
-            Then the response status should be 200
-            And the cart total should be updated
-
-    - name: checkout-flow
-      content: |
-        Feature: Checkout with Stripe
-          As a customer
-          I want to complete checkout with Stripe payment
-          So that I can purchase my cart items
-
-          Scenario: Successful checkout
-            Given I have items in my cart
-            And I have a valid Stripe payment method
-            When I send a POST request to "/checkout" with payment details
-            Then the response status should be 200
-            And I should receive an order confirmation
-            And Stripe should have processed the payment
-
-          Scenario: Payment failure handling
-            Given I have items in my cart
-            And I have an invalid payment method
-            When I send a POST request to "/checkout" with payment details
-            Then the response status should be 402
-            And the response should contain "payment_failed"
-
-  # Test Runner Agent reference
-  runnerAgent:
-    name: test-runner-agent
-
-status:
-  phase: Running
-  lastRun: "2026-01-19T12:05:00Z"
-  results:
-    total: 12
-    passed: 9
-    failed: 3
-    error: 0.25
-  failedScenarios:
-    - "Payment failure handling"
-    - "List products by category"
-    - "Add item to cart"
+  product-catalog.feature: |
+    Feature: Product Catalog API
+      Scenario: Create a new product
+        Given the API is running
+        When I POST to "/products" with valid data
+        Then the response status is 201
+  shopping-cart.feature: |
+    Feature: Shopping Cart
+      Scenario: Add item to cart
+        Given a product exists
+        When I POST to "/cart/items"
+        Then the cart is updated
+  checkout.feature: |
+    Feature: Checkout with Stripe
+      Scenario: Successful checkout
+        Given I have items in cart
+        When I POST to "/checkout"
+        Then I receive order confirmation
 ```
 
-### Test Runner Agent CRD
+### Test Runner Agent
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: test-runner-agent
   namespace: task-ecommerce-abc123
   labels:
-    metaagent.io/task: ecommerce-backend
-    metaagent.io/type: test-runner
+    forgemaster.io/task: ecommerce-backend
+    forgemaster.io/type: test-runner
 spec:
   type: test-runner
 
@@ -444,14 +374,14 @@ status:
 ### Feedback Agent CRD
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: feedback-agent
   namespace: task-ecommerce-abc123
   labels:
-    metaagent.io/task: ecommerce-backend
-    metaagent.io/type: feedback
+    forgemaster.io/task: ecommerce-backend
+    forgemaster.io/type: feedback
 spec:
   type: feedback
 
@@ -503,15 +433,14 @@ flowchart TB
     WEB[A2UI Web Portal]
 
     subgraph Cluster["Kubernetes Cluster"]
-        subgraph ControlPlane["metaagent-system namespace"]
-            REST[REST API Service]
+        subgraph ControlPlane["forgemaster-system namespace"]
             API[K8s API]
             TCPC[TCP Controller<br/>PID feedback loop]
-            DOMC[Domain Controller]
-            ATC[AgentTask Controller]
-            AGC[Agent Controller]
-            MCPC[MCPServer Controller]
-            TSC[TestSuite Controller]
+            subgraph Operator["forgemaster-operator"]
+                ATC[AgentTask Controller<br/>HTTP API + Reconciler]
+                AGC[Agent Controller]
+                MCPC[MCPServer Controller]
+            end
         end
 
         subgraph DomainRegistry["Domain Registry"]
@@ -541,7 +470,7 @@ flowchart TB
                     MCP2[postgres-mcp<br/>database access]
                     MCP3[stripe-mcp<br/>payment API]
                 end
-                TS1["TestSuite: ecommerce-tests<br/>12 Gherkin scenarios"]
+                CM1["ConfigMap: ecommerce-tests<br/>12 Gherkin scenarios"]
             end
         end
 
@@ -551,22 +480,20 @@ flowchart TB
     end
 
     U -->|"submit task"| WEB
-    WEB -->|"POST /tasks"| REST
-    REST -->|"create AgentTask CR"| API
-    API -->|"watch events"| ATC
-    REST <-.->|"watch status"| API
-    WEB <-.->|"SSE progress"| REST
+    WEB -->|"POST /tasks"| ATC
+    ATC -->|"create AgentTask CR"| API
+    ATC <-.->|"watch status"| API
+    WEB <-.->|"WebSocket progress"| ATC
 
     TCPC -->|"error signal"| OA
     TCPC <-->|"read metrics"| FBA
     OA -->|"create/adjust agents"| API
 
-    DOMC -->|"manages"| DomainRegistry
     ATC -->|"reconcile"| Task1
     DOM1 -.->|"provides templates"| Task1
     AGC -->|"manages"| CoreAgents & ExecutorAgents
     MCPC -->|"manages"| MCPServers
-    TSC -->|"manages"| TS1
+    TGA -->|"creates"| CM1
 
     CoreAgents & ExecutorAgents --> Redis
 ```
@@ -590,11 +517,10 @@ Example: E-commerce backend task flow.
 sequenceDiagram
     actor U as User
     participant WEB as A2UI Web Portal
-    participant REST as REST API Service
+    participant ATC as AgentTask Controller
     participant API as K8s API
     participant TCPC as TCP Controller
-    participant DOMC as Domain Controller
-    participant ATC as AgentTask Controller
+    participant DOM as Domain CR
     participant AGC as Agent Controller
     participant MCPC as MCPServer Controller
     participant TGA as Test Generator Agent
@@ -605,15 +531,14 @@ sequenceDiagram
     participant FBA as Feedback Agent
 
     U->>WEB: Submit "Create e-commerce backend with Stripe"
-    WEB->>REST: POST /tasks {description}
-    REST->>API: Create AgentTask CR
-    API->>ATC: AgentTask created
-    REST->>API: Watch AgentTask status
+    WEB->>ATC: POST /tasks {description}
+    ATC->>API: Create AgentTask CR
+    ATC->>API: Watch AgentTask status
 
-    ATC->>DOMC: Match task to domain
-    DOMC->>DOMC: Calculate match scores
-    Note over DOMC: e-commerce, checkout, Stripe → web-development (0.94)
-    DOMC->>API: Assign domain (web-development)
+    ATC->>DOM: Match task to domain
+    ATC->>ATC: Calculate match scores
+    Note over ATC: e-commerce, checkout, Stripe → web-development (0.94)
+    ATC->>API: Update AgentTask with domain (web-development)
 
     ATC->>AGC: Create core agents (shared)
     AGC->>TGA: Spawn Test Generator
@@ -623,10 +548,10 @@ sequenceDiagram
 
     TGA->>TGA: Analyze task, generate Gherkin tests
     Note over TGA: 12 scenarios: products, cart, checkout
-    TGA->>API: Create TestSuite CR
+    TGA->>API: Create tests ConfigMap
 
-    OA->>DOMC: Get domain agent templates
-    DOMC->>OA: Return: api-architect, stripe-integrator, db-designer
+    OA->>DOM: Get domain agent templates
+    DOM->>OA: Return: api-architect, stripe-integrator, db-designer
     OA->>API: Create Agent CRs
     OA->>API: Create MCPServer CRs
     API->>MCPC: MCPServer CRs created
@@ -648,8 +573,8 @@ sequenceDiagram
         FBA->>TCPC: Error signal (0.25)
         TCPC->>TCPC: PID calculation: error = 0.25, threshold = 0.2
         TCPC->>API: Update AgentTask status
-        API->>REST: Status change event
-        REST->>WEB: SSE progress update
+        API->>ATC: Status change event
+        ATC->>WEB: WebSocket progress update
         WEB->>U: Live progress (9/12 tests, iteration 3)
         alt error > threshold (0.25 > 0.2)
             TCPC->>OA: Adjustment signal
@@ -658,9 +583,9 @@ sequenceDiagram
             OA->>API: Request additional MCP if needed
         else error <= threshold
             TCPC->>API: Mark task Succeeded
-            DOMC->>DOMC: Update domain success metrics
+            ATC->>DOM: Update domain success metrics
             MCPC->>MCP: Terminate MCP servers
-            REST->>WEB: Task completed
+            ATC->>WEB: Task completed
             WEB->>U: Task completed successfully
         end
     end
@@ -681,9 +606,9 @@ All CRDs and controllers are deployed via Helm charts. See [10-helm-charts.md](1
 ```mermaid
 flowchart TB
     subgraph HelmCharts["Helm Charts"]
-        MC[metaagent-crds]
-        MO[metaagent-operator]
-        MD[metaagent-domains]
+        MC[forgemaster-crds]
+        MO[forgemaster-operator]
+        MD[forgemaster-domains]
     end
 
     subgraph Deployed["Deployed Resources"]
@@ -701,27 +626,27 @@ flowchart TB
 
 ```bash
 # Add Helm repository
-helm repo add metaagent https://charts.metaagent.io
+helm repo add forgemaster https://charts.forgemaster.io
 
 # Install CRDs first
-helm install metaagent-crds metaagent/metaagent-crds
+helm install forgemaster-crds forgemaster/forgemaster-crds
 
 # Install operators
-helm install metaagent-operator metaagent/metaagent-operator \
-  --namespace metaagent-system \
+helm install forgemaster-operator forgemaster/forgemaster-operator \
+  --namespace forgemaster-system \
   --create-namespace
 
 # Install default domains
-helm install metaagent-domains metaagent/metaagent-domains \
-  --namespace metaagent-system
+helm install forgemaster-domains forgemaster/forgemaster-domains \
+  --namespace forgemaster-system
 ```
 
 **Custom Domain Installation:**
 
 ```bash
 # Install with custom domain values
-helm install metaagent-domains metaagent/metaagent-domains \
-  --namespace metaagent-system \
+helm install forgemaster-domains forgemaster/forgemaster-domains \
+  --namespace forgemaster-system \
   -f custom-domains.yaml
 ```
 

@@ -13,15 +13,12 @@ meta-agent/
 │   │   ├── domain-crd.yaml
 │   │   ├── agenttask-crd.yaml
 │   │   ├── agent-crd.yaml
-│   │   ├── mcpserver-crd.yaml
-│   │   └── testsuite-crd.yaml
+│   │   └── mcpserver-crd.yaml
 │   ├── controllers/
 │   │   ├── tcp-controller-deployment.yaml
-│   │   ├── domain-controller-deployment.yaml
 │   │   ├── agenttask-controller-deployment.yaml
 │   │   ├── agent-controller-deployment.yaml
-│   │   ├── mcpserver-controller-deployment.yaml
-│   │   └── testsuite-controller-deployment.yaml
+│   │   └── mcpserver-controller-deployment.yaml
 │   ├── domains/
 │   │   ├── web-development-domain.yaml
 │   │   ├── data-engineering-domain.yaml
@@ -70,7 +67,7 @@ keywords:
 
 maintainers:
   - name: CSM-101
-    email: team@metaagent.io
+    email: team@forgemaster.io
 
 dependencies:
   - name: redis
@@ -84,7 +81,7 @@ dependencies:
 ```yaml
 # Global settings
 global:
-  namespace: meta-agent-system
+  namespace: forgemaster-system
   imagePullPolicy: IfNotPresent
 
 # Domain Configuration
@@ -93,7 +90,7 @@ domains:
   controller:
     enabled: true
     image:
-      repository: metaagent/domain-controller
+      repository: forgemaster/domain-controller
       tag: latest
     resources:
       limits:
@@ -179,7 +176,7 @@ domains:
 tcpController:
   enabled: true
   image:
-    repository: metaagent/tcp-controller
+    repository: forgemaster/tcp-controller
     tag: latest
   replicas: 1
   resources:
@@ -205,7 +202,7 @@ coreAgents:
   orchestrator:
     enabled: true
     image:
-      repository: metaagent/orchestrator-agent
+      repository: forgemaster/orchestrator-agent
       tag: latest
     replicas: 1
     model:
@@ -225,7 +222,7 @@ coreAgents:
   testGenerator:
     enabled: true
     image:
-      repository: metaagent/test-generator-agent
+      repository: forgemaster/test-generator-agent
       tag: latest
     replicas: 1
     model:
@@ -248,7 +245,7 @@ coreAgents:
   testRunner:
     enabled: true
     image:
-      repository: metaagent/test-runner-agent
+      repository: forgemaster/test-runner-agent
       tag: latest
     replicas: 1
     model:
@@ -271,7 +268,7 @@ coreAgents:
   feedback:
     enabled: true
     image:
-      repository: metaagent/feedback-agent
+      repository: forgemaster/feedback-agent
       tag: latest
     replicas: 1
     model:
@@ -296,7 +293,7 @@ mcpServers:
   filesystem:
     enabled: true
     image:
-      repository: metaagent/mcp-filesystem
+      repository: forgemaster/mcp-filesystem
       tag: latest
     resources:
       limits:
@@ -306,7 +303,7 @@ mcpServers:
   github:
     enabled: true
     image:
-      repository: metaagent/mcp-github
+      repository: forgemaster/mcp-github
       tag: latest
     credentials:
       secretName: github-credentials
@@ -318,7 +315,7 @@ mcpServers:
   prometheus:
     enabled: true
     image:
-      repository: metaagent/mcp-prometheus
+      repository: forgemaster/mcp-prometheus
       tag: latest
     resources:
       limits:
@@ -331,13 +328,13 @@ a2aGateway:
   ingress:
     enabled: true
     className: nginx
-    host: agents.metaagent.io
+    host: agents.forgemaster.io
     tls:
       enabled: true
       secretName: a2a-tls-secret
   authentication:
     type: oauth2
-    issuerUrl: "https://auth.metaagent.io"
+    issuerUrl: "https://auth.forgemaster.io"
 
 # Storage Configuration
 storage:
@@ -380,39 +377,39 @@ taskDefaults:
 
 ```bash
 # Add Helm repository (if published)
-helm repo add metaagent https://charts.metaagent.io
+helm repo add forgemaster https://charts.forgemaster.io
 helm repo update
 
 # Install with default values
-helm install meta-agent metaagent/meta-agent \
-  --namespace meta-agent-system \
+helm install meta-agent forgemaster/meta-agent \
+  --namespace forgemaster-system \
   --create-namespace
 
 # Install with custom values
-helm install meta-agent metaagent/meta-agent \
-  --namespace meta-agent-system \
+helm install meta-agent forgemaster/meta-agent \
+  --namespace forgemaster-system \
   --create-namespace \
   -f custom-values.yaml
 
 # Install from local chart
 helm install meta-agent ./meta-agent \
-  --namespace meta-agent-system \
+  --namespace forgemaster-system \
   --create-namespace
 
 # Set secrets during install
 helm install meta-agent ./meta-agent \
-  --namespace meta-agent-system \
+  --namespace forgemaster-system \
   --create-namespace \
   --set llm.apiKeySecret=my-anthropic-secret \
   --set mcpServers.github.credentials.secretName=my-github-secret
 
 # Upgrade existing installation
 helm upgrade meta-agent ./meta-agent \
-  --namespace meta-agent-system \
+  --namespace forgemaster-system \
   -f custom-values.yaml
 
 # Uninstall
-helm uninstall meta-agent --namespace meta-agent-system
+helm uninstall meta-agent --namespace forgemaster-system
 ```
 
 ### Template Example: Domain
@@ -420,7 +417,7 @@ helm uninstall meta-agent --namespace meta-agent-system
 ```yaml
 # templates/domains/web-development-domain.yaml
 {{- if .Values.domains.webDevelopment.enabled }}
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Domain
 metadata:
   name: web-development
@@ -475,14 +472,14 @@ status:
 ```yaml
 # templates/core-agents/orchestrator-agent.yaml
 {{- if .Values.coreAgents.orchestrator.enabled }}
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: orchestrator-agent
   namespace: {{ .Values.global.namespace }}
   labels:
     {{- include "meta-agent.labels" . | nindent 4 }}
-    metaagent.io/type: orchestrator
+    forgemaster.io/type: orchestrator
 spec:
   type: orchestrator
   
@@ -654,7 +651,7 @@ storage:
 
 a2aGateway:
   ingress:
-    host: agents.dev.metaagent.io
+    host: agents.dev.forgemaster.io
 ```
 
 ```yaml
@@ -691,7 +688,7 @@ storage:
 
 a2aGateway:
   ingress:
-    host: agents.metaagent.io
+    host: agents.forgemaster.io
     tls:
       enabled: true
 
@@ -711,7 +708,6 @@ flowchart TB
             CRD1[AgentTask CRD]
             CRD2[Agent CRD]
             CRD3[MCPServer CRD]
-            CRD4[TestSuite CRD]
         end
 
         subgraph Controllers["Controllers"]
@@ -720,7 +716,6 @@ flowchart TB
             ATC[AgentTask Controller]
             AGC[Agent Controller]
             MC[MCPServer Controller]
-            TSC[TestSuite Controller]
         end
 
         subgraph Domains["Domain Registry"]

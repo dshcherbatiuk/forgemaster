@@ -243,7 +243,7 @@ spec:
         - name: AGENT_ID
           value: "code-generator-abc123"
         - name: AGENT_REGISTRY_URL
-          value: "http://agent-registry.metaagent-system:8080"
+          value: "http://agent-registry.forgemaster-system:8080"
         - name: ANTHROPIC_API_KEY
           valueFrom:
             secretKeyRef:

@@ -616,7 +616,7 @@ flowchart LR
 │   5. Wait for MCP servers ready                                  │
 │   6. Deploy agents based on skill requirements                   │
 │   7. Wait for agents to register in Agent Registry               │
-│   8. Create TestSuite CRD with Gherkin tests                    │
+│   8. Create tests ConfigMap with Gherkin features               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

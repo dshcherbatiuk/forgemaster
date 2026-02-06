@@ -239,10 +239,10 @@ check: fmt lint
 
 # Build Docker images
 docker-build:
-	docker build -f docker/Dockerfile.tcp-controller -t metaagent/tcp-controller:latest .
-	docker build -f docker/Dockerfile.agent-registry -t metaagent/agent-registry:latest .
-	docker build -f docker/Dockerfile.agent-runtime -t metaagent/agent-runtime:latest .
-	docker build -f docker/Dockerfile.k8s-operator -t metaagent/k8s-operator:latest .
+	docker build -f docker/Dockerfile.tcp-controller -t forgemaster/tcp-controller:latest .
+	docker build -f docker/Dockerfile.agent-registry -t forgemaster/agent-registry:latest .
+	docker build -f docker/Dockerfile.agent-runtime -t forgemaster/agent-runtime:latest .
+	docker build -f docker/Dockerfile.k8s-operator -t forgemaster/k8s-operator:latest .
 
 # Run locally
 run-tcp-controller:

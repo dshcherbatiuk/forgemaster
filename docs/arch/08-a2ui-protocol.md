@@ -480,11 +480,11 @@ Define trusted components the agents can use:
 
 ```yaml
 # a2ui-catalog.yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: A2UICatalog
 metadata:
   name: meta-agent-catalog
-  namespace: meta-agent-system
+  namespace: forgemaster-system
 spec:
   components:
     # Layout Components
@@ -764,11 +764,11 @@ Key points:
 ### Agent CRD with A2UI Support
 
 ```yaml
-apiVersion: metaagent.io/v1alpha1
+apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: orchestrator-agent
-  namespace: meta-agent-system
+  namespace: forgemaster-system
 spec:
   type: orchestrator
   
@@ -834,7 +834,7 @@ a2ui:
   client:
     enabled: true
     image:
-      repository: metaagent/a2ui-client
+      repository: forgemaster/a2ui-client
       tag: latest
     framework: react  # react, angular, flutter
     port: 3000
@@ -853,7 +853,7 @@ a2ui:
   # Ingress for A2UI client
   ingress:
     enabled: true
-    host: ui.metaagent.io
+    host: ui.forgemaster.io
     tls:
       enabled: true
 ```

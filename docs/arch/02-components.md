@@ -1,207 +1,333 @@
-## Architecture Diagram
+## Entity Responsibilities
+
+This document describes every entity in the ForgeMaster system and its responsibilities.
+
+---
+
+## Entity Categories
+
+| Category | What it is | Deployment Model | Examples |
+|----------|-----------|------------------|----------|
+| **Controllers** | Kubernetes operators that watch and reconcile CRDs | Single `forgemaster-operator` Deployment | AgentTask Controller, Agent Controller |
+| **Backend Services** | HTTP services that don't reconcile CRDs | Separate Deployments | TCP Controller, Agent Registry |
+| **Agents** | LLM-powered workers that execute tasks | Dynamic pods per task | Orchestrator, Code Generator |
+| **CRDs** | Kubernetes Custom Resources (data, not processes) | Stored in etcd | AgentTask, Agent, Domain |
+| **Infrastructure** | Stateful storage systems | Helm-managed Deployments | Redis |
+
+**Why this grouping?**
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         CONTROL PLANE                                    │
+│  ┌────────────────────────────┐    ┌────────────────────────────────┐   │
+│  │   Operator Controllers     │    │      Backend Services          │   │
+│  │   (CRD Reconciliation)     │    │      (HTTP APIs)               │   │
+│  │                            │    │                                │   │
+│  │   • Watch K8s resources    │    │   • Receive HTTP requests      │   │
+│  │   • Reconcile desired      │    │   • Stateless (Redis state)    │   │
+│  │     state vs actual        │    │   • Don't manage K8s resources │   │
+│  │   • Create/delete pods     │    │   • Runtime coordination       │   │
+│  └────────────────────────────┘    └────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          DATA PLANE                                      │
+│  ┌────────────────────────────┐    ┌────────────────────────────────┐   │
+│  │         Agents             │    │       Infrastructure           │   │
+│  │    (Task Execution)        │    │       (State Storage)          │   │
+│  │                            │    │                                │   │
+│  │   • LLM-powered            │    │   • Redis: context, registry   │   │
+│  │   • Ephemeral (per task)   │    │   • Persistent across tasks    │   │
+│  │   • Communicate via A2A    │    │                                │   │
+│  │   • Use MCP tools          │    │                                │   │
+│  └────────────────────────────┘    └────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Architecture Overview
 
 ```mermaid
 flowchart TB
-    subgraph Input
-        TI[Task Input]
+    subgraph External["External"]
+        USER[User/Client]
     end
 
-    subgraph Controller["TCP Controller"]
-        T["T (Task)<br/>Current Analysis"]
-        C["C (Context)<br/>History & Patterns"]
-        P["P (Prediction)<br/>Anticipate & Adapt"]
-        CS[Control Signal]
-        T & C & P --> CS
+    subgraph Operator["forgemaster-operator Deployment"]
+        ATC[AgentTask Controller]
+        AC[Agent Controller]
+        MC[MCPServer Controller]
+    end
+
+    subgraph Services["Backend Services"]
+        TCP[TCP Controller]
+        REG[Agent Registry]
     end
 
     subgraph Agents["Agent Pool"]
-        TG["Test Generator Agent<br/>─────────────<br/>Analyzes task<br/>Generates Gherkin<br/>tests (setpoint)"]
-        OR["Orchestrator Agent<br/>─────────────<br/>Agent Selection<br/>MCP Provisioning<br/>K8s CRD Management"]
-        EX["Executor Agents<br/>─────────────<br/>Code Generator<br/>Reviewer<br/>Specialist"]
-        TR["Test Runner Agent<br/>─────────────<br/>Runs Gherkin tests<br/>against output"]
-        OV["Outcome Validator<br/>─────────────<br/>Verifies real-world<br/>results (API calls,<br/>emails, data checks)"]
-        FB["Feedback Agent<br/>─────────────<br/>Collects metrics<br/>Calculates error<br/>Analyzes patterns"]
+        OA[Orchestrator Agent]
+        TGA[Test Generator Agent]
+        CGA[Code Generator Agent]
+        TRA[Test Runner Agent]
+        FBA[Feedback Agent]
     end
 
-    TI --> Controller
-    CS --> TG & OR & EX
-    TG --> TR
-    EX --> TR
-    TR --> OV
-    OV --> FB
-    FB -->|"Feedback Loop"| Controller
+    subgraph Storage["Storage"]
+        REDIS[(Redis)]
+    end
+
+    subgraph CRDs["Custom Resources"]
+        AT[AgentTask CR]
+        AGT[Agent CR]
+        MCP[MCPServer CR]
+        DOM[Domain CR]
+    end
+
+    USER -->|HTTP API| ATC
+    ATC --> AT
+    ATC --> AGT
+    ATC --> MCP
+    AC --> AGT
+    MC --> MCP
+
+    TCP --> REDIS
+    REG --> REDIS
+    OA & TGA & CGA & TRA & FBA --> REG
+    FBA --> TCP
 ```
 
 ---
 
-## Components
+## Controllers
 
-### 1. TCP Controller (Task-Context-Prediction)
+> **See also:** [K8s Deployment](05-k8s-deployment.md), [Backend Services](12-backend-services.md)
 
-The brain of the system. Receives task input and feedback, computes control signal.
+### AgentTask Controller
 
-**Responsibilities:**
-- **T (Task):** Parse and understand incoming task, react to current error
-- **C (Context):** Store and leverage history, learned patterns
-- **P (Prediction):** Anticipate failures, adapt proactively
-- Compute control signal to determine next action
-- Decide: retry, spawn new agent, change strategy, or complete
+| Responsibility | Description |
+|----------------|-------------|
+| HTTP API | Expose REST endpoints for task submission (`POST /tasks`) |
+| Domain Matching | Match incoming tasks against Domain CRs to select configuration |
+| Task Initialization | Create AgentTask CR with matched domain config |
+| Agent Provisioning | Create Agent CRs for required agents |
+| MCP Provisioning | Create MCPServer CRs based on domain configuration |
+| Namespace Management | Create isolated namespace for each task |
+| Status Tracking | Update AgentTask status throughout lifecycle |
+| Cleanup | Delete namespace and resources when task completes |
 
-### 2. Test Generator Agent
+**Does NOT do:** Runtime feedback loop, Agent health monitoring, MCP server lifecycle
 
-Creates the definition of success for each task using **Gherkin** syntax (Given-When-Then).
+---
 
-**Input:** Task description
-**Output:** Set of E2E tests in Gherkin format
+### Agent Controller
+
+| Responsibility | Description |
+|----------------|-------------|
+| Agent Lifecycle | Start, stop, restart Agent pods |
+| Health Monitoring | Watch agent health via Registry |
+| Scaling | Scale agent replicas based on load |
+| Pod Management | Create/delete Kubernetes pods for agents |
+| Resource Limits | Enforce CPU/memory limits per agent |
+| Restart Policy | Handle agent crashes with exponential backoff |
+
+**Does NOT do:** Decide which agents to create, Route tasks to agents
+
+---
+
+### MCPServer Controller
+
+| Responsibility | Description |
+|----------------|-------------|
+| MCP Lifecycle | Start, stop MCP server pods |
+| Tool Registration | Register MCP tools with agents |
+| Secret Injection | Mount API keys/credentials into MCP pods |
+| Health Checks | Verify MCP servers are responding |
+| Connection Management | Maintain MCP endpoint information |
+
+**Does NOT do:** Decide which MCP servers to provision, Execute tools
+
+---
+
+## Backend Services
+
+> **See also:** [Feedback Loop](03-feedback-loop.md), [Agent Registry](06-agent-registry.md), [Backend Services](12-backend-services.md)
+
+### TCP Controller
+
+| Responsibility | Description |
+|----------------|-------------|
+| Feedback Loop | PID-like control loop during task execution |
+| Error Signal | Calculate error from test results (failed/total) |
+| Control Signal | Compute adjustment parameters for agents |
+| Context History | Store iteration history in Redis |
+| Convergence Detection | Detect when task is converged (error ≈ 0) |
+| Strategy Adjustment | Recommend strategy changes based on patterns |
+
+**T-C-P Components:**
+
+| Component | Role |
+|-----------|------|
+| **T (Task)** | Parse current error, react to test failures |
+| **C (Context)** | Leverage history, learned patterns from past iterations |
+| **P (Prediction)** | Anticipate failures, adapt proactively |
+
+**Does NOT do:** Create agents, Run tests, Domain matching
+
+---
+
+### Agent Registry
+
+| Responsibility | Description |
+|----------------|-------------|
+| Registration | Accept agent registrations on startup |
+| Heartbeat | Track agent liveness via periodic heartbeats |
+| Discovery | Enable agents to find each other by skill |
+| Skill Matching | Index agents by capabilities for lookup |
+| Deregistration | Remove agents on shutdown or timeout |
+| Load Tracking | Track current load per agent |
+
+**Does NOT do:** Start/stop agents, Route tasks
+
+---
+
+## Agents
+
+> **See also:** [Task Lifecycle](04-task-lifecycle.md), [Orchestrator Spec](04b-orchestrator-spec.md), [Agent Creation](04a-agent-creation.md)
+
+### Orchestrator Agent
+
+| Responsibility | Description |
+|----------------|-------------|
+| Task Decomposition | Break complex tasks into subtasks |
+| Agent Selection | Query Registry, select best agent for each subtask |
+| Task Routing | Route subtasks to selected agents via A2A |
+| Progress Tracking | Monitor subtask completion |
+| Result Aggregation | Combine results from multiple agents |
+| Dynamic Provisioning | Request new agents if needed |
+
+**Does NOT do:** Execute tasks directly, Run tests, Calculate error signal
+
+---
+
+### Test Generator Agent
+
+| Responsibility | Description |
+|----------------|-------------|
+| Requirement Analysis | Analyze task description for testable requirements |
+| Gherkin Generation | Create BDD test scenarios (Given-When-Then) |
+| Edge Case Coverage | Generate tests for edge cases and errors |
+| Test Storage | Store tests in ConfigMap for Test Runner |
+
+**Does NOT do:** Run tests, Generate code
+
+---
+
+### Code Generator Agent
+
+| Responsibility | Description |
+|----------------|-------------|
+| Code Generation | Generate code based on task requirements |
+| MCP Tool Usage | Use filesystem, GitHub MCP tools |
+| Iteration | Improve code based on test feedback |
+| Artifact Storage | Store code artifacts |
+
+**Does NOT do:** Run tests, Validate outcomes
+
+---
+
+### Test Runner Agent
+
+| Responsibility | Description |
+|----------------|-------------|
+| Test Execution | Run Gherkin tests against agent output |
+| Framework Selection | Use appropriate BDD framework (behave, cucumber-js, godog) |
+| Result Collection | Collect pass/fail per scenario |
+| Report Generation | Generate test reports |
+
+**Does NOT do:** Generate tests, Calculate error signal
+
+---
+
+### Outcome Validator Agent
+
+| Responsibility | Description |
+|----------------|-------------|
+| Real-world Verification | Verify task actually worked beyond tests |
+| External Checks | Call external APIs, verify data, check emails |
+| False Positive Detection | Catch cases where tests pass but task failed |
+
+**Why needed:** Tests verify HOW (implementation). Outcomes verify WHAT (it actually worked).
+
+---
+
+### Feedback Agent
+
+| Responsibility | Description |
+|----------------|-------------|
+| Metric Collection | Gather test results, execution metrics |
+| Error Calculation | Calculate error signal (failed/total) |
+| Pattern Analysis | Identify failure patterns across iterations |
+| Feedback Submission | Submit feedback to TCP Controller |
+
+---
+
+## Custom Resource Definitions (CRDs)
+
+> **See also:** [CRD Specifications](09-crd-specifications.md) for full schemas
+
+| CRD | Created by | Managed by | Purpose |
+|-----|-----------|------------|---------|
+| AgentTask | AgentTask Controller | AgentTask Controller | Task definition and status |
+| Agent | AgentTask Controller / Orchestrator | Agent Controller | Agent instance configuration |
+| MCPServer | AgentTask Controller | MCPServer Controller | MCP server configuration |
+| Domain | Cluster administrator | AgentTask Controller (read-only) | Domain-specific configuration |
+
+---
+
+## Infrastructure
+
+> **See also:** [Infrastructure](09-infrastructure.md), [Helm Charts](10-helm-charts.md)
+
+| Component | Purpose |
+|-----------|---------|
+| Redis | TCP context, Registry data, Caching, Pub/Sub |
+
+---
+
+## Entity Interaction Summary
 
 ```mermaid
 sequenceDiagram
-    participant C as Controller
-    participant TG as Test Generator Agent
-    participant TR as Test Runner
-    participant EX as Executor Agents
+    actor U as User
+    participant ATC as AgentTask Controller
+    participant AC as Agent Controller
+    participant OA as Orchestrator Agent
+    participant TGA as Test Generator Agent
+    participant CGA as Code Generator Agent
+    participant TRA as Test Runner Agent
+    participant FBA as Feedback Agent
+    participant TCP as TCP Controller
 
-    C->>TG: Task: "Create e-commerce backend with catalog, cart, checkout"
-    TG->>TG: Analyze task requirements
-    TG->>TR: Generated Gherkin E2E Tests
-    Note over TR: Feature: E-commerce API<br/>Scenario: Add product to cart<br/>Scenario: Process checkout<br/>Scenario: Handle payment<br/>...
-    C->>EX: Execute task
-    EX->>TR: Output (API code)
-    TR->>TR: Run tests against output
-    TR->>C: Results: 3/5 passed (error=0.4)
+    U->>ATC: POST /tasks
+    ATC->>ATC: Match Domain
+    ATC->>ATC: Create AgentTask CR
+    ATC->>AC: Create Agent CRs
+    AC->>OA: Start Orchestrator
+    AC->>TGA: Start Test Generator
+    AC->>CGA: Start Code Generator
+    AC->>TRA: Start Test Runner
+    AC->>FBA: Start Feedback Agent
+
+    OA->>TGA: Generate tests
+    TGA->>TRA: Tests ready (ConfigMap)
+    OA->>CGA: Generate code
+    CGA->>TRA: Code ready
+    TRA->>TRA: Run tests
+    TRA->>FBA: Test results
+    FBA->>TCP: Submit feedback
+    TCP->>TCP: Calculate control signal
+    TCP->>OA: Adjustment parameters
+
+    Note over OA,TCP: Loop until error ≈ 0
 ```
-
-**Example Gherkin Output:**
-
-```gherkin
-Feature: E-commerce Backend API
-  As a customer
-  I want to browse products, manage cart, and checkout
-  So that I can purchase items online
-
-  Scenario: Add product to cart
-    Given the API is running
-    And a product exists with id "prod-123"
-    When I send a POST request to "/cart/items" with body:
-      """
-      {
-        "product_id": "prod-123",
-        "quantity": 2
-      }
-      """
-    Then the response status should be 201
-    And the cart should contain 2 items
-
-  Scenario: View shopping cart
-    Given items exist in my cart
-    When I send a GET request to "/cart"
-    Then the response status should be 200
-    And the response should contain "items"
-    And the response should contain "total_price"
-
-  Scenario: Process checkout with Stripe
-    Given items exist in my cart
-    And I have a valid Stripe payment method
-    When I send a POST request to "/checkout" with body:
-      """
-      {
-        "payment_method_id": "pm_card_visa",
-        "shipping_address": {
-          "street": "123 Main St",
-          "city": "San Francisco",
-          "zip": "94102"
-        }
-      }
-      """
-    Then the response status should be 201
-    And the response should contain "order_id"
-    And the Stripe charge should be created
-
-  Scenario: Invalid payment fails gracefully
-    Given items exist in my cart
-    When I send a POST request to "/checkout" with invalid payment
-    Then the response status should be 402
-    And the response should contain "payment_error"
-    And the cart should remain unchanged
-```
-
-### 3. Orchestrator Agent
-
-An agent that provisions and manages execution resources.
-
-**Responsibilities:**
-- Select appropriate agents for the task
-- Create new agents if needed (dynamically define new Agent CRDs)
-- Provision MCP servers
-- Manage K8s CRDs (AgentTask, Agent, MCPServer, TestSuite)
-- Manage lifecycle (start, stop, scale)
-
-### 4. Executor Agents
-
-Task-specific agents that do the actual work.
-
-**Types:**
-- Code Generator
-- Code Reviewer
-- Data Processor
-- Research Agent
-- Specialist Agents (created on demand)
-
-### 5. Test Runner Agent
-
-An agent that executes Gherkin E2E tests against the output using BDD frameworks.
-
-**Input:** Gherkin feature files + Agent output
-**Output:** Test results (pass/fail per scenario)
-
-**Supported Runners:**
-- Python: `behave`, `pytest-bdd`
-- JavaScript: `cucumber-js`
-- Java: `cucumber-jvm`
-- Go: `godog`
-
-### 6. Outcome Validator
-
-Verifies real-world results beyond self-generated tests. Since tests are created by the system itself, they could have false positives. Outcome validation checks that the task **actually worked**.
-
-**Why needed:** Tests verify the HOW (implementation). Outcomes verify the WHAT (it actually worked).
-
-**Validation by Task Type:**
-
-| Task Type | Outcome Verification |
-|-----------|---------------------|
-| Ticket Booking | Confirmation email received, booking ID valid in external system |
-| ETL Pipeline | Data exists in target DB, row counts match, checksums valid |
-| API Development | External client can call endpoints, integration tests pass |
-| ML Training | Metrics improve on held-out validation set |
-| Test Automation | Generated tests actually catch bugs when code is broken |
-
-**Input:** Task output + task type
-**Output:** Outcome validation results (verified/failed per check)
-
-### 7. Feedback Collector Agent
-
-An agent that gathers metrics, analyzes results, and calculates the error signal for the TCP Controller.
-
-**Responsibilities:**
-- Collect test results from Test Runner Agent
-- Collect outcome validation results from Outcome Validator
-- Gather execution metrics (time, tokens, retries)
-- Calculate combined error signal
-- Analyze failure patterns
-- Provide recommendations for next iteration
-
-**Error Signal Calculation:**
-```
-error = (failed_tests + failed_outcomes) / total_checks
-```
-
-**Metrics:**
-- Test pass rate
-- Outcome validation rate
-- Execution time
-- Token usage
-- Retry count
-- Agent performance trends
-
----

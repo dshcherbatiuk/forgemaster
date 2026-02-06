@@ -79,7 +79,7 @@ apiVersion: forgemaster.io/v1alpha1
 kind: Agent
 metadata:
   name: orchestrator
-  namespace: metaagent-system
+  namespace: forgemaster-system
 spec:
   model:
     provider: anthropic
