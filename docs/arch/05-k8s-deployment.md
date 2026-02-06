@@ -390,7 +390,7 @@ flowchart TB
 6. Test Generator creates 12 Gherkin scenarios for product CRUD, cart operations, checkout flow
 7. TCP feedback loop runs until all tests pass
 
-### Operator Reconciliation Loop
+### Reconciliation Loop
 
 Example: E-commerce backend task flow.
 
@@ -400,64 +400,52 @@ sequenceDiagram
     participant WEB as A2UI Web Portal
     participant ATC as AgentTask Controller
     participant API as K8s API
-    participant TCPC as TCP Controller
     participant AGC as Agent Controller
     participant MCPC as MCPServer Controller
-    participant TGA as Test Generator Agent
     participant OA as Orchestrator Agent
     participant EX as Executor Agents
     participant MCP as MCP Servers
     participant TRA as Test Runner Agent
     participant FBA as Feedback Agent
+    participant TCPC as TCP Controller
 
     U->>WEB: Submit "Create e-commerce backend with Stripe"
     WEB->>ATC: WebSocket: submit_task {description}
     ATC->>API: Create AgentTask CR
-    ATC->>API: Watch AgentTask status
+    ATC->>API: Create task namespace
 
-    ATC->>AGC: Create core agents
-    AGC->>TGA: Spawn Test Generator
-    AGC->>OA: Spawn Orchestrator
-    AGC->>TRA: Spawn Test Runner
-    AGC->>FBA: Spawn Feedback Agent
+    Note over ATC: Reconciler transitions: Pending → Running
 
-    TGA->>TGA: Analyze task, generate Gherkin tests
-    Note over TGA: 12 scenarios: products, cart, checkout
-    TGA->>API: Create tests ConfigMap
+    ATC->>API: Create Orchestrator Agent CR
+    API->>AGC: Watch detects new Agent CR
+    AGC->>OA: Spawn Orchestrator pod
 
-    OA->>OA: Analyze task, select agents
-    OA->>API: Create Agent CRs
-    OA->>API: Create MCPServer CRs
-    API->>MCPC: MCPServer CRs created
-    MCPC->>MCP: Spawn github-mcp
-    MCPC->>MCP: Spawn postgres-mcp
-    MCPC->>MCP: Spawn stripe-mcp
-    MCP->>API: MCP endpoints ready
-    AGC->>EX: Spawn executor agents
+    OA->>OA: Analyze task (LLM reasoning)
+    OA->>API: Create Agent CRs (code-gen, test-gen, test-runner, feedback)
+    OA->>API: Create MCPServer CRs (github, postgres, stripe)
+    API->>AGC: Watch detects new Agent CRs
+    AGC->>EX: Spawn executor agent pods
+    API->>MCPC: Watch detects new MCPServer CRs
+    MCPC->>MCP: Spawn MCP server pods
 
-    loop TCP Feedback Loop (iterations 1-5)
-        EX->>MCP: github-mcp: read/write code
-        EX->>MCP: postgres-mcp: create schema
-        EX->>MCP: stripe-mcp: setup payment flow
-        Note over EX: Build product API, cart service, checkout flow
-        EX->>API: Output ready
-        TRA->>MCP: filesystem-mcp: read generated code
+    loop TCP Feedback Loop (until error ≤ threshold)
+        OA->>EX: Coordinate execution via A2A
+        EX->>MCP: Use tools (github, postgres, stripe)
         TRA->>TRA: Run Gherkin tests
         TRA->>FBA: Test results (9/12 passed)
-        FBA->>TCPC: Error signal (0.25)
-        TCPC->>TCPC: PID calculation: error = 0.25, threshold = 0.2
-        TCPC->>API: Update AgentTask status
-        API->>ATC: Status change event
-        ATC->>WEB: WebSocket progress update
+        FBA->>TCPC: Submit feedback (error = 0.25)
+        TCPC->>TCPC: PID calculation
+        TCPC->>OA: Control signal (adjust/continue/complete)
+
+        ATC->>ATC: Reconciler detects status change
+        ATC->>WEB: WebSocket: push A2UI schema update
         WEB->>U: Live progress (9/12 tests, iteration 3)
-        alt error > threshold (0.25 > 0.2)
-            TCPC->>OA: Adjustment signal
-            FBA->>OA: "Stripe payment failure edge case missing"
-            OA->>API: Update stripe-integrator prompt
-            OA->>API: Request additional MCP if needed
-        else error <= threshold
-            TCPC->>API: Mark task Succeeded
-            MCPC->>MCP: Terminate MCP servers
+
+        alt error > threshold
+            OA->>OA: Adjust strategy (swap agent, change prompt)
+            OA->>API: Update Agent CRs
+        else error ≤ threshold
+            OA->>API: Update AgentTask status → Succeeded
             ATC->>WEB: Task completed
             WEB->>U: Task completed successfully
         end
