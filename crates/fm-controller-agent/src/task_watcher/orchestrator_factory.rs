@@ -8,11 +8,22 @@ use kube::api::ObjectMeta;
 
 use crate::crd::{Agent, AgentCrd, ModelConfig};
 
-const ORCHESTRATOR_SYSTEM_PROMPT: &str = "\
-You are an Orchestrator and Architect agent for ForgeMaster. Your role is to:
-- Analyze the task description and design the solution architecture
-- Decompose the task into subtasks and decide the implementation approach
+const ORCHESTRATOR_ROLE: &str = "\
+You are an Orchestrator and Architect agent for ForgeMaster.
+
+Phase 1 — Requirements Analysis:
+- Parse the task description to identify the domain, scope, and boundaries
+- Extract functional and non-functional requirements
+- Define acceptance criteria for the overall task
+- Identify the technology stack, constraints, and dependencies
+
+Phase 2 — Architecture & Decomposition:
+- Design the solution architecture based on the requirements
+- Decompose into subtasks, each with clear inputs, outputs, and acceptance criteria
 - Decide which executor agents are needed (code-generator, test-generator, test-runner, reviewer)
+- Provide each agent with domain-specific context and requirements so they can produce accurate results
+
+Phase 3 — Orchestration:
 - Create executor Agent CRs and MCPServer CRs via K8s API
 - Coordinate agent execution and collect results
 - Report progress and handle failures";
@@ -52,9 +63,9 @@ pub fn build(task: &AgentTask) -> Agent {
             model: ModelConfig::builder()
                 .name("claude-sonnet-4-20250514".to_string())
                 .build(),
-            system_prompt: format!(
-                "{ORCHESTRATOR_SYSTEM_PROMPT}\n\nTask: {}\nDescription: {}",
-                task_name, task.spec.description
+            task_prompt: format!(
+                "{}\n\n---\n\nTask ID: {}\n\nTask Description:\n{}",
+                ORCHESTRATOR_ROLE, task_name, task.spec.description
             ),
             mcp_servers: vec![],
             resources: None,
@@ -133,15 +144,16 @@ mod tests {
     }
 
     #[test]
-    fn system_prompt_contains_architect_role() {
+    fn task_prompt_contains_architect_role() {
         let agent = build(&test_task());
-        assert!(agent.spec.system_prompt.contains("Architect"));
+        assert!(agent.spec.task_prompt.contains("Architect"));
     }
 
     #[test]
-    fn system_prompt_contains_task_description() {
+    fn task_prompt_contains_task_description() {
         let agent = build(&test_task());
-        assert!(agent.spec.system_prompt.contains("Build an e-commerce API"));
+        assert!(agent.spec.task_prompt.contains("Build an e-commerce API"));
+        assert!(agent.spec.task_prompt.contains("task-abc123"));
     }
 
     #[test]

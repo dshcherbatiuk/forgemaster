@@ -10,7 +10,7 @@ mod pod_ref;
 mod resource_limits;
 mod resource_requirements;
 
-pub use agent::{Agent, AgentCrd, AgentPhase, AgentSpec, AgentStatus};
+pub use agent::{Agent, AgentCrd, AgentPhase, AgentStatus};
 pub use condition::Condition;
 pub use mcp_server_ref::McpServerRef;
 pub use model_config::ModelConfig;

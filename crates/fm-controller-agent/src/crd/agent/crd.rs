@@ -30,8 +30,8 @@ pub struct AgentCrd {
     /// LLM model configuration.
     pub model: crate::crd::ModelConfig,
 
-    /// Instruction text defining the agent's role and behavior.
-    pub system_prompt: String,
+    /// Full instruction prompt: role definition + task description.
+    pub task_prompt: String,
 
     /// MCP servers this agent can use.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -60,7 +60,7 @@ mod tests {
                 model: crate::crd::ModelConfig::builder()
                     .name("claude-sonnet-4-20250514".to_string())
                     .build(),
-                system_prompt: "You are an orchestrator.".to_string(),
+                task_prompt: "You are an orchestrator.".to_string(),
                 mcp_servers: vec![],
                 resources: None,
             },
@@ -93,7 +93,7 @@ mod tests {
                 model: crate::crd::ModelConfig::builder()
                     .name("claude-sonnet-4-20250514".to_string())
                     .build(),
-                system_prompt: "Generate code.".to_string(),
+                task_prompt: "Generate code.".to_string(),
                 mcp_servers: vec![],
                 resources: None,
             },
@@ -102,6 +102,6 @@ mod tests {
 
         let json = serde_json::to_value(&agent).unwrap_or_default();
         assert_eq!(json["spec"]["type"], "code-generator");
-        assert_eq!(json["spec"]["systemPrompt"], "Generate code.");
+        assert_eq!(json["spec"]["taskPrompt"], "Generate code.");
     }
 }

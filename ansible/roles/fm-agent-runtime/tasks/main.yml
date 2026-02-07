@@ -1,0 +1,4 @@
+---
+- name: Build Docker image
+  ansible.builtin.include_tasks: build.yml
+  when: build_enabled

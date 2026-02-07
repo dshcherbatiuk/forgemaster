@@ -1,0 +1,22 @@
+---
+# Namespace
+forgemaster_namespace: forgemaster-system
+
+# Shared image settings
+image_tag: "{{ lookup('env', 'VERSION') | default('latest', true) }}"
+image_registry: ""
+image_pull_policy: Never  # OrbStack local images
+
+# Build
+build_enabled: true
+
+# Gateway versions
+gateway_api_version: v1.2.1
+envoy_gateway_version: v1.3.0
+
+# LLM provider (from local.env)
+llm_provider_secret_name: "{{ lookup('env', 'LLM_PROVIDER_SECRET_NAME') }}"
+llm_provider_secret_key: "{{ lookup('env', 'LLM_PROVIDER_SECRET_KEY') }}"
+
+# UI
+ui_image_name: forgemaster-ui

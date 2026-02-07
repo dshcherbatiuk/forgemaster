@@ -17,14 +17,17 @@ help:
 
 all: fmt lint test build
 
+ENV ?= default
+ENV_DIR = ansible/environments/$(ENV)
+
 cluster:
 	orbctl start
 	@echo "⏳ Waiting for Kubernetes to be ready..."
 	@until kubectl cluster-info > /dev/null 2>&1; do sleep 2; done
-	ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook -v ansible/site.yml
+	set -a && . $(ENV_DIR)/local.env && set +a && ANSIBLE_STDOUT_CALLBACK=debug ansible-playbook -v -i $(ENV_DIR)/inventory ansible/site.yml
 
 cluster-clean:
-	ansible-playbook ansible/cleanup-cluster.yml
+	set -a && . $(ENV_DIR)/local.env && set +a && ansible-playbook -i $(ENV_DIR)/inventory ansible/cleanup-cluster.yml
 
 cluster-reset:
 	echo "y" | orbctl reset

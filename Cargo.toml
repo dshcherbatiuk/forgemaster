@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/fm-core",
     "crates/fm-controller-agenttask",
     "crates/fm-controller-agent",
+    "crates/fm-agent-runtime",
 ]
 
 [workspace.package]
@@ -60,9 +60,12 @@ axum = { version = "0.8", features = ["ws", "macros"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
 # Internal crates
-fm-core = { path = "crates/fm-core" }
 fm-controller-agenttask = { path = "crates/fm-controller-agenttask" }
+fm-controller-agent = { path = "crates/fm-controller-agent" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

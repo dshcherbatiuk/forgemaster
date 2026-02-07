@@ -1,3 +1,2 @@
 ---
-image_name: forgemaster-ui
-image_tag: latest
+# Image name and tag come from environment group_vars (ui_image_name, image_tag)

@@ -10,9 +10,7 @@ WORKDIR /app
 
 # Copy workspace files
 COPY Cargo.toml Cargo.lock ./
-COPY crates/fm-core ./crates/fm-core
-COPY crates/fm-controller-agenttask ./crates/fm-controller-agenttask
-COPY crates/fm-controller-agent ./crates/fm-controller-agent
+COPY crates ./crates
 
 # Build release binary
 RUN cargo build --release -p fm-controller-agenttask

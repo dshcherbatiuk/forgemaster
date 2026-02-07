@@ -1,0 +1,41 @@
+[package]
+name = "fm-agent-runtime"
+description = "Base agent execution runtime for ForgeMaster"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fm-agent-runtime"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+fm-controller-agent = { workspace = true }
+
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+tokio = { workspace = true }
+futures = { workspace = true }
+
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+chrono = { workspace = true }
+typed-builder = { workspace = true }
+dashmap = { workspace = true }
+
+reqwest = { workspace = true }
+
+[lints]
+workspace = true

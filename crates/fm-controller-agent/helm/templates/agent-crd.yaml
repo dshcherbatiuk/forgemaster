@@ -26,7 +26,7 @@ spec:
               required:
                 - type
                 - model
-                - systemPrompt
+                - taskPrompt
               properties:
                 type:
                   type: string
@@ -54,9 +54,9 @@ spec:
                       type: integer
                       description: "Maximum tokens the LLM can generate per response (~4 chars/token). 4096 ≈ 3000 words, sufficient for typical code files."
                       default: 4096
-                systemPrompt:
+                taskPrompt:
                   type: string
-                  description: "Instruction text defining the agent's role, behavior, and output format. Sent as the first message to the LLM before any task input."
+                  description: "Full instruction prompt: role definition + task description."
                 mcpServers:
                   type: array
                   description: "MCP servers this agent can use. Can be updated dynamically during task execution — the controller reconciles changes."

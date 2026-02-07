@@ -27,10 +27,10 @@ use super::dispatcher::Dispatcher;
 pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
     info!("🚀 Starting Agent controller in namespace: {}", namespace);
 
-    let ctx = create_context(client.clone(), namespace.to_string());
+    let ctx = create_context(client.clone(), namespace.to_string())?;
     let dispatcher = Arc::new(Dispatcher::new(Arc::clone(&ctx)));
 
-    let api: Api<Agent> = Api::namespaced(client.clone(), namespace);
+    let api: Api<Agent> = Api::all(client.clone());
 
     let agent_controller = Controller::new(api, WatcherConfig::default())
         .run(

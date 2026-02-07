@@ -1,7 +1,6 @@
 ---
 - name: Setup ForgeMaster
-  hosts: localhost
-  connection: local
+  hosts: local
 
   pre_tasks:
     - name: Check if kubectl works with OrbStack
@@ -9,8 +8,8 @@
       register: kubectl_check
       changed_when: false
 
-    - name: Create forgemaster-system namespace
-      ansible.builtin.command: kubectl create namespace forgemaster-system
+    - name: Create forgemaster namespace
+      ansible.builtin.command: kubectl create namespace {{ forgemaster_namespace }}
       register: ns_create
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
       changed_when: ns_create.rc == 0
@@ -19,4 +18,5 @@
     - gateway
     - fm-controller-agenttask
     - fm-controller-agent
+    - fm-agent-runtime
     - ui

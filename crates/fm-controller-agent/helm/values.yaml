@@ -16,4 +16,12 @@ controller:
       memory: "128Mi"
       cpu: "100m"
 
+runtime-agent:
+  image:
+    repository: fm-agent-runtime
+    tag: latest
+  llm-provider:
+    secretName: anthropic-credentials
+    secretKey: api-key
+
 namespace: forgemaster-system

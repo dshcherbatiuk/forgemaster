@@ -1,16 +1,11 @@
 ---
-forgemaster_namespace: forgemaster-system
 fm_controller_agenttask_chart: "{{ playbook_dir }}/../crates/fm-controller-agenttask/helm"
 fm_controller_agenttask_crd_enabled: true
 fm_controller_agenttask_controller_enabled: true
 
-# Docker image settings
-fm_controller_agenttask_image_registry: ""
+# Image name (environment provides image_tag, image_registry, image_pull_policy)
 fm_controller_agenttask_image_name: fm-controller-agenttask
-fm_controller_agenttask_image_tag: "{{ lookup('env', 'VERSION') | default('latest', true) }}"
-fm_controller_agenttask_image_pull_policy: Never  # Use local image (OrbStack)
 
-# Build settings
-fm_controller_agenttask_build_enabled: true
+# Build paths (environment provides build_enabled)
 fm_controller_agenttask_dockerfile: "{{ playbook_dir }}/../crates/fm-controller-agenttask/Dockerfile"
 fm_controller_agenttask_build_context: "{{ playbook_dir }}/.."

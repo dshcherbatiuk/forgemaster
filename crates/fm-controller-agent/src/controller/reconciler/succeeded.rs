@@ -56,7 +56,7 @@ mod tests {
                 model: ModelConfig::builder()
                     .name("claude-sonnet-4-20250514".to_string())
                     .build(),
-                system_prompt: "Generate code.".to_string(),
+                task_prompt: "Generate code.".to_string(),
                 mcp_servers: vec![],
                 resources: None,
             },

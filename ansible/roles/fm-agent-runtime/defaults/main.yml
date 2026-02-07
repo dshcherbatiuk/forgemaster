@@ -1,0 +1,7 @@
+---
+# Image name (environment provides image_tag, image_registry)
+fm_agent_runtime_image_name: fm-agent-runtime
+
+# Build paths (environment provides build_enabled)
+fm_agent_runtime_dockerfile: "{{ playbook_dir }}/../crates/fm-agent-runtime/Dockerfile"
+fm_agent_runtime_build_context: "{{ playbook_dir }}/.."
