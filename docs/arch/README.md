@@ -27,25 +27,26 @@ flowchart TB
 
     subgraph Deployment["Deployment"]
         K8S[05-k8s-deployment.md]
-        HELM[10-helm-charts.md]
-        INFRA[09-infrastructure.md]
+        INFRA[10-infrastructure.md]
+        CRD[11-crd-specifications.md]
+        HELM[12-helm-charts.md]
     end
 
     subgraph Protocols["Protocols"]
         REG[06-agent-registry.md]
         A2A[07-a2a-protocol.md]
-        A2UI[08-a2ui-protocol.md]
-        MCP[08a-mcp-integration.md]
+        MCP[08-mcp-integration.md]
+        A2UI[09-a2ui-protocol.md]
     end
 
     subgraph Services["Services"]
-        STORE[11-artifact-storage.md]
-        RUST[12-backend-services.md]
-        TECH[13-tech-stack.md]
+        STORE[13-artifact-storage.md]
+        RUST[14-backend-services.md]
+        TECH[15-tech-stack.md]
     end
 
     subgraph Future["Vision"]
-        AGI[14-agi-roadmap.md]
+        AGI[16-agi-roadmap.md]
     end
 
     Core --> TaskExec
@@ -78,28 +79,29 @@ flowchart TB
 | File | Description |
 |------|-------------|
 | [05-k8s-deployment.md](05-k8s-deployment.md) | Kubernetes deployment model and CRDs |
-| [09-infrastructure.md](09-infrastructure.md) | Ansible playbooks and local K8s cluster setup |
-| [10-helm-charts.md](10-helm-charts.md) | Helm chart structure and configuration |
+| [10-infrastructure.md](10-infrastructure.md) | Ansible playbooks and local K8s cluster setup |
+| [11-crd-specifications.md](11-crd-specifications.md) | CRD specifications |
+| [12-helm-charts.md](12-helm-charts.md) | Helm chart structure and configuration |
 
 ### Protocols & Communication
 | File | Description |
 |------|-------------|
 | [06-agent-registry.md](06-agent-registry.md) | Agent registry for discovery and health management |
 | [07-a2a-protocol.md](07-a2a-protocol.md) | Agent-to-Agent (A2A) communication protocol |
-| [08-a2ui-protocol.md](08-a2ui-protocol.md) | Agent-to-User Interface (A2UI) protocol |
-| [08a-mcp-integration.md](08a-mcp-integration.md) | MCP integration with Anthropic Messages API |
+| [08-mcp-integration.md](08-mcp-integration.md) | MCP integration with Anthropic Messages API |
+| [09-a2ui-protocol.md](09-a2ui-protocol.md) | Agent-to-User Interface (A2UI) protocol |
 
 ### Backend Services
 | File | Description |
 |------|-------------|
-| [11-artifact-storage.md](11-artifact-storage.md) | GitHub-based artifact storage |
-| [12-backend-services.md](12-backend-services.md) | Rust backend services implementation |
-| [13-tech-stack.md](13-tech-stack.md) | Technology stack overview |
+| [13-artifact-storage.md](13-artifact-storage.md) | GitHub-based artifact storage |
+| [14-backend-services.md](14-backend-services.md) | Rust backend services implementation |
+| [15-tech-stack.md](15-tech-stack.md) | Technology stack overview |
 
 ### Vision & Future
 | File | Description |
 |------|-------------|
-| [14-agi-roadmap.md](14-agi-roadmap.md) | Relation to AGI and roadmap for extension |
+| [16-agi-roadmap.md](16-agi-roadmap.md) | Relation to AGI and roadmap for extension |
 
 ## Quick Start
 

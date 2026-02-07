@@ -244,6 +244,6 @@ export function getSchema(name: string): A2UISchema | undefined {
 ## Related
 
 - [A2UI GitHub Repository](https://github.com/google/A2UI)
-- [A2UI Protocol Architecture](../arch/08-a2ui-protocol.md)
+- [A2UI Protocol Architecture](../arch/09-a2ui-protocol.md)
 - [Task Lifecycle](../arch/04-task-lifecycle.md)
 - [ADR-0001: TCP Controller vs LLM Agents](0001-tcp-controller-vs-llm-agents.md)

@@ -73,8 +73,8 @@ flowchart LR
 | [05-k8s-deployment](arch/05-k8s-deployment.md) | Kubernetes CRDs and deployment |
 | [06-agent-registry](arch/06-agent-registry.md) | Agent discovery and health management |
 | [07-a2a-protocol](arch/07-a2a-protocol.md) | Agent-to-Agent communication |
-| [08-a2ui-protocol](arch/08-a2ui-protocol.md) | Agent-to-User Interface |
-| [09-crd-specifications](arch/09-crd-specifications.md) | CRD schemas (AgentTask, Agent, MCPServer) |
+| [09-a2ui-protocol](arch/09-a2ui-protocol.md) | Agent-to-User Interface |
+| [11-crd-specifications](arch/11-crd-specifications.md) | CRD schemas (AgentTask, Agent, MCPServer) |
 
 ### Architecture Decision Records (ADRs)
 

@@ -103,7 +103,7 @@ flowchart TD
 | `status.pendingClarifications[].attemptedSources[]` | status | Sources tried and why they failed |
 | `status.pendingClarifications[].blockedOnUser` | status | True if user input needed |
 
-> See [CRD Specifications](09-crd-specifications.md) for full schema.
+> See [CRD Specifications](11-crd-specifications.md) for full schema.
 
 ### Task Submission Flow
 

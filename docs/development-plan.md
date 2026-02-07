@@ -115,7 +115,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Implement phase-based reconciliation (Pending, Clarifying, Running, Succeeded, Failed)
 - [x] Implement DashMap dispatcher for strategy routing
 - [x] Containerize and deploy to K8s
-- [x] Implement WebSocket server with `/ws` endpoint (see [WS Protocol](arch/15-ws-protocol.md))
+- [x] Implement WebSocket server with `/ws` endpoint (see [WS Protocol](arch/17-ws-protocol.md))
 - [x] Implement connection registry (DashMap-based client tracking)
 - [x] Implement WsEvent/WsCommand message types (snake_case JSON)
 - [x] Implement SchemaCache for late-joiner data push

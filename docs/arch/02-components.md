@@ -100,7 +100,7 @@ flowchart TB
 
 ## Controllers
 
-> **See also:** [K8s Deployment](05-k8s-deployment.md), [Backend Services](12-backend-services.md)
+> **See also:** [K8s Deployment](05-k8s-deployment.md), [Backend Services](14-backend-services.md)
 
 ### AgentTask Controller
 
@@ -153,7 +153,7 @@ flowchart TB
 
 ## Backend Services
 
-> **See also:** [Feedback Loop](03-feedback-loop.md), [Agent Registry](06-agent-registry.md), [Backend Services](12-backend-services.md)
+> **See also:** [Feedback Loop](03-feedback-loop.md), [Agent Registry](06-agent-registry.md), [Backend Services](14-backend-services.md)
 
 ### TCP Controller
 
@@ -278,7 +278,7 @@ flowchart TB
 
 ## Custom Resource Definitions (CRDs)
 
-> **See also:** [CRD Specifications](09-crd-specifications.md) for full schemas
+> **See also:** [CRD Specifications](11-crd-specifications.md) for full schemas
 
 | CRD | Created by | Managed by | Purpose |
 |-----|-----------|------------|---------|
@@ -290,7 +290,7 @@ flowchart TB
 
 ## Infrastructure
 
-> **See also:** [Infrastructure](09-infrastructure.md), [Helm Charts](10-helm-charts.md)
+> **See also:** [Infrastructure](10-infrastructure.md), [Helm Charts](12-helm-charts.md)
 
 | Component | Purpose |
 |-----------|---------|
