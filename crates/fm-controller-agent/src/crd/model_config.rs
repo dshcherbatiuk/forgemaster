@@ -75,11 +75,8 @@ mod tests {
             "maxTokens": 2048
         }"#;
 
-        let config: ModelConfig = serde_json::from_str(json).unwrap_or_else(|_| {
-            ModelConfig::builder()
-                .name("fallback".to_string())
-                .build()
-        });
+        let config: ModelConfig = serde_json::from_str(json)
+            .unwrap_or_else(|_| ModelConfig::builder().name("fallback".to_string()).build());
 
         assert_eq!(config.provider, ModelProvider::Anthropic);
         assert_eq!(config.max_tokens, 2048);

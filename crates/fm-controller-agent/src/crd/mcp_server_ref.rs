@@ -36,9 +36,8 @@ mod tests {
     #[test]
     fn deserialization() {
         let json = r#"{"name": "filesystem-mcp"}"#;
-        let server: McpServerRef = serde_json::from_str(json).unwrap_or_else(|_| {
-            McpServerRef::builder().name("fallback".to_string()).build()
-        });
+        let server: McpServerRef = serde_json::from_str(json)
+            .unwrap_or_else(|_| McpServerRef::builder().name("fallback".to_string()).build());
         assert_eq!(server.name, "filesystem-mcp");
     }
 }

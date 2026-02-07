@@ -2,10 +2,10 @@
 
 use fm_controller_agenttask::crd::{AgentTask, AgentTaskPhase};
 use futures::TryStreamExt;
-use kube::api::{Api, ListParams, PostParams};
-use kube::runtime::watcher::{self, Config as WatcherConfig};
 use kube::Client;
 use kube::ResourceExt;
+use kube::api::{Api, ListParams, PostParams};
+use kube::runtime::watcher::{self, Config as WatcherConfig};
 use tracing::{debug, error, info};
 
 use crate::crd::Agent;
@@ -15,10 +15,7 @@ use super::orchestrator_factory;
 /// Watches AgentTask CRs in the given namespace and creates
 /// Orchestrator Agent CRs when tasks enter Running phase.
 pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
-    info!(
-        "👀 Starting AgentTask watcher in namespace: {}",
-        namespace
-    );
+    info!("👀 Starting AgentTask watcher in namespace: {}", namespace);
 
     let task_api: Api<AgentTask> = Api::namespaced(client.clone(), namespace);
 
@@ -39,11 +36,7 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
 }
 
 async fn handle_task(client: &Client, task: &AgentTask) {
-    let phase = task
-        .status
-        .as_ref()
-        .map(|s| s.phase)
-        .unwrap_or_default();
+    let phase = task.status.as_ref().map(|s| s.phase).unwrap_or_default();
 
     if phase != AgentTaskPhase::Running {
         return;
@@ -54,10 +47,7 @@ async fn handle_task(client: &Client, task: &AgentTask) {
     let task_namespace = task_name.clone();
 
     if orchestrator_exists(client, &task_name, &task_namespace).await {
-        debug!(
-            "🔍 Orchestrator already exists for task {}",
-            task_name
-        );
+        debug!("🔍 Orchestrator already exists for task {}", task_name);
         return;
     }
 
@@ -90,7 +80,10 @@ async fn handle_task(client: &Client, task: &AgentTask) {
 async fn orchestrator_exists(client: &Client, task_name: &str, namespace: &str) -> bool {
     let agent_api: Api<Agent> = Api::namespaced(client.clone(), namespace);
 
-    let label_selector = format!("forgemaster.io/task={},forgemaster.io/type=orchestrator", task_name);
+    let label_selector = format!(
+        "forgemaster.io/task={},forgemaster.io/type=orchestrator",
+        task_name
+    );
     let list_params = ListParams::default().labels(&label_selector);
 
     match agent_api.list(&list_params).await {

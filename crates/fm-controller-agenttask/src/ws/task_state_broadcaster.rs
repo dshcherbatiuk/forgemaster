@@ -107,6 +107,7 @@ impl TaskStateBroadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_info::AgentInfoList;
     use crate::crd::AgentTaskPhase;
     use serde_json::json;
     use tokio::sync::mpsc;
@@ -122,6 +123,7 @@ mod tests {
             error: 0.6,
             tests_total: 5,
             tests_passed: 2,
+            agents: AgentInfoList::new(),
         }
     }
 

@@ -24,7 +24,7 @@ pub enum WsEvent {
         /// Root component ID.
         root: String,
         /// A2UI component definitions.
-        components: SmallVec<[serde_json::Value; 16]>,
+        components: SmallVec<[serde_json::Value; 48]>,
         /// Data to populate the schema.
         data: serde_json::Value,
     },

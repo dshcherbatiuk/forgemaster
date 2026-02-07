@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::DashMap;
-use kube::runtime::controller::Action;
 use kube::ResourceExt;
+use kube::runtime::controller::Action;
 use tracing::{error, info};
 
 use crate::crd::{Agent, AgentPhase};
@@ -41,10 +41,7 @@ impl Dispatcher {
             AgentPhase::Succeeded,
             Arc::new(SucceededStrategy::new(Arc::clone(&ctx))),
         );
-        strategies.insert(
-            AgentPhase::Failed,
-            Arc::new(FailedStrategy::new(ctx)),
-        );
+        strategies.insert(AgentPhase::Failed, Arc::new(FailedStrategy::new(ctx)));
 
         Self { strategies }
     }
@@ -56,11 +53,7 @@ impl Dispatcher {
 
         info!("🔄 Reconciling Agent {}/{}", namespace, name);
 
-        let phase = agent
-            .status
-            .as_ref()
-            .map(|s| s.phase)
-            .unwrap_or_default();
+        let phase = agent.status.as_ref().map(|s| s.phase).unwrap_or_default();
 
         let strategy = self.strategies.get(&phase).ok_or_else(|| {
             ReconcileError::InvalidState(format!("no strategy for phase {phase}"))

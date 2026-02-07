@@ -64,11 +64,11 @@ mod tests {
             )
             .system_prompt("Generate code.".to_string())
             .mcp_servers(vec![
-                McpServerRef::builder().name("github-mcp".to_string()).build(),
+                McpServerRef::builder()
+                    .name("github-mcp".to_string())
+                    .build(),
             ])
-            .resources(
-                ResourceRequirements::builder().build(),
-            )
+            .resources(ResourceRequirements::builder().build())
             .build();
 
         assert_eq!(spec.mcp_servers.len(), 1);
@@ -97,11 +97,7 @@ mod tests {
     fn serialization_skips_empty() {
         let spec = AgentSpec::builder()
             .agent_type("test".to_string())
-            .model(
-                ModelConfig::builder()
-                    .name("model".to_string())
-                    .build(),
-            )
+            .model(ModelConfig::builder().name("model".to_string()).build())
             .system_prompt("prompt".to_string())
             .build();
 

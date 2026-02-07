@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use fm_controller_agenttask::crd::AgentTask;
-use kube::api::ObjectMeta;
 use kube::ResourceExt;
+use kube::api::ObjectMeta;
 
 use crate::crd::{Agent, AgentCrd, ModelConfig};
 
@@ -81,7 +81,11 @@ mod tests {
                 clarifications: vec![],
                 resource_quota: None,
             },
-            status: Some(AgentTaskStatus::builder().phase(AgentTaskPhase::Running).build()),
+            status: Some(
+                AgentTaskStatus::builder()
+                    .phase(AgentTaskPhase::Running)
+                    .build(),
+            ),
         }
     }
 
@@ -97,10 +101,7 @@ mod tests {
     #[test]
     fn agent_namespace_matches_task() {
         let agent = build(&test_task());
-        assert_eq!(
-            agent.metadata.namespace,
-            Some("task-abc123".to_string())
-        );
+        assert_eq!(agent.metadata.namespace, Some("task-abc123".to_string()));
     }
 
     #[test]

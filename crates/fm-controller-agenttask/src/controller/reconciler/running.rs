@@ -10,6 +10,7 @@ use tracing::debug;
 
 use crate::crd::AgentTask;
 
+use super::super::agent_fetcher::AgentFetcher;
 use super::super::context::ControllerContext;
 use super::super::error::ReconcileResult;
 use super::ReconcileStrategy;
@@ -46,8 +47,11 @@ impl ReconcileStrategy for RunningStrategy {
         // TODO: Update iteration count
         // TODO: Check for completion or failure
 
-        // Emit current state so the UI stays live (age, iteration, etc.)
-        self.ctx.emit_state(task);
+        // Fetch agents working on this task
+        let agents = AgentFetcher::list_for_task(self.ctx.client(), &name).await;
+
+        // Emit current state with agent info so the UI stays live
+        self.ctx.emit_state(task, &agents);
 
         Ok(Action::requeue(REQUEUE_DURATION))
     }

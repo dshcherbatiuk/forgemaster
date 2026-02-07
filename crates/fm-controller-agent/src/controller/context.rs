@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use kube::api::{Api, Patch, PatchParams};
 use kube::Client;
 use kube::ResourceExt;
+use kube::api::{Api, Patch, PatchParams};
 use tracing::debug;
 
 use crate::crd::{Agent, AgentPhase};
@@ -35,11 +35,7 @@ impl ControllerContext {
     }
 
     /// Updates the agent phase via status subresource patch.
-    pub async fn update_phase(
-        &self,
-        agent: &Agent,
-        phase: AgentPhase,
-    ) -> ReconcileResult<()> {
+    pub async fn update_phase(&self, agent: &Agent, phase: AgentPhase) -> ReconcileResult<()> {
         let name = agent.name_any();
         let namespace = agent.namespace().unwrap_or_else(|| self.namespace.clone());
         let api: Api<Agent> = Api::namespaced(self.client.clone(), &namespace);

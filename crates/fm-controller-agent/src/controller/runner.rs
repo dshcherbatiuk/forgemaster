@@ -7,10 +7,10 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
+use kube::Client;
 use kube::api::Api;
 use kube::runtime::Controller;
 use kube::runtime::watcher::Config as WatcherConfig;
-use kube::Client;
 use tracing::info;
 
 use crate::crd::Agent;

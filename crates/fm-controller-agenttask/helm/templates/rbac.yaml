@@ -29,6 +29,14 @@ rules:
       - update
       - patch
   - apiGroups:
+      - forgemaster.io
+    resources:
+      - agents
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
       - ""
     resources:
       - namespaces

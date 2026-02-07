@@ -53,8 +53,7 @@ mod tests {
 
     #[test]
     fn deserialization() {
-        let phase: AgentPhase =
-            serde_json::from_str("\"Failed\"").unwrap_or(AgentPhase::Pending);
+        let phase: AgentPhase = serde_json::from_str("\"Failed\"").unwrap_or(AgentPhase::Pending);
         assert_eq!(phase, AgentPhase::Failed);
     }
 }

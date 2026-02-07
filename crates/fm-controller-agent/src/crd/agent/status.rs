@@ -8,7 +8,9 @@ use super::phase::AgentPhase;
 use crate::crd::{Condition, OutputRef, PodRef};
 
 /// Status of an Agent CR.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema, TypedBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema, TypedBuilder,
+)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentStatus {
     /// Current phase.
@@ -51,7 +53,6 @@ pub struct AgentStatus {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conditions: Vec<Condition>,
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -117,8 +118,7 @@ mod tests {
             "iterationsCompleted": 1
         }"#;
 
-        let status: AgentStatus =
-            serde_json::from_str(json).unwrap_or_default();
+        let status: AgentStatus = serde_json::from_str(json).unwrap_or_default();
         assert_eq!(status.phase, AgentPhase::Failed);
         assert_eq!(status.tokens_used, 1234);
     }

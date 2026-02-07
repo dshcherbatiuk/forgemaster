@@ -2,8 +2,9 @@
 
 use chrono::Utc;
 use serde_json::{Value, json};
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 
+use crate::agent_info::AgentInfoList;
 use crate::task_state_changed::TaskStateChanged;
 
 /// Formats a duration as a human-readable age string (e.g. "2m 30s", "1h 5m").
@@ -16,11 +17,11 @@ fn format_age(seconds: i64) -> String {
     let secs = seconds % 60;
 
     if hours > 0 {
-        format!("{}h {}m", hours, minutes)
+        format!("{hours}h {minutes}m")
     } else if minutes > 0 {
-        format!("{}m {}s", minutes, secs)
+        format!("{minutes}m {secs}s")
     } else {
-        format!("{}s", secs)
+        format!("{secs}s")
     }
 }
 
@@ -32,203 +33,90 @@ pub const TASK_STATUS_ROOT: &str = "task-status-card";
 /// Returns (root, components, data) matching the A2UI v0.8 format.
 pub fn build_task_status_schema(
     event: &TaskStateChanged,
-) -> (String, SmallVec<[Value; 16]>, Value) {
-    let components = smallvec![
-        // Override hero-section to include task-status-card in layout
-        json!({
-            "id": "hero-section",
-            "component": { "Column": {
-                "children": { "explicitList": [
-                    "hero-tagline", "hero-subtitle", "task-card", "task-status-card"
-                ] }
-            } }
-        }),
-        json!({
-            "id": "task-status-card",
-            "component": { "Card": { "child": "task-status-col" } }
-        }),
+) -> (String, SmallVec<[Value; 48]>, Value) {
+    let mut components: SmallVec<[Value; 48]> = SmallVec::new();
+
+    // Override hero-section to include task-status-card in layout
+    components.push(json!({
+        "id": "hero-section",
+        "component": { "Column": {
+            "children": { "explicitList": [
+                "hero-tagline", "hero-subtitle", "task-card", "task-status-card"
+            ] }
+        } }
+    }));
+
+    components.push(json!({
+        "id": "task-status-card",
+        "component": { "Card": { "child": "task-status-col" } }
+    }));
+
+    // Build the column children list
+    let col_children = vec![
+        json!("task-status-title"),
+        json!("task-status-name-row"),
+        json!("task-status-desc-row"),
+        json!("task-status-age-row"),
+        json!("task-status-phase-row"),
+        json!("task-status-iteration-row"),
+        json!("task-status-error-row"),
+        json!("task-status-tests-row"),
+        json!("task-status-agents-section"),
+    ];
+
+    components.push(json!({
+        "id": "task-status-title",
+        "component": { "Text": {
+            "text": { "literalString": "Task Status" },
+            "usageHint": "h2"
+        } }
+    }));
+
+    // Name row
+    push_label_value_row(&mut components, "name", "Name:");
+    // Description row
+    push_label_value_row(&mut components, "desc", "Description:");
+    // Age row
+    push_label_value_row(&mut components, "age", "Age:");
+    // Phase row
+    push_label_value_row(&mut components, "phase", "Phase:");
+    // Iteration row
+    push_label_value_row(&mut components, "iteration", "Iteration:");
+    // Error row
+    push_label_value_row(&mut components, "error", "Error Signal:");
+    // Tests row
+    push_label_value_row(&mut components, "tests", "Tests:");
+
+    // Agents section
+    build_agents_section(&mut components, &event.agents);
+
+    // Now set the column component with the final children list
+    components.insert(
+        2,
         json!({
             "id": "task-status-col",
             "component": { "Column": {
-                "children": { "explicitList": [
-                    "task-status-title",
-                    "task-status-name-row",
-                    "task-status-desc-row",
-                    "task-status-age-row",
-                    "task-status-phase-row",
-                    "task-status-iteration-row",
-                    "task-status-error-row",
-                    "task-status-tests-row"
-                ] }
+                "children": { "explicitList": col_children }
             } }
         }),
-        json!({
-            "id": "task-status-title",
-            "component": { "Text": {
-                "text": { "literalString": "Task Status" },
-                "usageHint": "h2"
-            } }
-        }),
-        // Name row
-        json!({
-            "id": "task-status-name-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-name-label", "task-status-name-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-name-label",
-            "component": { "Text": {
-                "text": { "literalString": "Name:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-name-value",
-            "component": { "Text": {
-                "text": { "path": "/task/name" },
-                "usageHint": "body"
-            } }
-        }),
-        // Description row
-        json!({
-            "id": "task-status-desc-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-desc-label", "task-status-desc-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-desc-label",
-            "component": { "Text": {
-                "text": { "literalString": "Description:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-desc-value",
-            "component": { "Text": {
-                "text": { "path": "/task/description" },
-                "usageHint": "body"
-            } }
-        }),
-        // Age row
-        json!({
-            "id": "task-status-age-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-age-label", "task-status-age-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-age-label",
-            "component": { "Text": {
-                "text": { "literalString": "Age:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-age-value",
-            "component": { "Text": {
-                "text": { "path": "/task/age" },
-                "usageHint": "body"
-            } }
-        }),
-        // Phase row
-        json!({
-            "id": "task-status-phase-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-phase-label", "task-status-phase-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-phase-label",
-            "component": { "Text": {
-                "text": { "literalString": "Phase:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-phase-value",
-            "component": { "Text": {
-                "text": { "path": "/task/phase" },
-                "usageHint": "body"
-            } }
-        }),
-        // Iteration row
-        json!({
-            "id": "task-status-iteration-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-iteration-label", "task-status-iteration-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-iteration-label",
-            "component": { "Text": {
-                "text": { "literalString": "Iteration:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-iteration-value",
-            "component": { "Text": {
-                "text": { "path": "/task/iteration" },
-                "usageHint": "body"
-            } }
-        }),
-        // Error row
-        json!({
-            "id": "task-status-error-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-error-label", "task-status-error-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-error-label",
-            "component": { "Text": {
-                "text": { "literalString": "Error Signal:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-error-value",
-            "component": { "Text": {
-                "text": { "path": "/task/error" },
-                "usageHint": "body"
-            } }
-        }),
-        // Tests row
-        json!({
-            "id": "task-status-tests-row",
-            "component": { "Row": {
-                "distribution": "spaceBetween",
-                "children": { "explicitList": ["task-status-tests-label", "task-status-tests-value"] }
-            } }
-        }),
-        json!({
-            "id": "task-status-tests-label",
-            "component": { "Text": {
-                "text": { "literalString": "Tests:" },
-                "usageHint": "body"
-            } }
-        }),
-        json!({
-            "id": "task-status-tests-value",
-            "component": { "Text": {
-                "text": { "path": "/task/testsDisplay" },
-                "usageHint": "body"
-            } }
-        }),
-    ];
+    );
 
-    let age = event
-        .created_at
-        .map(|t| format_age((Utc::now() - t).num_seconds()))
-        .unwrap_or_else(|| "unknown".to_string());
+    let age = event.created_at.map_or_else(
+        || "unknown".to_string(),
+        |t| format_age((Utc::now() - t).num_seconds()),
+    );
+
+    let agents_data: Vec<Value> = event
+        .agents
+        .iter()
+        .map(|a| {
+            json!({
+                "name": a.name,
+                "type": a.agent_type,
+                "phase": a.phase,
+            })
+        })
+        .collect();
 
     let data = json!({
         "task": {
@@ -241,15 +129,111 @@ pub fn build_task_status_schema(
             "testsTotal": event.tests_total,
             "testsPassed": event.tests_passed,
             "testsDisplay": format!("{}/{}", event.tests_passed, event.tests_total),
+            "agents": agents_data,
         }
     });
 
     (TASK_STATUS_ROOT.to_string(), components, data)
 }
 
+/// Pushes a label-value row with its two text components.
+fn push_label_value_row(components: &mut SmallVec<[Value; 48]>, field: &str, label: &str) {
+    let row_id = format!("task-status-{field}-row");
+    let label_id = format!("task-status-{field}-label");
+    let value_id = format!("task-status-{field}-value");
+    let data_path = match field {
+        "tests" => "/task/testsDisplay".to_string(),
+        other => format!("/task/{other}"),
+    };
+
+    components.push(json!({
+        "id": row_id,
+        "component": { "Row": {
+            "distribution": "spaceBetween",
+            "children": { "explicitList": [label_id, value_id] }
+        } }
+    }));
+    components.push(json!({
+        "id": label_id,
+        "component": { "Text": {
+            "text": { "literalString": label },
+            "usageHint": "body"
+        } }
+    }));
+    components.push(json!({
+        "id": value_id,
+        "component": { "Text": {
+            "text": { "path": data_path },
+            "usageHint": "body"
+        } }
+    }));
+}
+
+/// Builds agent section components (title, rows, or empty placeholder).
+fn build_agents_section(components: &mut SmallVec<[Value; 48]>, agents: &AgentInfoList) {
+    let mut section_children: Vec<Value> = vec![json!("task-status-agents-title")];
+
+    components.push(json!({
+        "id": "task-status-agents-title",
+        "component": { "Text": {
+            "text": { "literalString": "Agents" },
+            "usageHint": "h3"
+        } }
+    }));
+
+    if agents.is_empty() {
+        section_children.push(json!("task-status-agents-empty"));
+        components.push(json!({
+            "id": "task-status-agents-empty",
+            "component": { "Text": {
+                "text": { "literalString": "No agents yet" },
+                "usageHint": "caption"
+            } }
+        }));
+    } else {
+        for (i, _agent) in agents.iter().enumerate() {
+            let row_id = format!("task-status-agent-{i}-row");
+            let name_id = format!("task-status-agent-{i}-type");
+            let phase_id = format!("task-status-agent-{i}-phase");
+
+            section_children.push(json!(row_id));
+
+            components.push(json!({
+                "id": row_id,
+                "component": { "Row": {
+                    "distribution": "spaceBetween",
+                    "children": { "explicitList": [name_id, phase_id] }
+                } }
+            }));
+            components.push(json!({
+                "id": name_id,
+                "component": { "Text": {
+                    "text": { "path": format!("/task/agents/{i}/type") },
+                    "usageHint": "body"
+                } }
+            }));
+            components.push(json!({
+                "id": phase_id,
+                "component": { "Text": {
+                    "text": { "path": format!("/task/agents/{i}/phase") },
+                    "usageHint": "body"
+                } }
+            }));
+        }
+    }
+
+    components.push(json!({
+        "id": "task-status-agents-section",
+        "component": { "Column": {
+            "children": { "explicitList": section_children }
+        } }
+    }));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_info::AgentInfoList;
     use crate::crd::AgentTaskPhase;
 
     fn sample_event() -> TaskStateChanged {
@@ -263,6 +247,7 @@ mod tests {
             error: 0.4,
             tests_total: 5,
             tests_passed: 3,
+            agents: AgentInfoList::new(),
         }
     }
 
@@ -290,6 +275,8 @@ mod tests {
         assert!(ids.contains(&"task-status-iteration-value"));
         assert!(ids.contains(&"task-status-error-value"));
         assert!(ids.contains(&"task-status-tests-value"));
+        assert!(ids.contains(&"task-status-agents-section"));
+        assert!(ids.contains(&"task-status-agents-title"));
     }
 
     #[test]
@@ -336,9 +323,11 @@ mod tests {
     }
 
     #[test]
-    fn components_count() {
+    fn components_count_no_agents() {
+        // hero-section(1) + card(1) + col(1) + title(1) + 7 rows * 3 components(21)
+        // + agents-title(1) + agents-empty(1) + agents-section(1) = 28
         let (_, components, _) = build_task_status_schema(&sample_event());
-        assert_eq!(components.len(), 25);
+        assert_eq!(components.len(), 28);
     }
 
     #[test]
@@ -367,5 +356,123 @@ mod tests {
         event.created_at = None;
         let (_, _, data) = build_task_status_schema(&event);
         assert_eq!(data["task"]["age"], "unknown");
+    }
+
+    #[test]
+    fn data_contains_empty_agents_array() {
+        let (_, _, data) = build_task_status_schema(&sample_event());
+        assert!(data["task"]["agents"].is_array());
+        assert_eq!(data["task"]["agents"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn empty_agents_shows_no_agents_text() {
+        let (_, components, _) = build_task_status_schema(&sample_event());
+        let ids: Vec<&str> = components
+            .iter()
+            .filter_map(|c| c.get("id").and_then(|v| v.as_str()))
+            .collect();
+        assert!(ids.contains(&"task-status-agents-empty"));
+    }
+
+    fn sample_event_with_agents() -> TaskStateChanged {
+        use crate::agent_info::AgentInfo;
+        use smallvec::smallvec;
+
+        TaskStateChanged {
+            task_name: "task-abc12345".to_string(),
+            namespace: "forgemaster-system".to_string(),
+            description: "Build a REST API".to_string(),
+            created_at: Some(Utc::now() - chrono::Duration::seconds(150)),
+            phase: AgentTaskPhase::Running,
+            iteration: 2,
+            error: 0.4,
+            tests_total: 5,
+            tests_passed: 3,
+            agents: smallvec![
+                AgentInfo {
+                    name: "orchestrator-task-abc12345".to_string(),
+                    agent_type: "orchestrator".to_string(),
+                    phase: "Running".to_string(),
+                },
+                AgentInfo {
+                    name: "code-gen-task-abc12345".to_string(),
+                    agent_type: "code-generator".to_string(),
+                    phase: "Pending".to_string(),
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn agents_generate_row_components() {
+        let (_, components, _) = build_task_status_schema(&sample_event_with_agents());
+        let ids: Vec<&str> = components
+            .iter()
+            .filter_map(|c| c.get("id").and_then(|v| v.as_str()))
+            .collect();
+
+        assert!(ids.contains(&"task-status-agent-0-row"));
+        assert!(ids.contains(&"task-status-agent-0-type"));
+        assert!(ids.contains(&"task-status-agent-0-phase"));
+        assert!(ids.contains(&"task-status-agent-1-row"));
+        assert!(ids.contains(&"task-status-agent-1-type"));
+        assert!(ids.contains(&"task-status-agent-1-phase"));
+        // No empty message when agents present
+        assert!(!ids.contains(&"task-status-agents-empty"));
+    }
+
+    #[test]
+    fn agents_data_populated() {
+        let (_, _, data) = build_task_status_schema(&sample_event_with_agents());
+        let agents = data["task"]["agents"].as_array().unwrap();
+        assert_eq!(agents.len(), 2);
+        assert_eq!(agents[0]["type"], "orchestrator");
+        assert_eq!(agents[0]["phase"], "Running");
+        assert_eq!(agents[1]["type"], "code-generator");
+        assert_eq!(agents[1]["phase"], "Pending");
+    }
+
+    #[test]
+    fn agent_components_use_data_bindings() {
+        let (_, components, _) = build_task_status_schema(&sample_event_with_agents());
+        let type_component = components
+            .iter()
+            .find(|c| c["id"] == "task-status-agent-0-type")
+            .unwrap();
+        assert_eq!(
+            type_component["component"]["Text"]["text"]["path"],
+            "/task/agents/0/type"
+        );
+
+        let phase_component = components
+            .iter()
+            .find(|c| c["id"] == "task-status-agent-1-phase")
+            .unwrap();
+        assert_eq!(
+            phase_component["component"]["Text"]["text"]["path"],
+            "/task/agents/1/phase"
+        );
+    }
+
+    #[test]
+    fn components_count_with_agents() {
+        // 28 base (without agent rows) - 2 (no empty text + its reference)
+        // + 2 agents * 3 components = 6 → 28 - 1 (agents-empty) + 6 = 33
+        let (_, components, _) = build_task_status_schema(&sample_event_with_agents());
+        assert_eq!(components.len(), 33);
+    }
+
+    #[test]
+    fn agents_section_in_col_children() {
+        let (_, components, _) = build_task_status_schema(&sample_event());
+        let col = components
+            .iter()
+            .find(|c| c["id"] == "task-status-col")
+            .unwrap();
+        let children = col["component"]["Column"]["children"]["explicitList"]
+            .as_array()
+            .unwrap();
+        assert!(children.contains(&json!("task-status-agents-section")));
     }
 }

@@ -2,6 +2,7 @@
 //!
 //! This crate provides the AgentTask Custom Resource Definition and its controller.
 
+pub mod agent_info;
 pub mod controller;
 pub mod crd;
 pub mod task_event;

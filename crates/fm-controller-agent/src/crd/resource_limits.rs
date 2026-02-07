@@ -57,9 +57,8 @@ mod tests {
     #[test]
     fn deserialization() {
         let json = r#"{"memory": "1Gi", "cpu": "1"}"#;
-        let limits: ResourceLimits = serde_json::from_str(json).unwrap_or_else(|_| {
-            ResourceLimits::builder().build()
-        });
+        let limits: ResourceLimits =
+            serde_json::from_str(json).unwrap_or_else(|_| ResourceLimits::builder().build());
         assert_eq!(limits.memory.as_deref(), Some("1Gi"));
         assert_eq!(limits.cpu.as_deref(), Some("1"));
     }

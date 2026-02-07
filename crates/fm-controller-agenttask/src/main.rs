@@ -30,8 +30,7 @@ async fn main() -> Result<()> {
     let client = Client::try_default().await?;
     info!("📡 Connected to Kubernetes cluster");
 
-    let (state_sender, state_receiver) =
-        broadcast::channel::<TaskEvent>(STATE_CHANNEL_CAPACITY);
+    let (state_sender, state_receiver) = broadcast::channel::<TaskEvent>(STATE_CHANNEL_CAPACITY);
 
     let ws_server = WsServer::new(ws_port, client.clone(), namespace.clone());
 

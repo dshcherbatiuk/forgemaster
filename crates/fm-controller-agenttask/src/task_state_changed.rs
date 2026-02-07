@@ -3,21 +3,33 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::agent_info::AgentInfoList;
 use crate::crd::AgentTaskPhase;
 
 /// Emitted by the controller when a task state changes.
 /// Consumed by the WS broadcaster to push state to connected UI clients.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskStateChanged {
+    /// Task CR name.
     pub task_name: String,
+    /// Namespace where the task lives.
     pub namespace: String,
+    /// User-provided task description.
     pub description: String,
+    /// When the task was created.
     pub created_at: Option<DateTime<Utc>>,
+    /// Current task phase.
     pub phase: AgentTaskPhase,
+    /// Current iteration number.
     pub iteration: i32,
+    /// TCP error signal (0.0 - 1.0).
     pub error: f64,
+    /// Total number of tests.
     pub tests_total: i32,
+    /// Number of passing tests.
     pub tests_passed: i32,
+    /// Agents working on this task.
+    pub agents: AgentInfoList,
 }
 
 #[cfg(test)]
@@ -35,6 +47,7 @@ mod tests {
             error: 0.4,
             tests_total: 5,
             tests_passed: 3,
+            agents: AgentInfoList::new(),
         }
     }
 
@@ -62,6 +75,7 @@ mod tests {
         assert!(json.get("error").is_some());
         assert!(json.get("tests_total").is_some());
         assert!(json.get("tests_passed").is_some());
+        assert!(json.get("agents").is_some());
     }
 
     #[test]

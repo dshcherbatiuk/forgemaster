@@ -70,9 +70,8 @@ mod tests {
     #[test]
     fn deserialization() {
         let json = r#"{"limits": {"memory": "1Gi"}, "requests": {"cpu": "250m"}}"#;
-        let requirements: ResourceRequirements = serde_json::from_str(json).unwrap_or_else(|_| {
-            ResourceRequirements::builder().build()
-        });
+        let requirements: ResourceRequirements =
+            serde_json::from_str(json).unwrap_or_else(|_| ResourceRequirements::builder().build());
         assert!(requirements.limits.is_some());
         assert!(requirements.requests.is_some());
     }

@@ -9,6 +9,7 @@ use tracing::{debug, warn};
 
 use kube::ResourceExt;
 
+use crate::agent_info::AgentInfoList;
 use crate::crd::{AgentTask, AgentTaskPhase};
 use crate::task_event::TaskEvent;
 use crate::task_state_changed::TaskStateChanged;
@@ -74,19 +75,19 @@ impl ControllerContext {
             namespace, name, phase
         );
 
-        self.broadcast_state(task, phase);
+        self.broadcast_state(task, phase, AgentInfoList::new());
         Ok(())
     }
 
-    /// Emits the current task state without changing phase.
+    /// Emits the current task state with agent info.
     /// Used by strategies that need to push live updates (e.g. Running).
-    pub fn emit_state(&self, task: &AgentTask) {
+    pub fn emit_state(&self, task: &AgentTask, agents: &AgentInfoList) {
         let phase = task
             .status
             .as_ref()
             .map(|s| s.phase.clone())
             .unwrap_or_default();
-        self.broadcast_state(task, phase);
+        self.broadcast_state(task, phase, agents.clone());
     }
 
     /// Broadcasts a task deletion event to all WS clients.
@@ -99,7 +100,7 @@ impl ControllerContext {
         }
     }
 
-    fn broadcast_state(&self, task: &AgentTask, phase: AgentTaskPhase) {
+    fn broadcast_state(&self, task: &AgentTask, phase: AgentTaskPhase, agents: AgentInfoList) {
         let name = task.name_any();
         let namespace = task.namespace().unwrap_or_else(|| self.namespace.clone());
         let status = task.status.as_ref().cloned().unwrap_or_default();
@@ -115,9 +116,14 @@ impl ControllerContext {
             error: status.error,
             tests_total: status.tests_total,
             tests_passed: status.tests_passed,
+            agents,
         };
 
-        if self.state_sender.send(TaskEvent::StateChanged(state)).is_err() {
+        if self
+            .state_sender
+            .send(TaskEvent::StateChanged(state))
+            .is_err()
+        {
             warn!("⚠️ No receivers for task state change: {}", name);
         }
     }
@@ -184,6 +190,7 @@ mod tests {
             error: 1.0,
             tests_total: 0,
             tests_passed: 0,
+            agents: AgentInfoList::new(),
         });
         // Should not panic even with no receivers
         let result = sender.send(event);
@@ -203,6 +210,7 @@ mod tests {
             error: 0.5,
             tests_total: 10,
             tests_passed: 5,
+            agents: AgentInfoList::new(),
         });
         sender.send(event).unwrap();
         let received = receiver.try_recv().unwrap();

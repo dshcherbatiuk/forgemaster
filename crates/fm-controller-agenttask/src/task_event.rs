@@ -21,6 +21,7 @@ pub enum TaskEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_info::AgentInfoList;
     use crate::crd::AgentTaskPhase;
 
     fn sample_state_changed() -> TaskStateChanged {
@@ -34,6 +35,7 @@ mod tests {
             error: 0.5,
             tests_total: 10,
             tests_passed: 5,
+            agents: AgentInfoList::new(),
         }
     }
 
