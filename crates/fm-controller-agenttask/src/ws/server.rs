@@ -10,6 +10,7 @@ use tower_http::cors::CorsLayer;
 use tracing::info;
 
 use super::action::ActionDispatcher;
+use super::active_task_store::ActiveTaskStore;
 use super::connection_registry::ConnectionRegistry;
 use super::router::{WsState, ws_router};
 use super::schema_cache::SchemaCache;
@@ -25,6 +26,8 @@ pub struct WsServer {
     schema_cache: Arc<SchemaCache>,
     /// Dispatches commands to action handlers.
     dispatcher: Arc<ActionDispatcher>,
+    /// Tracks active tasks for limit enforcement and schema building.
+    active_tasks: Arc<ActiveTaskStore>,
 }
 
 impl WsServer {
@@ -33,7 +36,12 @@ impl WsServer {
         let schema_cache = Arc::new(SchemaCache::new());
         let registry = Arc::new(ConnectionRegistry::new());
         let task_creator = Arc::new(TaskCreator::new(client, namespace));
-        let dispatcher = Arc::new(ActionDispatcher::new(task_creator, Arc::clone(&registry)));
+        let active_tasks = Arc::new(ActiveTaskStore::new());
+        let dispatcher = Arc::new(ActionDispatcher::new(
+            task_creator,
+            Arc::clone(&registry),
+            Arc::clone(&active_tasks),
+        ));
 
         // Seed initial dashboard state matching the UI's defaultData
         schema_cache.set(
@@ -43,8 +51,9 @@ impl WsServer {
                     "tagline": "AI-Powered Code Generation",
                     "subtitle": "Describe your task. Let agents build it. Tests drive the loop."
                 },
-                "task": {
-                    "description": ""
+                "tasks": {
+                    "count": 0,
+                    "items": []
                 }
             }),
         );
@@ -54,6 +63,7 @@ impl WsServer {
             registry,
             schema_cache,
             dispatcher,
+            active_tasks,
         }
     }
 
@@ -65,6 +75,11 @@ impl WsServer {
     /// Returns a clone of the connection registry.
     pub fn registry(&self) -> Arc<ConnectionRegistry> {
         Arc::clone(&self.registry)
+    }
+
+    /// Returns a clone of the active task store.
+    pub fn active_tasks(&self) -> Arc<ActiveTaskStore> {
+        Arc::clone(&self.active_tasks)
     }
 
     /// Start the server. Blocks until shutdown.

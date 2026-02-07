@@ -4,7 +4,7 @@
 
 **Team:** CSM-101
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-02-07
 
 ---
 
@@ -132,6 +132,10 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Read real CRD status values in update_phase (spec description + status fields from AgentTask)
 - [x] Task Status card with full details (Name, Description, Phase, Iteration, Error Signal, Tests)
 - [x] Late joiner support (SchemaCache sends cached schema + data on connect)
+- [x] Multi-task support with tab bar (ActiveTaskStore, configurable limit, combined schema per push)
+- [x] Task limit enforcement with client error notification on exceed
+- [x] Agent info display in task status card (fetches Agent CRs via AgentFetcher)
+- [x] Fix A2UI theme crash: invalid usageHint "button" → "body" for tab bar Text components
 - [ ] Implement clarification relay (agent → UI → agent)
 - [ ] Implement A2UI schema diff (push only changes)
 - [x] Add namespace lifecycle management (create namespace on Pending→Running, delete on task deletion with finalizer)

@@ -8,16 +8,18 @@ use tracing::{info, warn};
 use crate::task_event::TaskEvent;
 use crate::task_state_changed::TaskStateChanged;
 
+use super::active_task_store::ActiveTaskStore;
 use super::connection_registry::ConnectionRegistry;
 use super::event::WsEvent;
 use super::schema_cache::SchemaCache;
-use super::task_status_schema::build_task_status_schema;
+use super::task_status_schema::build_multi_task_schema;
 
-/// Listens for task state changes and pushes them to connected WS clients.
+/// Listens for task state changes and pushes combined schema to connected WS clients.
 pub struct TaskStateBroadcaster {
     receiver: broadcast::Receiver<TaskEvent>,
     schema_cache: Arc<SchemaCache>,
     registry: Arc<ConnectionRegistry>,
+    active_tasks: Arc<ActiveTaskStore>,
 }
 
 impl TaskStateBroadcaster {
@@ -26,11 +28,13 @@ impl TaskStateBroadcaster {
         receiver: broadcast::Receiver<TaskEvent>,
         schema_cache: Arc<SchemaCache>,
         registry: Arc<ConnectionRegistry>,
+        active_tasks: Arc<ActiveTaskStore>,
     ) -> Self {
         Self {
             receiver,
             schema_cache,
             registry,
+            active_tasks,
         }
     }
 
@@ -53,9 +57,46 @@ impl TaskStateBroadcaster {
     }
 
     fn handle_event(&self, event: &TaskStateChanged) {
-        let (root, components, data) = build_task_status_schema(event);
+        self.active_tasks.insert(event.clone());
+        self.rebuild_and_broadcast();
 
-        // Cache schema for late joiners
+        info!(
+            "📤 Broadcast multi-task schema: {} → {:?} ({} active)",
+            event.task_name,
+            event.phase,
+            self.active_tasks.count()
+        );
+    }
+
+    fn handle_deletion(&self, task_name: &str) {
+        self.active_tasks.remove(task_name);
+
+        if self.active_tasks.count() == 0 {
+            self.schema_cache.remove("schema");
+            self.schema_cache.remove("dashboard");
+
+            let ws_event = WsEvent::TaskDeleted {
+                task_name: task_name.to_string(),
+            };
+            if let Ok(json) = serde_json::to_string(&ws_event) {
+                self.registry.broadcast(&json);
+            }
+            info!("📤 Broadcast task deleted (last task): {}", task_name);
+        } else {
+            self.rebuild_and_broadcast();
+            info!(
+                "📤 Broadcast rebuilt schema after deleting {} ({} remaining)",
+                task_name,
+                self.active_tasks.count()
+            );
+        }
+    }
+
+    /// Rebuilds the combined schema from all active tasks and broadcasts it.
+    fn rebuild_and_broadcast(&self) {
+        let all_tasks = self.active_tasks.ordered_tasks();
+        let (root, components, data) = build_multi_task_schema(&all_tasks);
+
         self.schema_cache.set(
             "schema",
             serde_json::json!({
@@ -65,14 +106,7 @@ impl TaskStateBroadcaster {
             }),
         );
 
-        // Also update dashboard data cache (for data-only late joiner path)
-        let task_value = &data["task"];
-        if let Some(mut existing) = self.schema_cache.get("dashboard") {
-            if let Some(obj) = existing.as_object_mut() {
-                obj.insert("task".to_string(), task_value.clone());
-            }
-            self.schema_cache.set("dashboard", existing);
-        }
+        self.schema_cache.set("dashboard", data.clone());
 
         let ws_event = WsEvent::Schema {
             root,
@@ -82,24 +116,6 @@ impl TaskStateBroadcaster {
 
         if let Ok(json) = serde_json::to_string(&ws_event) {
             self.registry.broadcast(&json);
-            info!(
-                "📤 Broadcast task schema: {} → {:?}",
-                event.task_name, event.phase
-            );
-        }
-    }
-
-    fn handle_deletion(&self, task_name: &str) {
-        self.schema_cache.remove("schema");
-        self.schema_cache.remove("dashboard");
-
-        let ws_event = WsEvent::TaskDeleted {
-            task_name: task_name.to_string(),
-        };
-
-        if let Ok(json) = serde_json::to_string(&ws_event) {
-            self.registry.broadcast(&json);
-            info!("📤 Broadcast task deleted: {}", task_name);
         }
     }
 }
@@ -109,14 +125,13 @@ mod tests {
     use super::*;
     use crate::agent_info::AgentInfoList;
     use crate::crd::AgentTaskPhase;
-    use serde_json::json;
     use tokio::sync::mpsc;
 
-    fn sample_event() -> TaskStateChanged {
+    fn sample_event(name: &str) -> TaskStateChanged {
         TaskStateChanged {
-            task_name: "task-abc12345".to_string(),
+            task_name: name.to_string(),
             namespace: "forgemaster-system".to_string(),
-            description: "Build a REST API".to_string(),
+            description: format!("Task {name}"),
             created_at: Some(chrono::Utc::now()),
             phase: AgentTaskPhase::Running,
             iteration: 1,
@@ -131,11 +146,13 @@ mod tests {
         let (sender, _) = broadcast::channel::<TaskEvent>(16);
         let schema_cache = Arc::new(SchemaCache::new());
         let registry = Arc::new(ConnectionRegistry::new());
+        let active_tasks = Arc::new(ActiveTaskStore::new());
 
         let (client_tx, client_rx) = mpsc::unbounded_channel();
         registry.register("test-client", client_tx);
 
-        let broadcaster = TaskStateBroadcaster::new(sender.subscribe(), schema_cache, registry);
+        let broadcaster =
+            TaskStateBroadcaster::new(sender.subscribe(), schema_cache, registry, active_tasks);
 
         (broadcaster, client_rx)
     }
@@ -143,86 +160,94 @@ mod tests {
     #[test]
     fn handle_event_caches_schema() {
         let (broadcaster, _rx) = create_broadcaster_with_client();
-        broadcaster.handle_event(&sample_event());
+        broadcaster.handle_event(&sample_event("task-abc"));
 
         let cached = broadcaster.schema_cache.get("schema").unwrap();
-        assert_eq!(cached["root"], "task-status-card");
+        assert_eq!(cached["root"], "hero-section");
         assert!(cached["components"].is_array());
-        assert_eq!(cached["data"]["task"]["name"], "task-abc12345");
+        assert_eq!(cached["data"]["tasks"]["items"][0]["name"], "task-abc");
     }
 
     #[test]
-    fn handle_event_updates_dashboard_cache() {
+    fn handle_event_updates_dashboard() {
         let (broadcaster, _rx) = create_broadcaster_with_client();
-        broadcaster.schema_cache.set(
-            "dashboard",
-            json!({
-                "hero": { "tagline": "AI-Powered" },
-                "task": { "description": "" }
-            }),
-        );
-
-        broadcaster.handle_event(&sample_event());
+        broadcaster.handle_event(&sample_event("task-abc"));
 
         let cached = broadcaster.schema_cache.get("dashboard").unwrap();
-        assert_eq!(cached["hero"]["tagline"], "AI-Powered");
-        assert_eq!(cached["task"]["name"], "task-abc12345");
+        assert_eq!(cached["tasks"]["count"], 1);
+        assert_eq!(cached["tasks"]["items"][0]["name"], "task-abc");
     }
 
     #[test]
-    fn handle_event_broadcasts_schema_event() {
+    fn handle_event_broadcasts_schema() {
         let (broadcaster, mut rx) = create_broadcaster_with_client();
-        broadcaster.handle_event(&sample_event());
+        broadcaster.handle_event(&sample_event("task-abc"));
 
         let msg = rx.try_recv().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(parsed["type"], "schema");
-        assert_eq!(parsed["root"], "task-status-card");
-        assert!(parsed["components"].is_array());
-        assert_eq!(parsed["data"]["task"]["phase"], "Running");
+        assert_eq!(parsed["root"], "hero-section");
+        assert_eq!(parsed["data"]["tasks"]["items"][0]["phase"], "Running");
     }
 
     #[test]
-    fn handle_event_broadcasts_task_data() {
-        let (broadcaster, mut rx) = create_broadcaster_with_client();
-        broadcaster.handle_event(&sample_event());
-
-        let msg = rx.try_recv().unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(parsed["data"]["task"]["name"], "task-abc12345");
-        assert_eq!(parsed["data"]["task"]["iteration"], 1);
-        assert_eq!(parsed["data"]["task"]["error"], 0.6);
-    }
-
-    #[test]
-    fn handle_deletion_clears_schema_cache() {
+    fn handle_two_events_caches_both() {
         let (broadcaster, _rx) = create_broadcaster_with_client();
-        broadcaster.handle_event(&sample_event());
+        broadcaster.handle_event(&sample_event("task-aaa"));
+        broadcaster.handle_event(&sample_event("task-bbb"));
+
+        let cached = broadcaster.schema_cache.get("dashboard").unwrap();
+        assert_eq!(cached["tasks"]["count"], 2);
+    }
+
+    #[test]
+    fn handle_deletion_last_task_clears_caches() {
+        let (broadcaster, _rx) = create_broadcaster_with_client();
+        broadcaster.handle_event(&sample_event("task-abc"));
         assert!(broadcaster.schema_cache.get("schema").is_some());
 
-        broadcaster.handle_deletion("task-abc12345");
+        broadcaster.handle_deletion("task-abc");
         assert!(broadcaster.schema_cache.get("schema").is_none());
-    }
-
-    #[test]
-    fn handle_deletion_clears_dashboard_cache() {
-        let (broadcaster, _rx) = create_broadcaster_with_client();
-        broadcaster
-            .schema_cache
-            .set("dashboard", json!({"task": {"name": "task-abc12345"}}));
-
-        broadcaster.handle_deletion("task-abc12345");
         assert!(broadcaster.schema_cache.get("dashboard").is_none());
     }
 
     #[test]
-    fn handle_deletion_broadcasts_task_deleted_event() {
+    fn handle_deletion_last_task_broadcasts_task_deleted() {
         let (broadcaster, mut rx) = create_broadcaster_with_client();
-        broadcaster.handle_deletion("task-abc12345");
+        broadcaster.handle_event(&sample_event("task-abc"));
+        let _ = rx.try_recv(); // consume schema event
 
+        broadcaster.handle_deletion("task-abc");
         let msg = rx.try_recv().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(parsed["type"], "task_deleted");
-        assert_eq!(parsed["task_name"], "task-abc12345");
+        assert_eq!(parsed["task_name"], "task-abc");
+    }
+
+    #[test]
+    fn handle_deletion_with_remaining_rebuilds_schema() {
+        let (broadcaster, mut rx) = create_broadcaster_with_client();
+        broadcaster.handle_event(&sample_event("task-aaa"));
+        broadcaster.handle_event(&sample_event("task-bbb"));
+        let _ = rx.try_recv(); // consume first
+        let _ = rx.try_recv(); // consume second
+
+        broadcaster.handle_deletion("task-aaa");
+        let msg = rx.try_recv().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(parsed["type"], "schema");
+        assert_eq!(parsed["data"]["tasks"]["count"], 1);
+        assert_eq!(parsed["data"]["tasks"]["items"][0]["name"], "task-bbb");
+    }
+
+    #[test]
+    fn handle_deletion_with_remaining_keeps_caches() {
+        let (broadcaster, _rx) = create_broadcaster_with_client();
+        broadcaster.handle_event(&sample_event("task-aaa"));
+        broadcaster.handle_event(&sample_event("task-bbb"));
+
+        broadcaster.handle_deletion("task-aaa");
+        assert!(broadcaster.schema_cache.get("schema").is_some());
+        assert!(broadcaster.schema_cache.get("dashboard").is_some());
     }
 }

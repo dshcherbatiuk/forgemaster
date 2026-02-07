@@ -7,6 +7,7 @@ use dashmap::DashMap;
 use tracing::info;
 
 use super::{SubmitTaskAction, WsAction};
+use crate::ws::active_task_store::ActiveTaskStore;
 use crate::ws::command::WsCommand;
 use crate::ws::connection_registry::ConnectionRegistry;
 use crate::ws::task_creator::TaskCreator;
@@ -18,14 +19,18 @@ pub struct ActionDispatcher {
 
 impl ActionDispatcher {
     /// Creates a dispatcher with all action handlers registered.
-    pub fn new(task_creator: Arc<TaskCreator>, registry: Arc<ConnectionRegistry>) -> Self {
+    pub fn new(
+        task_creator: Arc<TaskCreator>,
+        registry: Arc<ConnectionRegistry>,
+        active_tasks: Arc<ActiveTaskStore>,
+    ) -> Self {
         let actions: DashMap<Discriminant<WsCommand>, Arc<dyn WsAction>> = DashMap::new();
 
         actions.insert(
             discriminant(&WsCommand::SubmitTask {
                 description: String::new(),
             }),
-            Arc::new(SubmitTaskAction::new(task_creator, registry)),
+            Arc::new(SubmitTaskAction::new(task_creator, registry, active_tasks)),
         );
 
         Self { actions }

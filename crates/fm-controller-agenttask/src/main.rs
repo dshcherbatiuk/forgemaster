@@ -38,6 +38,7 @@ async fn main() -> Result<()> {
         state_receiver,
         ws_server.schema_cache(),
         ws_server.registry(),
+        ws_server.active_tasks(),
     );
 
     tokio::select! {
