@@ -35,6 +35,7 @@ flowchart TB
         REG[06-agent-registry.md]
         A2A[07-a2a-protocol.md]
         A2UI[08-a2ui-protocol.md]
+        MCP[16-mcp-integration.md]
     end
 
     subgraph Services["Services"]
@@ -86,6 +87,7 @@ flowchart TB
 | [06-agent-registry.md](06-agent-registry.md) | Agent registry for discovery and health management |
 | [07-a2a-protocol.md](07-a2a-protocol.md) | Agent-to-Agent (A2A) communication protocol |
 | [08-a2ui-protocol.md](08-a2ui-protocol.md) | Agent-to-User Interface (A2UI) protocol |
+| [16-mcp-integration.md](16-mcp-integration.md) | MCP integration with Anthropic Messages API |
 
 ### Backend Services
 | File | Description |
