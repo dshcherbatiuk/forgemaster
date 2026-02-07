@@ -149,10 +149,13 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 - [x] Define Agent CRD schema
 - [x] Create Helm chart
-- [ ] Implement Agent CRD structs in Rust
-- [ ] Watch AgentTask CRs — create Orchestrator Agent CR when task enters Running
-- [ ] Implement reconciliation loop (create/manage agent pods)
-- [ ] Containerize and deploy
+- [x] Implement Agent CRD structs in Rust (leaf types + core types)
+- [x] Implement controller skeleton (ReconcileStrategy, DashMap dispatcher, phase strategies)
+- [x] Watch AgentTask CRs — create Orchestrator Agent CR when task enters Running
+- [x] Implement dual watch via `tokio::select!` (Agent reconciler + AgentTask watcher)
+- [x] Containerize (Dockerfile)
+- [ ] Implement reconciliation loop (create/manage agent pods — needs Agent Runtime image)
+- [ ] Deploy to K8s
 
 ### 2.4 MCPServer Controller (fm-controller-mcpserver)
 
@@ -367,7 +370,7 @@ forgemaster/
 │   │   ├── helm/                 # Helm chart for this service
 │   │   └── src/
 │   │
-│   ├── fm-controller-agent/      # Agent CRD + Controller (future)
+│   ├── fm-controller-agent/      # Agent CRD + Controller
 │   │   └── helm/
 │   │
 │   ├── fm-controller-mcpserver/  # MCPServer CRD + Controller (future)

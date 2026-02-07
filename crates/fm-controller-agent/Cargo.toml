@@ -15,7 +15,9 @@ path = "src/lib.rs"
 
 [dependencies]
 fm-core = { workspace = true }
+fm-controller-agenttask = { workspace = true }
 kube = { workspace = true }
+uuid = { workspace = true }
 k8s-openapi = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }

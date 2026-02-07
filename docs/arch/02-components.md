@@ -337,10 +337,11 @@ sequenceDiagram
 
     OA->>OA: Analyze task (LLM reasoning)
     OA->>AC: Create Agent CRs (test-gen, code-gen, test-runner, feedback)
-    AC->>TGA: Spawn Test Generator
-    AC->>CGA: Spawn Code Generator
-    AC->>TRA: Spawn Test Runner
-    AC->>FBA: Spawn Feedback Agent
+    AC-->>AC: Watch detects new Agent CRs
+    AC->>TGA: Spawn Test Generator pod
+    AC->>CGA: Spawn Code Generator pod
+    AC->>TRA: Spawn Test Runner pod
+    AC->>FBA: Spawn Feedback Agent pod
 
     OA->>ATC: A2UI schema (progress view)
     ATC->>UI: Push schema update

@@ -1,4 +1,8 @@
 //! Controller runner for Agent reconciliation.
+//!
+//! Runs two concurrent watches via `tokio::select!`:
+//! 1. Agent CR reconciler (kube Controller)
+//! 2. AgentTask CR watcher (creates Orchestrator Agents)
 
 use std::sync::Arc;
 
@@ -10,20 +14,25 @@ use kube::Client;
 use tracing::info;
 
 use crate::crd::Agent;
+use crate::task_watcher;
 
 use super::context::create_context;
 use super::dispatcher::Dispatcher;
 
-/// Runs the Agent controller.
+/// Runs the Agent controller and AgentTask watcher concurrently.
+///
+/// Uses `tokio::select!` to join:
+/// - Agent CR reconciliation (phase-based strategy pattern)
+/// - AgentTask CR watching (creates Orchestrator Agent CRs on Running phase)
 pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
     info!("🚀 Starting Agent controller in namespace: {}", namespace);
 
     let ctx = create_context(client.clone(), namespace.to_string());
     let dispatcher = Arc::new(Dispatcher::new(Arc::clone(&ctx)));
 
-    let api: Api<Agent> = Api::namespaced(client, namespace);
+    let api: Api<Agent> = Api::namespaced(client.clone(), namespace);
 
-    Controller::new(api, WatcherConfig::default())
+    let agent_controller = Controller::new(api, WatcherConfig::default())
         .run(
             |agent, _| {
                 let dispatcher = Arc::clone(&dispatcher);
@@ -41,8 +50,20 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
                     tracing::error!("❌ Agent controller error: {:?}", error);
                 }
             }
-        })
-        .await;
+        });
+
+    let task_watcher = task_watcher::run(client, namespace);
+
+    tokio::select! {
+        () = agent_controller => {
+            info!("⚠️ Agent controller stream ended");
+        }
+        result = task_watcher => {
+            if let Err(err) = result {
+                tracing::error!("❌ AgentTask watcher failed: {}", err);
+            }
+        }
+    }
 
     Ok(())
 }

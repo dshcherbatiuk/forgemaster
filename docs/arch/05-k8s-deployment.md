@@ -426,6 +426,8 @@ sequenceDiagram
     OA->>API: Create MCPServer CRs (github, postgres, stripe)
     AGC-->>API: Watch detects new Agent CRs
     AGC->>EX: Spawn executor agent pods
+    AGC->>TRA: Spawn Test Runner Agent pod
+    AGC->>FBA: Spawn Feedback Agent pod
     MCPC-->>API: Watch detects new MCPServer CRs
     MCPC->>MCP: Spawn MCP server pods
 
