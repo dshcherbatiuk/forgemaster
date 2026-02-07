@@ -7,180 +7,44 @@ flowchart TB
     subgraph CRDs["Custom Resource Definitions"]
         AT[AgentTask CRD]
         AG[Agent CRD]
-        MCP[MCPServer CRD]
     end
 
-    subgraph Operator["forgemaster-operator Deployment"]
+    subgraph Controllers["Controllers"]
         ATC[AgentTask Controller]
-        AGC[Agent Controller]
-        MCPC[MCPServer Controller]
+        AGC["Agent Controller (MCP)"]
     end
 
     subgraph Resources["Managed Resources"]
         NS[Namespaces]
         Pods[Pods]
-        SVC[Services]
-        CM[ConfigMaps]
+        RBAC[RBAC]
         SEC[Secrets]
     end
 
     AT --> ATC
     AT --> AGC
     AG --> AGC
-    MCP --> MCPC
 
-    ATC --> NS & CM
+    ATC --> NS
     AGC -->|creates orchestrator| AG
-    AGC --> Pods & CM
-    MCPC --> Pods & SVC & SEC
+    AGC --> Pods & RBAC & SEC
 ```
 
-> **Note:** Controllers run as a single Operator Deployment, not as separate CRDs.
+Each controller runs as a separate Deployment:
+- AgentTask Controller: [`crates/fm-controller-agenttask/helm/`](../../crates/fm-controller-agenttask/helm/)
+- Agent Controller: [`crates/fm-controller-agent/helm/`](../../crates/fm-controller-agent/helm/)
+
+MCP servers are external services — agents connect to them directly via `spec.mcpServers` references. No dedicated MCP controller is needed.
 
 ### AgentTask CRD
 
-Top-level resource that defines a task to be executed.
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: AgentTask
-metadata:
-  name: ecommerce-backend
-  namespace: task-ecommerce-abc123
-spec:
-  description: |
-    Create an e-commerce backend with product catalog, shopping cart,
-    and checkout flow. Include Stripe integration.
-
-  # TCP Controller settings
-  controller:
-    taskWeight: 1.0      # T coefficient
-    contextWeight: 0.5   # C coefficient
-    predictionWeight: 0.3 # P coefficient
-    errorThreshold: 0.2
-    maxIterations: 10
-
-  # Test generation config
-  testGenerator:
-    format: gherkin
-    framework: behave
-
-  # Resource limits for spawned agents
-  resourceQuota:
-    maxAgents: 5
-    maxMemory: "4Gi"
-    maxCPU: "4"
-
-status:
-  phase: Running # Pending | Running | Succeeded | Failed
-  iteration: 3
-  currentError: 0.25
-  testsTotal: 12
-  testsPassed: 9
-  agents:
-    - name: api-architect-abc123
-      status: Completed
-    - name: stripe-integrator-def456
-      status: Running
-    - name: database-designer-ghi789
-      status: Completed
-```
+Top-level resource that defines a task to be executed. See [`crates/fm-controller-agenttask/helm/templates/agenttask-crd.yaml`](../../crates/fm-controller-agenttask/helm/templates/agenttask-crd.yaml) for the full CRD definition.
 
 ### Agent CRD
 
-Defines an individual agent instance.
+Defines an individual agent instance. See [`crates/fm-controller-agent/src/crd/agent/crd.rs`](../../crates/fm-controller-agent/src/crd/agent/crd.rs) for the full spec.
 
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Agent
-metadata:
-  name: api-architect-abc123
-  namespace: task-ecommerce-abc123
-  labels:
-    forgemaster.io/task: ecommerce-backend
-    forgemaster.io/type: code-generator
-spec:
-  type: code-generator
-
-  # LLM configuration
-  model:
-    provider: anthropic
-    name: claude-sonnet-4-20250514
-    temperature: 0.7
-    maxTokens: 4096
-
-  # Agent prompt/instructions
-  systemPrompt: |
-    You are an API Architect agent specialized in REST APIs for e-commerce.
-    Design and implement endpoints for product catalog, shopping cart, and checkout.
-    Follow RESTful conventions and ensure proper error handling.
-
-  # MCP servers this agent needs
-  mcpServers:
-    - name: github-mcp
-    - name: postgres-mcp
-
-  # Resource limits
-  resources:
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-    requests:
-      memory: "256Mi"
-      cpu: "250m"
-
-status:
-  phase: Completed
-  startTime: "2026-01-19T12:00:00Z"
-  tokensUsed: 4521
-  output:
-    configMapRef: api-architect-abc123-output
-```
-
-### MCPServer CRD
-
-Defines an MCP server instance.
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: MCPServer
-metadata:
-  name: stripe-mcp
-  namespace: task-ecommerce-abc123
-  labels:
-    forgemaster.io/task: ecommerce-backend
-spec:
-  type: stripe
-
-  # MCP server image
-  image: forgemaster/mcp-stripe:latest
-
-  # Server configuration
-  config:
-    capabilities:
-      - payment_intents
-      - customers
-      - webhooks
-
-  # Credentials reference
-  credentialsSecret:
-    name: stripe-credentials
-
-  # Resource limits
-  resources:
-    limits:
-      memory: "256Mi"
-      cpu: "250m"
-
-status:
-  phase: Running
-  endpoint: "http://stripe-mcp:3000"
-  tools:
-    - create_payment_intent
-    - confirm_payment
-    - create_customer
-    - handle_webhook
-```
+The Agent Controller creates pods with the appropriate runtime image (e.g. `fm-agent-runtime-claude`). Config is injected via env vars — see [`crates/fm-controller-agent/src/controller/pod_builder.rs`](../../crates/fm-controller-agent/src/controller/pod_builder.rs).
 
 ### Test Storage (ConfigMaps)
 
@@ -218,104 +82,6 @@ data:
         Then I receive order confirmation
 ```
 
-### Test Runner Agent
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Agent
-metadata:
-  name: test-runner-agent
-  namespace: task-ecommerce-abc123
-  labels:
-    forgemaster.io/task: ecommerce-backend
-    forgemaster.io/type: test-runner
-spec:
-  type: test-runner
-
-  model:
-    provider: anthropic
-    name: claude-sonnet-4-20250514
-    temperature: 0.3
-    maxTokens: 2048
-
-  systemPrompt: |
-    You are a Test Runner agent. Your job is to:
-    1. Execute Gherkin test scenarios for e-commerce backend
-    2. Test product catalog, shopping cart, and checkout endpoints
-    3. Verify Stripe payment integration
-    4. Report pass/fail for each scenario with detailed failure messages
-
-  # Test framework configuration
-  testConfig:
-    framework: behave
-    timeout: 300s
-    parallel: false
-
-  mcpServers:
-    - name: filesystem-mcp
-
-  resources:
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
-
-status:
-  phase: Running
-  lastExecution: "2026-01-19T12:05:00Z"
-```
-
-### Feedback Agent CRD
-
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Agent
-metadata:
-  name: feedback-agent
-  namespace: task-ecommerce-abc123
-  labels:
-    forgemaster.io/task: ecommerce-backend
-    forgemaster.io/type: feedback
-spec:
-  type: feedback
-
-  model:
-    provider: anthropic
-    name: claude-sonnet-4-20250514
-    temperature: 0.5
-    maxTokens: 2048
-
-  systemPrompt: |
-    You are a Feedback Collector agent. Your job is to:
-    1. Analyze test results from Test Runner
-    2. Calculate error metrics for e-commerce scenarios
-    3. Identify failure patterns in checkout/payment flow
-    4. Recommend adjustments for next iteration
-    5. Update context memory with learnings
-
-  # Metrics to collect
-  metricsConfig:
-    collectTokenUsage: true
-    collectExecutionTime: true
-    collectRetryCount: true
-    analyzePatterns: true
-
-  mcpServers:
-    - name: prometheus-mcp
-
-  resources:
-    limits:
-      memory: "256Mi"
-      cpu: "250m"
-
-status:
-  phase: Running
-  currentError: 0.25
-  recommendations:
-    - "Stripe Integrator missed payment failure edge case"
-    - "Cart service needs quantity validation"
-    - "Suggest adding retry logic for Stripe API timeouts"
-```
-
 ### Cluster Architecture
 
 Example: E-commerce backend task — "Create an e-commerce backend with product catalog, shopping cart, and checkout flow. Include Stripe integration."
@@ -329,38 +95,21 @@ flowchart TB
         subgraph ControlPlane["forgemaster-system namespace"]
             API[K8s API]
             TCPC[TCP Controller<br/>PID feedback loop]
-            subgraph Operator["forgemaster-operator"]
-                ATC[AgentTask Controller<br/>WebSocket + Reconciler]
-                AGC[Agent Controller<br/>MCP Server]
-                MCPC[MCPServer Controller]
-            end
+            ATC[AgentTask Controller<br/>WebSocket + Reconciler]
+            AGC["Agent Controller (MCP)"]
         end
 
         subgraph TaskNS["task-ecommerce-abc123 namespace"]
             subgraph Task1["AgentTask: ecommerce-backend"]
                 direction TB
-                subgraph CoreAgents["Core Agents (Shared)"]
-                    TGA[Test Generator Agent]
+                subgraph Agents["Agent Pods (fm-agent-runtime-claude)"]
                     OA[Orchestrator Agent]
-                    FBA[Feedback Agent]
-                    TRA[Test Runner Agent]
+                    TGA[Test Generator Agent]
+                    AG1[Code Generator Agent]
+                    AG2[Reviewer Agent]
                 end
-                subgraph ExecutorAgents["Executor Agents (Domain-Specific)"]
-                    AG1[API Architect Agent<br/>REST endpoints]
-                    AG2[Stripe Integrator Agent<br/>payment flow]
-                    AG3[Database Designer Agent<br/>product/cart schema]
-                end
-                subgraph MCPServers["MCP Servers"]
-                    MCP1[github-mcp<br/>code repository]
-                    MCP2[postgres-mcp<br/>database access]
-                    MCP3[stripe-mcp<br/>payment API]
-                end
-                CM1["ConfigMap: ecommerce-tests<br/>12 Gherkin scenarios"]
+                CM1["ConfigMap: ecommerce-tests<br/>Gherkin scenarios"]
             end
-        end
-
-        subgraph Storage["Storage"]
-            Redis[(Redis<br/>Context Memory)]
         end
     end
 
@@ -370,26 +119,25 @@ flowchart TB
     ATC <-.->|"watch status"| API
 
     TCPC -->|"error signal"| OA
-    TCPC <-->|"read metrics"| FBA
-    OA -->|"MCP tool calls"| AGC
+    AGC -->|"reconciles Agent CRs"| Agents
 
     ATC -->|"reconcile"| Task1
-    AGC -->|"manages"| CoreAgents & ExecutorAgents
-    MCPC -->|"manages"| MCPServers
+    OA <-->|"A2A"| AG1 & AG2 & TGA
+    Agents -->|"MCP"| API
+    Agents -->|"update own CR"| API
     TGA -->|"creates"| CM1
-
-    CoreAgents & ExecutorAgents --> Redis
 ```
 
 **Task Flow:**
 
-1. User submits: "Create an e-commerce backend with product catalog, shopping cart, and checkout flow. Include Stripe integration."
-2. AgentTask Controller creates AgentTask CR and isolated namespace `task-ecommerce-abc123`
-3. Agent Controller detects new task (Running), creates Orchestrator Agent CR, spawns Orchestrator pod
-4. Orchestrator analyzes task (LLM), uses MCP tools via Agent Controller to create Agent CRs (test-gen, code-gen, test-runner, feedback) and MCPServer CRs (github, postgres, stripe)
-5. Agent Controller spawns executor agent pods, MCPServer Controller spawns MCP server pods
-6. Test Generator creates 12 Gherkin scenarios for product CRUD, cart operations, checkout flow
-7. TCP feedback loop runs until all tests pass
+1. User submits task via A2UI Web Portal
+2. AgentTask Controller creates AgentTask CR and isolated namespace
+3. Agent Controller detects new AgentTask (Running), creates Orchestrator Agent CR
+4. Agent Controller reconciles Agent CR, creates pod with `fm-agent-runtime-claude`
+5. Orchestrator pod sends initial prompt, stays alive for A2A/MCP communication
+6. Orchestrator coordinates child agents via A2A, agents use MCP for tool access (filesystem, GitHub, K8s API)
+7. Agents update their own CR status (phase, tokens used)
+8. TCP feedback loop runs until error threshold is met
 
 ### Reconciliation Loop
 
@@ -402,104 +150,55 @@ sequenceDiagram
     participant ATC as AgentTask Controller
     participant API as K8s API
     participant AGC as Agent Controller (MCP)
-    participant MCPC as MCPServer Controller
     participant OA as Orchestrator Agent
-    participant EX as Executor Agents
-    participant MCP as MCP Servers
-    participant TRA as Test Runner Agent
-    participant FBA as Feedback Agent
+    participant Agents as Child Agents
     participant TCPC as TCP Controller
 
-    U->>WEB: Submit "Create e-commerce backend with Stripe"
+    U->>WEB: Submit task
     WEB->>ATC: WebSocket: submit_task {description}
-    ATC->>API: Create AgentTask CR
-    ATC->>API: Create task namespace
+    ATC->>API: Create AgentTask CR + namespace
 
     Note over ATC: Reconciler transitions: Pending → Running
 
     AGC-->>API: Watch detects new AgentTask CR (Running)
     AGC->>API: Create Orchestrator Agent CR
-    AGC->>OA: Spawn Orchestrator pod
+    AGC->>API: Create pod (fm-agent-runtime-claude)
 
-    OA->>OA: Analyze task (LLM reasoning)
-    OA->>AGC: MCP tool call: create agents (code-gen, test-gen, test-runner, feedback)
-    AGC->>API: Create Agent CRs
-    OA->>AGC: MCP tool call: create MCP servers (github, postgres, stripe)
-    AGC->>API: Create MCPServer CRs
+    OA->>OA: Send initial prompt to Claude API
+    Note over OA: Stays alive for A2A / MCP
+
+    OA->>API: MCP: Create child Agent CRs (code-gen, test-gen, reviewer)
     AGC-->>API: Watch detects new Agent CRs
-    AGC->>EX: Spawn executor agent pods
-    AGC->>TRA: Spawn Test Runner Agent pod
-    AGC->>FBA: Spawn Feedback Agent pod
-    MCPC-->>API: Watch detects new MCPServer CRs
-    MCPC->>MCP: Spawn MCP server pods
+    AGC->>API: Create child agent pods
+
+    Note over Agents: Each agent sends initial prompt, stays alive
 
     loop TCP Feedback Loop (until error ≤ threshold)
-        OA->>EX: Coordinate execution via A2A
-        EX->>MCP: Use tools (github, postgres, stripe)
-        TRA->>TRA: Run Gherkin tests
-        TRA->>FBA: Test results (9/12 passed)
-        FBA->>TCPC: Submit feedback (error = 0.25)
+        OA->>Agents: Coordinate via A2A
+        Agents->>API: MCP: use tools (filesystem, GitHub, K8s API)
+        Agents->>API: Update own CR status (tokens, phase)
+
+        ATC->>ATC: Reconciler detects status change
+        ATC->>WEB: WebSocket: push status update
+        WEB->>U: Live progress
+
         TCPC->>TCPC: PID calculation
         TCPC->>OA: Control signal (adjust/continue/complete)
 
-        ATC->>ATC: Reconciler detects status change
-        ATC->>WEB: WebSocket: push A2UI schema update
-        WEB->>U: Live progress (9/12 tests, iteration 3)
-
         alt error > threshold
-            OA->>OA: Adjust strategy (swap agent, change prompt)
-            OA->>AGC: MCP tool call: update/create agents
-            AGC->>API: Update Agent CRs
+            OA->>API: MCP: create/update Agent CRs
         else error ≤ threshold
-            OA->>AGC: MCP tool call: mark task succeeded
-            AGC->>API: Update AgentTask status → Succeeded
+            OA->>API: MCP: mark task succeeded
             ATC->>WEB: Task completed
-            WEB->>U: Task completed successfully
         end
     end
 ```
 
 ### Resource Management
 
-- **Namespace per task** — isolation
-- **HPA** — scale agents based on load
-- **Pod lifecycle** — terminate on completion
-- **MCP servers as sidecars** — co-located with agents
+- **Namespace per task** — isolation between tasks
+- **Long-lived agent pods** — stay alive for A2A/MCP, exit on SIGTERM or task completion
+- **RBAC per agent** — ServiceAccount + ClusterRoleBinding for K8s API access
+- **Owner references** — agent pods are owned by Agent CR (garbage collected on deletion)
 
-### Helm Chart Deployment
-
-All CRDs and controllers are deployed via Helm charts. See [10-helm-charts.md](10-helm-charts.md) for full details.
-
-```mermaid
-flowchart TB
-    subgraph HelmCharts["Helm Charts"]
-        MC[forgemaster-crds]
-        MO[forgemaster-operator]
-    end
-
-    subgraph Deployed["Deployed Resources"]
-        CRDs[Custom Resource Definitions]
-        Controllers[Controllers & Operators]
-    end
-
-    MC -->|"helm install"| CRDs
-    MO -->|"helm install"| Controllers
-```
-
-**Quick Start:**
-
-```bash
-# Add Helm repository
-helm repo add forgemaster https://charts.forgemaster.io
-
-# Install CRDs first
-helm install forgemaster-crds forgemaster/forgemaster-crds
-
-# Install operators
-helm install forgemaster-operator forgemaster/forgemaster-operator \
-  --namespace forgemaster-system \
-  --create-namespace
-```
-
----
 

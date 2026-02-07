@@ -21,7 +21,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 │   Foundation     Core Engine    Agents         Integration      │
 │   & UI Portal   & Protocols                   & Demo           │
 │                                                                  │
-│   [██████████]   [████░░░░░░]   [░░░░░░░░░░]   [░░░░░░░░░░]     │
+│   [██████████]   [██████░░░░]   [░░░░░░░░░░]   [░░░░░░░░░░]     │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -73,7 +73,6 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 - [x] Define AgentTask CRD schema (Helm chart)
 - [x] Define Agent CRD schema
-- [ ] Define MCPServer CRD schema
 - [x] Apply AgentTask CRD to cluster
 
 ### 1.5 Helm Charts & Deployment
@@ -82,7 +81,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Define values.yaml with configurable options
 - [x] Create templates (deployment, service, gateway, httproute)
 - [x] Create Dockerfile for UI
-- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask, fm-controller-agent, fm-agent-runtime)
+- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask, fm-controller-agent, fm-agent-runtime-claude)
 - [x] Create site.yml playbook
 - [x] Introduce Ansible environments (environments/default/ with inventory, group_vars, local.env)
 - [x] DRY: shared variables (image_tag, image_registry, build_enabled, image_pull_policy)
@@ -143,16 +142,18 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [ ] Implement A2UI schema diff (push only changes)
 - [x] Add namespace lifecycle management (create namespace on Pending→Running, delete on task deletion with finalizer)
 
-### 2.2 Agent Runtime (fm-agent-runtime)
+### 2.2 Agent Runtime (fm-agent-runtime-claude)
 
-- [x] Create base agent runtime crate
-- [x] Implement Claude API integration (SSE streaming)
+- [x] Create agent runtime crate for Anthropic Claude
+- [x] Implement Claude API integration (SSE streaming via eventsource-stream)
 - [x] Implement config loading from env vars (TASK_PROMPT, MODEL_NAME, etc.)
 - [x] Add conversation management
 - [x] Create Dockerfile (multi-stage build)
 - [x] Create Ansible role (build-only, no Helm deploy — pods managed by Agent Controller)
+- [x] Implement status updater (patch Agent CR status from runtime pod)
+- [x] Long-lived runtime (sends initial prompt, stays alive for A2A/MCP)
 - [ ] Add MCP client integration
-- [ ] Implement status updater (patch Agent CR status from runtime pod)
+- [ ] Add A2A communication support
 
 ### 2.3 Agent Controller (fm-controller-agent)
 
@@ -172,17 +173,11 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Rename systemPrompt to taskPrompt in CRD and Helm chart
 - [x] 3-phase orchestrator prompt (Requirements Analysis → Architecture → Orchestration)
 - [x] Deploy to K8s
-- [ ] Copy LLM provider secret to task namespace on pod creation
+- [x] Implement RBAC propagator (ServiceAccount + ClusterRoleBinding per namespace)
+- [x] Implement secret propagator (copy LLM provider secret to task namespace)
+- [x] Wire LLM_PROVIDER_DEFAULT_MODEL through config chain (env → Ansible → Helm → ConfigMap → context)
 
-### 2.4 MCPServer Controller (fm-controller-mcpserver)
-
-- [ ] Define MCPServer CRD schema
-- [ ] Create Helm chart
-- [ ] Implement MCPServer CRD structs in Rust
-- [ ] Implement reconciliation loop
-- [ ] Containerize and deploy
-
-### 2.5 Core Agents
+### 2.4 Core Agents
 
 #### Orchestrator Agent (per-task Agent CR, created by Agent Controller)
 
@@ -219,8 +214,8 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [ ] Test feedback loop
 
 **Deliverables:**
-- Agent Runtime crate with Claude API integration
-- Agent Controller and MCPServer Controller managing pods
+- Agent Runtime crate with Claude API integration (fm-agent-runtime-claude)
+- Agent Controller managing Agent CRs and pods
 - Core agents deployed and functional
 - End-to-end flow: Submit → Generate Tests → Generate Code → Run Tests
 
@@ -241,26 +236,14 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [ ] Write unit tests for control logic
 - [ ] Containerize and deploy to K8s
 
-### 3.2 Agent Registry
-
-- [ ] Implement agent registration API
-- [ ] Add heartbeat and health checking
-- [ ] Implement skill-based search
-- [ ] Add Redis storage backend
-- [ ] Create deregistration and cleanup
-- [ ] Write unit tests
-- [ ] Containerize and deploy to K8s
-
-### 3.3 MCP Protocol Implementation
+### 3.2 MCP Protocol Implementation
 
 - [ ] Create mcp-core crate (types, traits)
-- [ ] Implement MCP client for agents
-- [ ] Deploy official MCP servers:
-  - [ ] filesystem-mcp
-  - [ ] github-mcp
+- [ ] Implement MCP client for agent runtime
+- [ ] Integrate MCP servers (filesystem, GitHub, K8s API)
 - [ ] Test tool discovery and execution
 
-### 3.4 A2A Protocol Implementation
+### 3.3 A2A Protocol Implementation
 
 - [ ] Create a2a-core crate (types, traits)
 - [ ] Implement A2A server (Axum-based)
@@ -271,9 +254,8 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 **Deliverables:**
 - TCP Controller running with PID feedback loop
-- Agent Registry service running
-- MCP servers deployed and functional
-- A2A protocol working
+- MCP client integrated into agent runtime
+- A2A protocol working between agents
 - Full feedback loop: Agents → Test Results → TCP Controller → Adjustment → Agents
 
 ---
@@ -333,26 +315,23 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 │                               │ WebSocket (A2UI schemas)                 │
 │   ┌───────────────────────────▼─────────────────────────────────────┐   │
 │   │                    CONTROL PLANE (forgemaster-system)            │   │
-│   │  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐       │   │
-│   │  │AgentTask         │  │TCP Controller│  │Agent Registry│       │   │
-│   │  │Controller        │  │  (PID Math)  │  │   (Redis)    │       │   │
-│   │  │(WebSocket + K8s) │  └──────────────┘  └──────────────┘       │   │
-│   │  │+ Schema Cache    │                                            │   │
-│   │  └──────────────────┘                                            │   │
+│   │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────┐  │   │
+│   │  │AgentTask         │  │Agent Controller  │  │TCP Controller│  │   │
+│   │  │Controller        │  │  (MCP)           │  │  (PID Math)  │  │   │
+│   │  │(WebSocket + K8s) │  │                  │  └──────────────┘  │   │
+│   │  │+ Schema Cache    │  │                  │                     │   │
+│   │  └──────────────────┘  └──────────────────┘                     │   │
 │   └─────────────────────────────┬───────────────────────────────────┘   │
-│                                 │ A2A + A2UI schemas                     │
+│                                 │ A2A + MCP                              │
 │   ┌─────────────────────────────▼───────────────────────────────────┐   │
 │   │                    TASK NAMESPACE (task-xxxxx)                   │   │
 │   │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │   │
-│   │  │Orchestrator│ │Test Gen    │ │Code Gen    │ │Test Runner │   │   │
+│   │  │Orchestrator│ │Test Gen    │ │Code Gen    │ │Reviewer    │   │   │
 │   │  │   Agent    │ │  Agent     │ │  Agent     │ │   Agent    │   │   │
-│   │  │ + A2UI Gen │ │ + A2UI Gen │ │ + A2UI Gen │ │            │   │   │
 │   │  └─────┬──────┘ └────────────┘ └────────────┘ └────────────┘   │   │
-│   │        │ MCP                                                     │   │
-│   │  ┌─────▼──────────────────────────────────────────────────────┐ │   │
-│   │  │              MCP SERVERS                                    │ │   │
-│   │  │  [github-mcp] [postgres-mcp] [stripe-mcp] [filesystem-mcp] │ │   │
-│   │  └────────────────────────────────────────────────────────────┘ │   │
+│   │        │ A2A          ▲               ▲              ▲          │   │
+│   │        └──────────────┴───────────────┴──────────────┘          │   │
+│   │                       │ MCP (K8s API, filesystem, GitHub)       │   │
 │   └─────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -382,39 +361,34 @@ Each crate follows the pattern: crate + helm chart + ansible role per responsibi
 
 ```
 forgemaster/
-├── Cargo.toml                    # Workspace root
+├── Cargo.toml                        # Workspace root
 ├── crates/
-│   ├── fm-controller-agenttask/  # AgentTask CRD + Controller
-│   │   ├── helm/                 # Helm chart for this service
+│   ├── fm-controller-agenttask/      # AgentTask CRD + Controller
+│   │   ├── helm/
 │   │   └── src/
 │   │
-│   ├── fm-controller-agent/      # Agent CRD + Controller
-│   │   └── helm/
+│   ├── fm-controller-agent/          # Agent CRD + Controller (MCP)
+│   │   ├── helm/
+│   │   └── src/
 │   │
-│   ├── fm-controller-mcpserver/  # MCPServer CRD + Controller (future)
-│   │   └── helm/
+│   ├── fm-agent-runtime-claude/      # Agent runtime — Anthropic Claude
+│   │   ├── Dockerfile
+│   │   └── src/
 │   │
-│   ├── fm-tcp-controller/        # TCP Controller service (future)
-│   │   └── helm/
+│   ├── fm-tcp-controller/            # TCP Controller service (future)
 │   │
-│   ├── fm-agent-registry/        # Agent Registry service (future)
-│   │   └── helm/
+│   ├── fm-a2a/                       # A2A protocol (future)
 │   │
-│   ├── fm-agent-runtime/         # Base agent execution runtime
-│   │   └── Dockerfile
-│   │
-│   ├── fm-a2a/                   # A2A protocol (future)
-│   │
-│   └── fm-mcp/                   # MCP protocol (future)
+│   └── fm-mcp/                       # MCP protocol (future)
 │
-├── ui/                           # React + CopilotKit A2UI portal
-│   ├── helm/                     # UI Helm chart
+├── ui/                               # React + CopilotKit A2UI portal
+│   ├── helm/
 │   └── src/
 │
-├── ansible/                      # Infrastructure automation
+├── ansible/
 │   ├── site.yml
 │   ├── environments/
-│   │   └── default/              # Local OrbStack environment
+│   │   └── default/                  # Local OrbStack environment
 │   │       ├── inventory
 │   │       ├── group_vars/all.yml
 │   │       └── local.env
@@ -423,9 +397,9 @@ forgemaster/
 │       ├── ui/
 │       ├── fm-controller-agenttask/
 │       ├── fm-controller-agent/
-│       └── fm-agent-runtime/
+│       └── fm-agent-runtime-claude/
 │
-└── docs/                         # Documentation
+└── docs/
 ```
 
 ---
@@ -456,7 +430,7 @@ forgemaster/
 
 | Risk | Mitigation |
 |------|------------|
-| K8s complexity | Start with Kind locally; use Helm for repeatability |
+| K8s complexity | OrbStack locally; use Helm for repeatability |
 | Claude API rate limits | Implement retry with backoff; cache responses |
 | A2A/A2UI spec changes | Pin versions; abstract behind interfaces |
 | Time constraints | Prioritize MVP; cut features if needed |
@@ -468,17 +442,20 @@ forgemaster/
 
 **Must Have:**
 - [x] Web portal with live task status (Phase 1)
+- [x] Agent Controller with pod lifecycle (Phase 2)
+- [x] Agent Runtime with Claude API (Phase 2)
+- [ ] MCP client integration (K8s API, filesystem)
+- [ ] A2A protocol for agent coordination
 - [ ] TCP Controller with PID logic
-- [ ] Agent Registry with basic registration
 - [ ] Orchestrator + Test Generator + Code Generator agents
 - [ ] Single working demo: E-commerce API generation
 
 **Nice to Have:**
 - [ ] Outcome validation
 - [ ] Full A2UI component catalog
-- [ ] Multiple MCP servers
 
 **Out of Scope (Post-Hackathon):**
+- [ ] Multiple runtime providers (Gemini, ChatGPT, custom)
 - [ ] Multi-cluster support
 - [ ] Fine-tuning / learning
 - [ ] Production hardening
@@ -493,9 +470,9 @@ forgemaster/
 3. ~~**Build UI Portal** — React + CopilotKit A2UI~~ ✅
 4. ~~**AgentTask Controller** — CRD, WebSocket, live status~~ ✅
 5. ~~**Agent Controller** — Watch Agent CRs, create pods, phase strategies~~ ✅
-6. ~~**Agent Runtime** — Claude API client with SSE streaming~~ ✅
+6. ~~**Agent Runtime (Claude)** — Claude API client with SSE streaming, long-lived runtime~~ ✅
 7. ~~**Ansible Environments** — DRY config, local.env for secrets~~ ✅
-8. **Orchestrator Agent** — End-to-end run: runtime pod calls Claude, updates status
-9. **Secret propagation** — Copy LLM provider secret to task namespaces
-10. **MCPServer Controller** — MCP server lifecycle
+8. ~~**Secret/RBAC propagation** — Copy LLM provider secret + RBAC to task namespaces~~ ✅
+9. **MCP client** — Integrate MCP into agent runtime (K8s API, filesystem, GitHub)
+10. **A2A protocol** — Agent-to-agent communication for orchestrator coordination
 11. **TCP Controller** — PID feedback loop (needs agent test results)
