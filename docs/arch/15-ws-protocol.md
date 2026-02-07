@@ -12,10 +12,11 @@ Two message directions:
 - **WsEvent** — Controller → UI (server pushes events)
 - **WsCommand** — UI → Controller (client sends commands)
 
-Three event types are implemented:
+Four event types are implemented:
 - `connected` — connection acknowledgment
 - `data` — raw data updates
 - `schema` — A2UI component definitions + data (primary mechanism for dynamic UI)
+- `task_deleted` — task was deleted from Kubernetes, UI should clear stale state
 
 ---
 
@@ -37,6 +38,10 @@ sequenceDiagram
     loop Reconciler phase transitions
         Controller->>UI: WsEvent::Schema { root, components, data }
     end
+
+    Note over Controller: Task deleted via kubectl
+    Controller->>UI: WsEvent::TaskDeleted { task_name }
+    Note over UI: Clears task card and stale data
 
     UI->>Controller: WebSocket close
 ```
@@ -133,6 +138,19 @@ Pushes A2UI component definitions and data from the controller. This is the prim
 
 **Data binding**: Components reference data via `{ "path": "/task/phase" }` for dynamic values or `{ "literalString": "Phase:" }` for static text.
 
+### TaskDeleted
+
+Sent when an AgentTask CR is deleted from Kubernetes. The UI should clear the task status card and any cached data.
+
+```json
+{
+  "type": "task_deleted",
+  "task_name": "task-3f012dea"
+}
+```
+
+When received, the UI clears `serverSchema` and `data` state, removing the task card from the dashboard.
+
 ---
 
 ## WsCommand (UI → Controller)
@@ -189,8 +207,10 @@ flowchart LR
     Handler -->|dispatch| Dispatcher
     Dispatcher -->|create| CRD
     CRD -->|watch| Reconciler
-    Reconciler -->|TaskStateChanged| Broadcaster
+    Reconciler -->|TaskEvent::StateChanged| Broadcaster
+    Reconciler -->|TaskEvent::Deleted| Broadcaster
     Broadcaster -->|WsEvent::Schema| WS
+    Broadcaster -->|WsEvent::TaskDeleted| WS
     Broadcaster -->|cache| Cache
     Handler -->|read cache| Cache
     WS -->|merge schema + data| A2UI
@@ -198,11 +218,17 @@ flowchart LR
 
 ### Broadcast Channel
 
-The reconciler emits `TaskStateChanged` events via a `tokio::sync::broadcast` channel. The `TaskStateBroadcaster` listens on this channel and:
+The reconciler emits `TaskEvent` variants via a `tokio::sync::broadcast` channel. The `TaskStateBroadcaster` listens on this channel and handles two cases:
 
+**`TaskEvent::StateChanged`** — phase transition or live update:
 1. Builds A2UI component definitions via `build_task_status_schema()`
 2. Caches the schema and data in `SchemaCache` (for late joiners)
 3. Broadcasts `WsEvent::Schema` to all connected clients via `ConnectionRegistry`
+
+**`TaskEvent::Deleted`** — task deleted from K8s:
+1. Removes cached schema and dashboard data from `SchemaCache`
+2. Broadcasts `WsEvent::TaskDeleted` to all connected clients
+3. Late joiners connecting after deletion see no task card (cache is empty)
 
 ### TaskStateChanged Event
 
@@ -266,6 +292,14 @@ Emitted by the controller on every phase transition:
           "description": "A2UI v0.8 ComponentInstance array"
         },
         "data": { "type": "object", "description": "Data for populating component bindings" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["type", "task_name"],
+      "properties": {
+        "type": { "const": "task_deleted" },
+        "task_name": { "type": "string", "description": "Name of the deleted task" }
       }
     }
   ]

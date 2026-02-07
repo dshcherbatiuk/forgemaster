@@ -28,6 +28,12 @@ pub enum WsEvent {
         /// Data to populate the schema.
         data: serde_json::Value,
     },
+
+    /// Task was deleted from Kubernetes. UI should clear stale state.
+    TaskDeleted {
+        /// Name of the deleted task.
+        task_name: String,
+    },
 }
 
 #[cfg(test)]
@@ -112,5 +118,25 @@ mod tests {
                 client_id: "xyz-789".to_string()
             }
         );
+    }
+
+    #[test]
+    fn task_deleted_serializes_with_correct_tag() {
+        let event = WsEvent::TaskDeleted {
+            task_name: "task-abc123".to_string(),
+        };
+        let serialized = serde_json::to_value(&event).unwrap();
+        assert_eq!(serialized["type"], "task_deleted");
+        assert_eq!(serialized["task_name"], "task-abc123");
+    }
+
+    #[test]
+    fn task_deleted_roundtrips_through_json() {
+        let original = WsEvent::TaskDeleted {
+            task_name: "task-del-456".to_string(),
+        };
+        let json_str = serde_json::to_string(&original).unwrap();
+        let deserialized: WsEvent = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(original, deserialized);
     }
 }

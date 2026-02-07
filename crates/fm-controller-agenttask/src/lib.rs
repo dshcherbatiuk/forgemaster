@@ -4,5 +4,6 @@
 
 pub mod controller;
 pub mod crd;
+pub mod task_event;
 pub mod task_state_changed;
 pub mod ws;

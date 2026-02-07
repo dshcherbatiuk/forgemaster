@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 
 use fm_controller_agenttask::crd::AgentTask;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::ObjectMeta;
 use kube::ResourceExt;
 
@@ -21,9 +20,8 @@ You are an Orchestrator and Architect agent for ForgeMaster. Your role is to:
 /// Builds an Orchestrator Agent CR for the given AgentTask.
 pub fn build(task: &AgentTask) -> Agent {
     let task_name = task.name_any();
-    let task_namespace = task.namespace().unwrap_or_default();
-    let task_uid = task.metadata.uid.clone().unwrap_or_default();
-
+    // Agent goes into the task-specific namespace (same name as the task)
+    let task_namespace = task_name.clone();
     let agent_name = format!("orchestrator-{}", &task_name);
 
     let mut labels = BTreeMap::new();
@@ -37,21 +35,16 @@ pub fn build(task: &AgentTask) -> Agent {
         "fm-controller-agent".to_string(),
     );
 
-    let owner_reference = OwnerReference {
-        api_version: "forgemaster.io/v1alpha1".to_string(),
-        kind: "AgentTask".to_string(),
-        name: task_name.clone(),
-        uid: task_uid,
-        controller: Some(true),
-        block_owner_deletion: Some(true),
-    };
+    // No ownerReference — AgentTask lives in forgemaster-system,
+    // Agent lives in the task namespace. Cross-namespace ownerRefs
+    // are not supported by K8s. Cleanup is handled by namespace
+    // deletion (AgentTask finalizer deletes the entire task namespace).
 
     Agent {
         metadata: ObjectMeta {
             name: Some(agent_name),
             namespace: Some(task_namespace),
             labels: Some(labels),
-            owner_references: Some(vec![owner_reference]),
             ..Default::default()
         },
         spec: AgentCrd {
@@ -79,8 +72,7 @@ mod tests {
         AgentTask {
             metadata: ObjectMeta {
                 name: Some("task-abc123".to_string()),
-                namespace: Some("task-abc123".to_string()),
-                uid: Some("uid-xyz".to_string()),
+                namespace: Some("forgemaster-system".to_string()),
                 ..Default::default()
             },
             spec: AgentTaskCrd {
@@ -132,13 +124,11 @@ mod tests {
     }
 
     #[test]
-    fn agent_has_owner_reference() {
+    fn agent_has_no_owner_reference() {
         let agent = build(&test_task());
-        let owners = agent.metadata.owner_references.as_ref().unwrap();
-        assert_eq!(owners.len(), 1);
-        assert_eq!(owners[0].kind, "AgentTask");
-        assert_eq!(owners[0].name, "task-abc123");
-        assert_eq!(owners[0].uid, "uid-xyz");
+        // Cross-namespace ownerRefs not supported by K8s.
+        // Cleanup via namespace deletion instead.
+        assert!(agent.metadata.owner_references.is_none());
     }
 
     #[test]

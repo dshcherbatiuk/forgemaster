@@ -1,7 +1,7 @@
 //! AgentTask Controller binary.
 
 use anyhow::Result;
-use fm_controller_agenttask::task_state_changed::TaskStateChanged;
+use fm_controller_agenttask::task_event::TaskEvent;
 use fm_controller_agenttask::ws::{TaskStateBroadcaster, WsServer};
 use kube::Client;
 use tokio::sync::broadcast;
@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     info!("📡 Connected to Kubernetes cluster");
 
     let (state_sender, state_receiver) =
-        broadcast::channel::<TaskStateChanged>(STATE_CHANNEL_CAPACITY);
+        broadcast::channel::<TaskEvent>(STATE_CHANNEL_CAPACITY);
 
     let ws_server = WsServer::new(ws_port, client.clone(), namespace.clone());
 

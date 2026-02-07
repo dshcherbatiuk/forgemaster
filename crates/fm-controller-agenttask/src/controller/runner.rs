@@ -11,7 +11,7 @@ use tokio::sync::broadcast;
 use tracing::info;
 
 use crate::crd::AgentTask;
-use crate::task_state_changed::TaskStateChanged;
+use crate::task_event::TaskEvent;
 
 use super::context::create_context;
 use super::dispatcher::Dispatcher;
@@ -20,7 +20,7 @@ use super::dispatcher::Dispatcher;
 pub async fn run(
     client: Client,
     namespace: &str,
-    state_sender: broadcast::Sender<TaskStateChanged>,
+    state_sender: broadcast::Sender<TaskEvent>,
 ) -> anyhow::Result<()> {
     info!(
         "🚀 Starting AgentTask controller in namespace: {}",

@@ -10,6 +10,7 @@ use tracing::{debug, warn};
 use kube::ResourceExt;
 
 use crate::crd::{AgentTask, AgentTaskPhase};
+use crate::task_event::TaskEvent;
 use crate::task_state_changed::TaskStateChanged;
 
 use super::error::{ReconcileError, ReconcileResult};
@@ -19,7 +20,7 @@ use super::error::{ReconcileError, ReconcileResult};
 pub struct ControllerContext {
     client: Client,
     namespace: String,
-    state_sender: broadcast::Sender<TaskStateChanged>,
+    state_sender: broadcast::Sender<TaskEvent>,
 }
 
 impl ControllerContext {
@@ -27,7 +28,7 @@ impl ControllerContext {
     pub fn new(
         client: Client,
         namespace: String,
-        state_sender: broadcast::Sender<TaskStateChanged>,
+        state_sender: broadcast::Sender<TaskEvent>,
     ) -> Self {
         Self {
             client,
@@ -88,13 +89,23 @@ impl ControllerContext {
         self.broadcast_state(task, phase);
     }
 
+    /// Broadcasts a task deletion event to all WS clients.
+    pub fn broadcast_deletion(&self, task_name: &str) {
+        let event = TaskEvent::Deleted {
+            task_name: task_name.to_string(),
+        };
+        if self.state_sender.send(event).is_err() {
+            warn!("⚠️ No receivers for task deletion: {}", task_name);
+        }
+    }
+
     fn broadcast_state(&self, task: &AgentTask, phase: AgentTaskPhase) {
         let name = task.name_any();
         let namespace = task.namespace().unwrap_or_else(|| self.namespace.clone());
         let status = task.status.as_ref().cloned().unwrap_or_default();
         let created_at = task.metadata.creation_timestamp.as_ref().map(|t| t.0);
 
-        let event = TaskStateChanged {
+        let state = TaskStateChanged {
             task_name: name.clone(),
             namespace,
             description: task.spec.description.clone(),
@@ -106,7 +117,7 @@ impl ControllerContext {
             tests_passed: status.tests_passed,
         };
 
-        if self.state_sender.send(event).is_err() {
+        if self.state_sender.send(TaskEvent::StateChanged(state)).is_err() {
             warn!("⚠️ No receivers for task state change: {}", name);
         }
     }
@@ -116,7 +127,7 @@ impl ControllerContext {
 pub fn create_context(
     client: Client,
     namespace: String,
-    state_sender: broadcast::Sender<TaskStateChanged>,
+    state_sender: broadcast::Sender<TaskEvent>,
 ) -> Arc<ControllerContext> {
     Arc::new(ControllerContext::new(client, namespace, state_sender))
 }
@@ -161,9 +172,9 @@ mod tests {
 
     #[test]
     fn send_event_no_receivers_does_not_panic() {
-        let (sender, receiver) = broadcast::channel::<TaskStateChanged>(16);
+        let (sender, receiver) = broadcast::channel::<TaskEvent>(16);
         drop(receiver);
-        let event = TaskStateChanged {
+        let event = TaskEvent::StateChanged(TaskStateChanged {
             task_name: "task-123".to_string(),
             namespace: "test-ns".to_string(),
             description: "Test task".to_string(),
@@ -173,7 +184,7 @@ mod tests {
             error: 1.0,
             tests_total: 0,
             tests_passed: 0,
-        };
+        });
         // Should not panic even with no receivers
         let result = sender.send(event);
         assert!(result.is_err());
@@ -181,8 +192,8 @@ mod tests {
 
     #[test]
     fn send_event_received_by_subscriber() {
-        let (sender, mut receiver) = broadcast::channel::<TaskStateChanged>(16);
-        let event = TaskStateChanged {
+        let (sender, mut receiver) = broadcast::channel::<TaskEvent>(16);
+        let event = TaskEvent::StateChanged(TaskStateChanged {
             task_name: "task-abc".to_string(),
             namespace: "forgemaster-system".to_string(),
             description: "Build a REST API".to_string(),
@@ -192,11 +203,30 @@ mod tests {
             error: 0.5,
             tests_total: 10,
             tests_passed: 5,
+        });
+        sender.send(event).unwrap();
+        let received = receiver.try_recv().unwrap();
+        if let TaskEvent::StateChanged(state) = received {
+            assert_eq!(state.task_name, "task-abc");
+            assert_eq!(state.phase, AgentTaskPhase::Running);
+            assert_eq!(state.iteration, 1);
+        } else {
+            panic!("expected StateChanged variant");
+        }
+    }
+
+    #[test]
+    fn send_deletion_received_by_subscriber() {
+        let (sender, mut receiver) = broadcast::channel::<TaskEvent>(16);
+        let event = TaskEvent::Deleted {
+            task_name: "task-del".to_string(),
         };
         sender.send(event).unwrap();
         let received = receiver.try_recv().unwrap();
-        assert_eq!(received.task_name, "task-abc");
-        assert_eq!(received.phase, AgentTaskPhase::Running);
-        assert_eq!(received.iteration, 1);
+        if let TaskEvent::Deleted { task_name } = received {
+            assert_eq!(task_name, "task-del");
+        } else {
+            panic!("expected Deleted variant");
+        }
     }
 }

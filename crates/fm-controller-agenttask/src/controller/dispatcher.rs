@@ -75,6 +75,7 @@ impl Dispatcher {
                 );
                 NamespaceLifecycle::cleanup(self.ctx.client(), &task).await?;
             }
+            self.ctx.broadcast_deletion(&name);
             return Ok(Action::await_change());
         }
 

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{info, warn};
 
+use crate::task_event::TaskEvent;
 use crate::task_state_changed::TaskStateChanged;
 
 use super::connection_registry::ConnectionRegistry;
@@ -14,7 +15,7 @@ use super::task_status_schema::build_task_status_schema;
 
 /// Listens for task state changes and pushes them to connected WS clients.
 pub struct TaskStateBroadcaster {
-    receiver: broadcast::Receiver<TaskStateChanged>,
+    receiver: broadcast::Receiver<TaskEvent>,
     schema_cache: Arc<SchemaCache>,
     registry: Arc<ConnectionRegistry>,
 }
@@ -22,7 +23,7 @@ pub struct TaskStateBroadcaster {
 impl TaskStateBroadcaster {
     /// Creates a new broadcaster.
     pub fn new(
-        receiver: broadcast::Receiver<TaskStateChanged>,
+        receiver: broadcast::Receiver<TaskEvent>,
         schema_cache: Arc<SchemaCache>,
         registry: Arc<ConnectionRegistry>,
     ) -> Self {
@@ -38,7 +39,8 @@ impl TaskStateBroadcaster {
         info!("📡 TaskStateBroadcaster started");
         loop {
             match self.receiver.recv().await {
-                Ok(event) => self.handle_event(&event),
+                Ok(TaskEvent::StateChanged(event)) => self.handle_event(&event),
+                Ok(TaskEvent::Deleted { task_name }) => self.handle_deletion(&task_name),
                 Err(broadcast::error::RecvError::Lagged(count)) => {
                     warn!("⚠️ Task state broadcaster lagged by {} events", count);
                 }
@@ -86,6 +88,20 @@ impl TaskStateBroadcaster {
             );
         }
     }
+
+    fn handle_deletion(&self, task_name: &str) {
+        self.schema_cache.remove("schema");
+        self.schema_cache.remove("dashboard");
+
+        let ws_event = WsEvent::TaskDeleted {
+            task_name: task_name.to_string(),
+        };
+
+        if let Ok(json) = serde_json::to_string(&ws_event) {
+            self.registry.broadcast(&json);
+            info!("📤 Broadcast task deleted: {}", task_name);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -110,7 +126,7 @@ mod tests {
     }
 
     fn create_broadcaster_with_client() -> (TaskStateBroadcaster, mpsc::UnboundedReceiver<String>) {
-        let (sender, _) = broadcast::channel::<TaskStateChanged>(16);
+        let (sender, _) = broadcast::channel::<TaskEvent>(16);
         let schema_cache = Arc::new(SchemaCache::new());
         let registry = Arc::new(ConnectionRegistry::new());
 
@@ -174,5 +190,37 @@ mod tests {
         assert_eq!(parsed["data"]["task"]["name"], "task-abc12345");
         assert_eq!(parsed["data"]["task"]["iteration"], 1);
         assert_eq!(parsed["data"]["task"]["error"], 0.6);
+    }
+
+    #[test]
+    fn handle_deletion_clears_schema_cache() {
+        let (broadcaster, _rx) = create_broadcaster_with_client();
+        broadcaster.handle_event(&sample_event());
+        assert!(broadcaster.schema_cache.get("schema").is_some());
+
+        broadcaster.handle_deletion("task-abc12345");
+        assert!(broadcaster.schema_cache.get("schema").is_none());
+    }
+
+    #[test]
+    fn handle_deletion_clears_dashboard_cache() {
+        let (broadcaster, _rx) = create_broadcaster_with_client();
+        broadcaster
+            .schema_cache
+            .set("dashboard", json!({"task": {"name": "task-abc12345"}}));
+
+        broadcaster.handle_deletion("task-abc12345");
+        assert!(broadcaster.schema_cache.get("dashboard").is_none());
+    }
+
+    #[test]
+    fn handle_deletion_broadcasts_task_deleted_event() {
+        let (broadcaster, mut rx) = create_broadcaster_with_client();
+        broadcaster.handle_deletion("task-abc12345");
+
+        let msg = rx.try_recv().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(parsed["type"], "task_deleted");
+        assert_eq!(parsed["task_name"], "task-abc12345");
     }
 }

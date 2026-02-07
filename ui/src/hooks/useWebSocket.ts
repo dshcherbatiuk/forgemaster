@@ -47,6 +47,10 @@ export function useWebSocket(url: string): UseWebSocketResult {
             components: message.components,
             data: message.data,
           });
+        } else if (message.type === "task_deleted") {
+          console.log("[WS] Task deleted:", message.task_name);
+          setServerSchema(undefined);
+          setData(undefined);
         }
       } catch {
         console.warn("[WS] Failed to parse message");

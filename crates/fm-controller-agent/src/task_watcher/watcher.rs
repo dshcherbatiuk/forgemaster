@@ -27,8 +27,11 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
     futures::pin_mut!(stream);
 
     while let Some(event) = stream.try_next().await? {
-        if let watcher::Event::Apply(task) = event {
-            handle_task(&client, &task).await;
+        match event {
+            watcher::Event::Apply(task) | watcher::Event::InitApply(task) => {
+                handle_task(&client, &task).await;
+            }
+            _ => {}
         }
     }
 
@@ -47,7 +50,8 @@ async fn handle_task(client: &Client, task: &AgentTask) {
     }
 
     let task_name = task.name_any();
-    let task_namespace = task.namespace().unwrap_or_default();
+    // Agent goes into the task-specific namespace (same name as the task)
+    let task_namespace = task_name.clone();
 
     if orchestrator_exists(client, &task_name, &task_namespace).await {
         debug!(
