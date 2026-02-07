@@ -21,7 +21,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 │   Foundation     Core Engine    Agents         Integration      │
 │   & UI Portal   & Protocols                   & Demo           │
 │                                                                  │
-│   [██████████]   [░░░░░░░░░░]   [░░░░░░░░░░]   [░░░░░░░░░░]     │
+│   [██████████]   [████░░░░░░]   [░░░░░░░░░░]   [░░░░░░░░░░]     │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -82,8 +82,11 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Define values.yaml with configurable options
 - [x] Create templates (deployment, service, gateway, httproute)
 - [x] Create Dockerfile for UI
-- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask, fm-controller-agent)
+- [x] Create Ansible roles (gateway, ui, fm-controller-agenttask, fm-controller-agent, fm-agent-runtime)
 - [x] Create site.yml playbook
+- [x] Introduce Ansible environments (environments/default/ with inventory, group_vars, local.env)
+- [x] DRY: shared variables (image_tag, image_registry, build_enabled, image_pull_policy)
+- [x] Makefile ENV support (`make cluster ENV=staging`)
 - [x] Deploy UI to cluster via Gateway API
 - [x] Create Helm chart for AgentTask CRD (crates/fm-controller-agenttask/helm/)
 
@@ -142,12 +145,14 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ### 2.2 Agent Runtime (fm-agent-runtime)
 
-- [ ] Create base agent runtime crate
-- [ ] Implement Claude API integration (streaming)
-- [ ] Implement system prompt loading
-- [ ] Add conversation management
+- [x] Create base agent runtime crate
+- [x] Implement Claude API integration (SSE streaming)
+- [x] Implement config loading from env vars (TASK_PROMPT, MODEL_NAME, etc.)
+- [x] Add conversation management
+- [x] Create Dockerfile (multi-stage build)
+- [x] Create Ansible role (build-only, no Helm deploy — pods managed by Agent Controller)
 - [ ] Add MCP client integration
-- [ ] Create agent container image
+- [ ] Implement status updater (patch Agent CR status from runtime pod)
 
 ### 2.3 Agent Controller (fm-controller-agent)
 
@@ -158,8 +163,16 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Watch AgentTask CRs — create Orchestrator Agent CR when task enters Running
 - [x] Implement dual watch via `tokio::select!` (Agent reconciler + AgentTask watcher)
 - [x] Containerize (Dockerfile)
-- [ ] Implement reconciliation loop (create/manage agent pods — needs Agent Runtime image)
-- [ ] Deploy to K8s
+- [x] Implement pod_builder (builds runtime pods from Agent CRs with env vars, owner refs, resource limits)
+- [x] Implement PendingStrategy (check/create pod, update status with podRef, transition to Running)
+- [x] Implement RunningStrategy (watch pod phase, extract failure messages, transition to Succeeded/Failed)
+- [x] Add runtime-agent config to Helm chart (image, LLM provider secret)
+- [x] ControllerContext reads config from env vars (fail-fast)
+- [x] Watch Agent CRs across all namespaces (Api::all)
+- [x] Rename systemPrompt to taskPrompt in CRD and Helm chart
+- [x] 3-phase orchestrator prompt (Requirements Analysis → Architecture → Orchestration)
+- [x] Deploy to K8s
+- [ ] Copy LLM provider secret to task namespace on pod creation
 
 ### 2.4 MCPServer Controller (fm-controller-mcpserver)
 
@@ -172,6 +185,9 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 ### 2.5 Core Agents
 
 #### Orchestrator Agent (per-task Agent CR, created by Agent Controller)
+
+> **See:** [Requirements Preparation](arch/04c-requirements-preparation.md) for what the orchestrator must produce before provisioning agents.
+
 - [ ] Implement task decomposition (analyze description, decide agents/MCPs)
 - [ ] Create executor Agent CRs and MCPServer CRs via K8s API
 - [ ] Implement agent coordination via A2A
@@ -368,8 +384,6 @@ Each crate follows the pattern: crate + helm chart + ansible role per responsibi
 forgemaster/
 ├── Cargo.toml                    # Workspace root
 ├── crates/
-│   ├── fm-core/                  # Shared types, traits, config
-│   │
 │   ├── fm-controller-agenttask/  # AgentTask CRD + Controller
 │   │   ├── helm/                 # Helm chart for this service
 │   │   └── src/
@@ -386,7 +400,8 @@ forgemaster/
 │   ├── fm-agent-registry/        # Agent Registry service (future)
 │   │   └── helm/
 │   │
-│   ├── fm-agent-runtime/         # Base agent execution runtime (future)
+│   ├── fm-agent-runtime/         # Base agent execution runtime
+│   │   └── Dockerfile
 │   │
 │   ├── fm-a2a/                   # A2A protocol (future)
 │   │
@@ -398,10 +413,17 @@ forgemaster/
 │
 ├── ansible/                      # Infrastructure automation
 │   ├── site.yml
+│   ├── environments/
+│   │   └── default/              # Local OrbStack environment
+│   │       ├── inventory
+│   │       ├── group_vars/all.yml
+│   │       └── local.env
 │   └── roles/
 │       ├── gateway/
 │       ├── ui/
-│       └── fm-controller-agenttask/
+│       ├── fm-controller-agenttask/
+│       ├── fm-controller-agent/
+│       └── fm-agent-runtime/
 │
 └── docs/                         # Documentation
 ```
@@ -445,7 +467,7 @@ forgemaster/
 ## MVP Scope (Hackathon)
 
 **Must Have:**
-- [ ] Web portal with live task status (Phase 1)
+- [x] Web portal with live task status (Phase 1)
 - [ ] TCP Controller with PID logic
 - [ ] Agent Registry with basic registration
 - [ ] Orchestrator + Test Generator + Code Generator agents
@@ -470,7 +492,10 @@ forgemaster/
 2. ~~**Create OrbStack cluster** — Ansible playbook for local K8s~~ ✅
 3. ~~**Build UI Portal** — React + CopilotKit A2UI~~ ✅
 4. ~~**AgentTask Controller** — CRD, WebSocket, live status~~ ✅
-5. **Agent Runtime** — Base crate with Claude API integration
-6. **Agent Controller** — Watch Agent CRs, manage pods
-7. **Orchestrator Agent** — First real agent, task decomposition
-8. **TCP Controller** — PID feedback loop (needs agent test results)
+5. ~~**Agent Controller** — Watch Agent CRs, create pods, phase strategies~~ ✅
+6. ~~**Agent Runtime** — Claude API client with SSE streaming~~ ✅
+7. ~~**Ansible Environments** — DRY config, local.env for secrets~~ ✅
+8. **Orchestrator Agent** — End-to-end run: runtime pod calls Claude, updates status
+9. **Secret propagation** — Copy LLM provider secret to task namespaces
+10. **MCPServer Controller** — MCP server lifecycle
+11. **TCP Controller** — PID feedback loop (needs agent test results)

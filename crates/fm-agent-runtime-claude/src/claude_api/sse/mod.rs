@@ -8,12 +8,10 @@ mod content_block_start_parser;
 mod content_block_stop_parser;
 pub mod dispatcher;
 mod error_parser;
-mod extractor;
 mod message_delta_parser;
 mod message_start_parser;
 
 pub use dispatcher::SseDispatcher;
-pub use extractor::extract_events;
 
 use anyhow::Result;
 

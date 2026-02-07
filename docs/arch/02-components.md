@@ -88,8 +88,7 @@ flowchart TB
     AC --> AT
     AC --> AGT
     MC --> MCP
-    OA --> AGT
-    OA --> MCP
+    OA -->|"MCP tool calls"| AC
 
     TCP --> REDIS
     REG --> REDIS
@@ -126,6 +125,7 @@ flowchart TB
 |----------------|-------------|
 | Task Watch | Watch AgentTask CRs, react to Running phase |
 | Orchestrator Provisioning | Create Orchestrator Agent CR when task starts |
+| MCP Server | Expose MCP tools for agents to create/update CRs |
 | Agent Lifecycle | Start, stop, restart Agent pods |
 | Health Monitoring | Watch agent health via Registry |
 | Scaling | Scale agent replicas based on load |
@@ -133,7 +133,7 @@ flowchart TB
 | Resource Limits | Enforce CPU/memory limits per agent |
 | Restart Policy | Handle agent crashes with exponential backoff |
 
-**Does NOT do:** Decide which executor agents to create (Orchestrator decides), Route tasks to agents
+**Does NOT do:** Decide which executor agents to create (Orchestrator decides via MCP), Route tasks to agents
 
 ---
 
@@ -283,8 +283,8 @@ flowchart TB
 | CRD | Created by | Managed by | Purpose |
 |-----|-----------|------------|---------|
 | AgentTask | AgentTask Controller | AgentTask Controller | Task definition and status |
-| Agent | Agent Controller (Orchestrator) / Orchestrator Agent | Agent Controller | Agent instance configuration |
-| MCPServer | Orchestrator Agent | MCPServer Controller | MCP server configuration |
+| Agent | Orchestrator Agent (via MCP) / Agent Controller | Agent Controller | Agent instance configuration |
+| MCPServer | Orchestrator Agent (via MCP) | MCPServer Controller | MCP server configuration |
 
 ---
 
@@ -313,7 +313,7 @@ sequenceDiagram
     actor U as User
     participant UI as UI (A2UIRenderer)
     participant ATC as AgentTask Controller
-    participant AC as Agent Controller
+    participant AC as Agent Controller (MCP)
     participant OA as Orchestrator Agent
     participant TGA as Test Generator Agent
     participant CGA as Code Generator Agent
@@ -336,8 +336,8 @@ sequenceDiagram
     AC->>OA: Spawn Orchestrator pod
 
     OA->>OA: Analyze task (LLM reasoning)
-    OA->>AC: Create Agent CRs (test-gen, code-gen, test-runner, feedback)
-    AC-->>AC: Watch detects new Agent CRs
+    OA->>AC: MCP tool call: create agents (test-gen, code-gen, test-runner, feedback)
+    AC->>AC: Create Agent CRs, watch detects new CRs
     AC->>TGA: Spawn Test Generator pod
     AC->>CGA: Spawn Code Generator pod
     AC->>TRA: Spawn Test Runner pod

@@ -3,9 +3,9 @@
   ansible.builtin.shell: |
     docker build \
       --progress=plain \
-      -f {{ fm_agent_runtime_dockerfile }} \
-      -t {{ fm_agent_runtime_image_name }}:{{ image_tag }} \
-      {{ fm_agent_runtime_build_context }} 2>&1
+      -f {{ fm_agent_runtime_claude_dockerfile }} \
+      -t {{ fm_agent_runtime_claude_image_name }}:{{ image_tag }} \
+      {{ fm_agent_runtime_claude_build_context }} 2>&1
   args:
     executable: /bin/bash
   register: build_output
@@ -21,12 +21,12 @@
     - name: Tag image for registry
       ansible.builtin.command: >
         docker tag
-        {{ fm_agent_runtime_image_name }}:{{ image_tag }}
-        {{ image_registry }}/{{ fm_agent_runtime_image_name }}:{{ image_tag }}
+        {{ fm_agent_runtime_claude_image_name }}:{{ image_tag }}
+        {{ image_registry }}/{{ fm_agent_runtime_claude_image_name }}:{{ image_tag }}
       changed_when: true
 
     - name: Push image to registry
       ansible.builtin.command: >
         docker push
-        {{ image_registry }}/{{ fm_agent_runtime_image_name }}:{{ image_tag }}
+        {{ image_registry }}/{{ fm_agent_runtime_claude_image_name }}:{{ image_tag }}
       changed_when: true

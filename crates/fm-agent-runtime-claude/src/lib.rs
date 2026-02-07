@@ -9,6 +9,6 @@ pub mod claude_api;
 pub mod config;
 pub mod conversation;
 pub mod error;
-pub mod execution;
+pub mod runtime;
 pub mod output_writer;
 pub mod status_updater;

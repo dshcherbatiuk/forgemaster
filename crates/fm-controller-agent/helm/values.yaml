@@ -18,8 +18,9 @@ controller:
 
 runtime-agent:
   image:
-    repository: fm-agent-runtime
+    repository: fm-agent-runtime-claude
     tag: latest
+  model: claude-sonnet-4-20250514
   llm-provider:
     secretName: anthropic-credentials
     secretKey: api-key

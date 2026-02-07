@@ -2,7 +2,8 @@
 //!
 //! Watches the runtime pod and transitions the agent based on pod phase:
 //! - Pod Succeeded → Agent Succeeded
-//! - Pod Failed / not found → Agent Failed
+//! - Pod Failed → Agent Failed
+//! - Pod not found → Agent Pending (triggers pod recreation)
 //! - Pod Running/Pending → requeue
 
 use std::sync::Arc;
@@ -52,16 +53,9 @@ impl ReconcileStrategy for RunningStrategy {
             .map_err(ReconcileError::GetAgent)?;
 
         let Some(pod) = pod else {
-            info!("❌ Pod not found for agent {}, marking as Failed", name);
-            update_phase_with_condition(
-                &self.ctx,
-                agent,
-                AgentPhase::Failed,
-                "PodNotFound",
-                "Runtime pod was deleted or not found",
-            )
-            .await?;
-            return Ok(Action::await_change());
+            info!("🔄 Pod not found for agent {}, transitioning to Pending for recreation", name);
+            self.ctx.update_phase(agent, AgentPhase::Pending).await?;
+            return Ok(Action::requeue(REQUEUE_DURATION));
         };
 
         let pod_phase = pod

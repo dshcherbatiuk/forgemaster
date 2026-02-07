@@ -3,13 +3,14 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use tracing::{debug, warn};
 
 use super::error::ClaudeApiError;
 use super::request::MessagesRequest;
 use super::retry_policy::RetryPolicy;
-use super::sse::{SseDispatcher, SseEvent, extract_events};
+use super::sse::{SseDispatcher, SseEvent};
 
 const API_VERSION: &str = "2023-06-01";
 const MESSAGES_PATH: &str = "/v1/messages";
@@ -98,32 +99,25 @@ impl ClaudeClient {
     }
 
     /// Collects SSE events from a streaming response.
+    ///
+    /// Uses `eventsource-stream` to handle SSE protocol parsing and
+    /// chunk boundary buffering correctly.
     async fn collect_sse_events(&self, response: reqwest::Response) -> Result<Vec<SseEvent>> {
         let dispatcher = SseDispatcher::new();
         let mut events = Vec::new();
-        let mut stream = response.bytes_stream();
-        let mut buffer = String::new();
+        let mut stream = response.bytes_stream().eventsource();
 
-        while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result.map_err(ClaudeApiError::HttpRequest)?;
-            let text = String::from_utf8_lossy(&chunk);
-            buffer.push_str(&text);
+        while let Some(event_result) = stream.next().await {
+            let event = event_result
+                .map_err(|err| ClaudeApiError::SseParse(format!("{err}")))?;
 
-            let extracted = extract_events(&buffer);
-            for (event_type, data) in &extracted {
-                match dispatcher.parse(event_type, data) {
-                    Ok(event) => events.push(event),
-                    Err(err) => {
-                        return Err(
-                            ClaudeApiError::SseParse(format!("{event_type}: {err}")).into()
-                        );
-                    }
+            match dispatcher.parse(&event.event, &event.data) {
+                Ok(sse_event) => events.push(sse_event),
+                Err(err) => {
+                    return Err(
+                        ClaudeApiError::SseParse(format!("{}: {err}", event.event)).into()
+                    );
                 }
-            }
-
-            // Keep only unprocessed data (after the last complete event)
-            if let Some(last_double_newline) = buffer.rfind("\n\n") {
-                buffer = buffer[last_double_newline + 2..].to_string();
             }
         }
 

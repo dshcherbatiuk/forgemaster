@@ -29,7 +29,7 @@ Phase 3 — Orchestration:
 - Report progress and handle failures";
 
 /// Builds an Orchestrator Agent CR for the given AgentTask.
-pub fn build(task: &AgentTask) -> Agent {
+pub fn build(task: &AgentTask, model_name: &str) -> Agent {
     let task_name = task.name_any();
     // Agent goes into the task-specific namespace (same name as the task)
     let task_namespace = task_name.clone();
@@ -61,7 +61,7 @@ pub fn build(task: &AgentTask) -> Agent {
         spec: AgentCrd {
             agent_type: "orchestrator".to_string(),
             model: ModelConfig::builder()
-                .name("claude-sonnet-4-20250514".to_string())
+                .name(model_name.to_string())
                 .build(),
             task_prompt: format!(
                 "{}\n\n---\n\nTask ID: {}\n\nTask Description:\n{}",
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn agent_name_contains_task_name() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         assert_eq!(
             agent.metadata.name,
             Some("orchestrator-task-abc123".to_string())
@@ -111,33 +111,33 @@ mod tests {
 
     #[test]
     fn agent_namespace_matches_task() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         assert_eq!(agent.metadata.namespace, Some("task-abc123".to_string()));
     }
 
     #[test]
     fn agent_type_is_orchestrator() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         assert_eq!(agent.spec.agent_type, "orchestrator");
     }
 
     #[test]
     fn agent_has_task_label() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         let labels = agent.metadata.labels.as_ref().unwrap();
         assert_eq!(labels.get("forgemaster.io/task").unwrap(), "task-abc123");
     }
 
     #[test]
     fn agent_has_type_label() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         let labels = agent.metadata.labels.as_ref().unwrap();
         assert_eq!(labels.get("forgemaster.io/type").unwrap(), "orchestrator");
     }
 
     #[test]
     fn agent_has_no_owner_reference() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         // Cross-namespace ownerRefs not supported by K8s.
         // Cleanup via namespace deletion instead.
         assert!(agent.metadata.owner_references.is_none());
@@ -145,20 +145,20 @@ mod tests {
 
     #[test]
     fn task_prompt_contains_architect_role() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         assert!(agent.spec.task_prompt.contains("Architect"));
     }
 
     #[test]
     fn task_prompt_contains_task_description() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         assert!(agent.spec.task_prompt.contains("Build an e-commerce API"));
         assert!(agent.spec.task_prompt.contains("task-abc123"));
     }
 
     #[test]
     fn model_defaults_to_sonnet() {
-        let agent = build(&test_task());
+        let agent = build(&test_task(), "claude-sonnet-4-20250514");
         assert_eq!(agent.spec.model.name, "claude-sonnet-4-20250514");
     }
 }

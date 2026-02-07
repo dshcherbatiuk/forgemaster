@@ -6,9 +6,9 @@ use anyhow::Result;
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
-use fm_agent_runtime::config::RuntimeConfig;
-use fm_agent_runtime::execution::AgentExecution;
-use fm_agent_runtime::status_updater::StatusUpdater;
+use fm_agent_runtime_claude::config::RuntimeConfig;
+use fm_agent_runtime_claude::runtime::AgentRuntime;
+use fm_agent_runtime_claude::status_updater::StatusUpdater;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,12 +27,12 @@ async fn main() -> Result<()> {
 
     let k8s_client = kube::Client::try_default().await?;
 
-    let execution = AgentExecution::new(config.clone(), k8s_client.clone());
+    let runtime = AgentRuntime::new(config.clone(), k8s_client.clone());
 
     tokio::select! {
-        result = execution.run() => {
+        result = runtime.run() => {
             if let Err(err) = &result {
-                error!("❌ Agent execution failed: {err:#}");
+                error!("❌ Agent runtime failed: {err:#}");
                 attempt_failure_status(&config, &k8s_client, err).await;
                 return result;
             }

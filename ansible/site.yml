@@ -14,9 +14,31 @@
       failed_when: ns_create.rc != 0 and 'already exists' not in ns_create.stderr
       changed_when: ns_create.rc == 0
 
+    - name: Create LLM provider secret
+      ansible.builtin.command: >
+        kubectl create secret generic {{ llm_provider_secret_name }}
+        --from-literal={{ llm_provider_secret_key }}={{ llm_provider_api_key }}
+        --namespace {{ forgemaster_namespace }}
+      register: secret_create
+      failed_when: secret_create.rc != 0 and 'already exists' not in secret_create.stderr
+      changed_when: secret_create.rc == 0
+
   roles:
     - gateway
     - fm-controller-agenttask
     - fm-controller-agent
-    - fm-agent-runtime
+    - fm-agent-runtime-claude
     - ui
+
+  post_tasks:
+    - name: Get Gateway address
+      ansible.builtin.command: >
+        kubectl get gateway forgemaster-gateway
+        -n {{ forgemaster_namespace }}
+        -o jsonpath='{.status.addresses[0].value}'
+      register: gateway_address
+      changed_when: false
+
+    - name: Display access info
+      ansible.builtin.debug:
+        msg: "ForgeMaster UI: http://{{ gateway_address.stdout }}"

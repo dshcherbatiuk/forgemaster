@@ -17,6 +17,7 @@ pub struct ControllerContext {
     client: Client,
     namespace: String,
     runtime_agent_image: String,
+    default_model: String,
     llm_provider_secret_name: String,
     llm_provider_secret_key: String,
 }
@@ -27,6 +28,7 @@ impl ControllerContext {
         client: Client,
         namespace: String,
         runtime_agent_image: String,
+        default_model: String,
         llm_provider_secret_name: String,
         llm_provider_secret_key: String,
     ) -> Self {
@@ -34,6 +36,7 @@ impl ControllerContext {
             client,
             namespace,
             runtime_agent_image,
+            default_model,
             llm_provider_secret_name,
             llm_provider_secret_key,
         }
@@ -49,7 +52,7 @@ impl ControllerContext {
         &self.namespace
     }
 
-    /// Returns the runtime container image (e.g. "fm-agent-runtime:latest").
+    /// Returns the runtime container image (e.g. "fm-agent-runtime-claude:latest").
     pub fn runtime_agent_image(&self) -> &str {
         &self.runtime_agent_image
     }
@@ -57,6 +60,11 @@ impl ControllerContext {
     /// Returns the K8s secret name holding the LLM provider API key.
     pub fn llm_provider_secret_name(&self) -> &str {
         &self.llm_provider_secret_name
+    }
+
+    /// Returns the default LLM model name (e.g. "claude-sonnet-4-20250514").
+    pub fn default_model(&self) -> &str {
+        &self.default_model
     }
 
     /// Returns the key within the LLM provider secret.
@@ -89,9 +97,10 @@ impl ControllerContext {
 
 /// Creates an Arc-wrapped controller context, reading runtime config from env vars.
 ///
-/// Required env vars: `RUNTIME_AGENT_IMAGE`, `LLM_PROVIDER_SECRET_NAME`, `LLM_PROVIDER_SECRET_KEY`.
+/// Required env vars: `RUNTIME_AGENT_IMAGE`, `LLM_PROVIDER_DEFAULT_MODEL`, `LLM_PROVIDER_SECRET_NAME`, `LLM_PROVIDER_SECRET_KEY`.
 pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<ControllerContext>> {
     let runtime_agent_image = require_env("RUNTIME_AGENT_IMAGE")?;
+    let default_model = require_env("LLM_PROVIDER_DEFAULT_MODEL")?;
     let llm_provider_secret_name = require_env("LLM_PROVIDER_SECRET_NAME")?;
     let llm_provider_secret_key = require_env("LLM_PROVIDER_SECRET_KEY")?;
 
@@ -99,6 +108,7 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
         client,
         namespace,
         runtime_agent_image,
+        default_model,
         llm_provider_secret_name,
         llm_provider_secret_key,
     )))
@@ -148,7 +158,7 @@ mod tests {
 
     #[test]
     fn runtime_agent_image_format() {
-        let image = "fm-agent-runtime:latest";
+        let image = "fm-agent-runtime-claude:latest";
         assert!(image.contains(':'));
         assert!(!image.is_empty());
     }

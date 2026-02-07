@@ -4,8 +4,10 @@ mod context;
 mod dispatcher;
 mod error;
 pub mod pod_builder;
+pub mod rbac_propagator;
 mod reconciler;
 mod runner;
+pub mod secret_propagator;
 
 pub use context::{ControllerContext, create_context};
 pub use dispatcher::Dispatcher;

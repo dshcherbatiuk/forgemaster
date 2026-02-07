@@ -14,7 +14,7 @@ use super::orchestrator_factory;
 
 /// Watches AgentTask CRs in the given namespace and creates
 /// Orchestrator Agent CRs when tasks enter Running phase.
-pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
+pub async fn run(client: Client, namespace: &str, default_model: &str) -> anyhow::Result<()> {
     info!("👀 Starting AgentTask watcher in namespace: {}", namespace);
 
     let task_api: Api<AgentTask> = Api::namespaced(client.clone(), namespace);
@@ -26,7 +26,7 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
     while let Some(event) = stream.try_next().await? {
         match event {
             watcher::Event::Apply(task) | watcher::Event::InitApply(task) => {
-                handle_task(&client, &task).await;
+                handle_task(&client, &task, default_model).await;
             }
             _ => {}
         }
@@ -35,7 +35,7 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_task(client: &Client, task: &AgentTask) {
+async fn handle_task(client: &Client, task: &AgentTask, default_model: &str) {
     let phase = task.status.as_ref().map(|s| s.phase).unwrap_or_default();
 
     if phase != AgentTaskPhase::Running {
@@ -51,7 +51,7 @@ async fn handle_task(client: &Client, task: &AgentTask) {
         return;
     }
 
-    let agent = orchestrator_factory::build(task);
+    let agent = orchestrator_factory::build(task, default_model);
     let agent_api: Api<Agent> = Api::namespaced(client.clone(), &task_namespace);
 
     match agent_api.create(&PostParams::default(), &agent).await {

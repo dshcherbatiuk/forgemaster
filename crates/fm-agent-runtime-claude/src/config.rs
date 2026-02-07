@@ -22,9 +22,7 @@ pub struct RuntimeConfig {
     pub api_key: String,
     /// Base URL for the Anthropic API.
     pub api_base_url: String,
-    /// System prompt defining the agent's role (from `spec.systemPrompt`).
-    pub system_prompt: String,
-    /// Initial user message / task instruction.
+    /// Full instruction prompt: role definition + task description (from `spec.taskPrompt`).
     pub task_prompt: String,
     /// Claude model name (from `spec.model.name`).
     pub model_name: String,
@@ -38,13 +36,12 @@ impl RuntimeConfig {
     /// Loads configuration from environment variables.
     ///
     /// Required: `AGENT_NAME`, `NAMESPACE`, `ANTHROPIC_API_KEY`,
-    ///           `SYSTEM_PROMPT`, `TASK_PROMPT`, `MODEL_NAME`.
+    ///           `TASK_PROMPT`, `MODEL_NAME`.
     /// Optional: `ANTHROPIC_API_BASE_URL`, `MODEL_TEMPERATURE`, `MODEL_MAX_TOKENS`.
     pub fn from_env() -> Result<Self> {
         let agent_name = require_env("AGENT_NAME")?;
         let namespace = require_env("NAMESPACE")?;
         let api_key = require_env("ANTHROPIC_API_KEY")?;
-        let system_prompt = require_env("SYSTEM_PROMPT")?;
         let task_prompt = require_env("TASK_PROMPT")?;
         let model_name = require_env("MODEL_NAME")?;
 
@@ -66,7 +63,6 @@ impl RuntimeConfig {
             namespace,
             api_key,
             api_base_url,
-            system_prompt,
             task_prompt,
             model_name,
             model_temperature,
@@ -79,7 +75,6 @@ impl RuntimeConfig {
         agent_name: String,
         namespace: String,
         api_key: String,
-        system_prompt: String,
         task_prompt: String,
         model_name: String,
     ) -> Self {
@@ -88,7 +83,6 @@ impl RuntimeConfig {
             namespace,
             api_key,
             api_base_url: DEFAULT_API_BASE_URL.to_string(),
-            system_prompt,
             task_prompt,
             model_name,
             model_temperature: DEFAULT_TEMPERATURE,
@@ -125,16 +119,15 @@ mod tests {
             "orchestrator-task-abc".to_string(),
             "task-abc".to_string(),
             "sk-ant-test123".to_string(),
-            "You are an orchestrator.".to_string(),
-            "Build an API".to_string(),
+            "You are an orchestrator.\n\nTask: Build an API".to_string(),
             "claude-sonnet-4-20250514".to_string(),
         );
         assert_eq!(config.agent_name, "orchestrator-task-abc");
         assert_eq!(config.namespace, "task-abc");
         assert_eq!(config.api_key, "sk-ant-test123");
         assert_eq!(config.api_base_url, DEFAULT_API_BASE_URL);
-        assert_eq!(config.system_prompt, "You are an orchestrator.");
-        assert_eq!(config.task_prompt, "Build an API");
+        assert!(config.task_prompt.contains("orchestrator"));
+        assert!(config.task_prompt.contains("Build an API"));
         assert_eq!(config.model_name, "claude-sonnet-4-20250514");
         assert!((config.model_temperature - DEFAULT_TEMPERATURE).abs() < f64::EPSILON);
         assert_eq!(config.model_max_tokens, DEFAULT_MAX_TOKENS);
@@ -146,13 +139,11 @@ mod tests {
             "agent".to_string(),
             "ns".to_string(),
             "key".to_string(),
-            "prompt".to_string(),
             "task".to_string(),
             "model".to_string(),
         );
         let cloned = config.clone();
         assert_eq!(cloned.agent_name, config.agent_name);
-        assert_eq!(cloned.system_prompt, config.system_prompt);
         assert_eq!(cloned.task_prompt, config.task_prompt);
     }
 
@@ -162,7 +153,6 @@ mod tests {
             "agent".to_string(),
             "ns".to_string(),
             "key".to_string(),
-            "prompt".to_string(),
             "task".to_string(),
             "model".to_string(),
         );

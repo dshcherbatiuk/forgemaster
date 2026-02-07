@@ -14,9 +14,13 @@ build_enabled: true
 gateway_api_version: v1.2.1
 envoy_gateway_version: v1.3.0
 
-# LLM provider (from local.env)
+# LLM provider (secret name/key from local.env, actual key from .env.forgemaster)
 llm_provider_secret_name: "{{ lookup('env', 'LLM_PROVIDER_SECRET_NAME') }}"
 llm_provider_secret_key: "{{ lookup('env', 'LLM_PROVIDER_SECRET_KEY') }}"
+llm_provider_api_key: "{{ lookup('env', 'LLM_PROVIDER_API_KEY') }}"
+
+# Default LLM model for agents
+default_model: "{{ lookup('env', 'LLM_PROVIDER_DEFAULT_MODEL') | default('claude-sonnet-4-20250514', true) }}"
 
 # UI
 ui_image_name: forgemaster-ui

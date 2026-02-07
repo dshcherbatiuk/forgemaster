@@ -15,7 +15,7 @@ use super::context::ControllerContext;
 
 /// Builds a runtime pod for the given Agent CR.
 ///
-/// The pod runs `fm-agent-runtime` with config injected via env vars.
+/// The pod runs `fm-agent-runtime-claude` with config injected via env vars.
 /// It is a run-once pod (`restartPolicy: Never`) owned by the Agent CR.
 pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
     let agent_name = agent.name_any();
@@ -49,6 +49,9 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
             ..Default::default()
         },
         spec: Some(PodSpec {
+            service_account_name: Some(
+                super::rbac_propagator::RUNTIME_SERVICE_ACCOUNT.to_string(),
+            ),
             restart_policy: Some("Never".to_string()),
             containers: vec![Container {
                 name: "agent-runtime".to_string(),
@@ -162,6 +165,7 @@ fn build_resource_requirements(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::controller::rbac_propagator;
     use crate::crd::{AgentCrd, ModelConfig, ResourceLimits, ResourceRequirements};
 
     fn test_agent() -> Agent {
@@ -203,10 +207,13 @@ mod tests {
                 ..Default::default()
             },
             spec: Some(PodSpec {
+                service_account_name: Some(
+                    rbac_propagator::RUNTIME_SERVICE_ACCOUNT.to_string(),
+                ),
                 restart_policy: Some("Never".to_string()),
                 containers: vec![Container {
                     name: "agent-runtime".to_string(),
-                    image: Some("fm-agent-runtime:latest".to_string()),
+                    image: Some("fm-agent-runtime-claude:latest".to_string()),
                     image_pull_policy: Some("Never".to_string()),
                     env: Some(env_vars),
                     resources: resource_requirements,
@@ -268,7 +275,7 @@ mod tests {
         let container = &pod.spec.unwrap().containers[0];
         assert_eq!(
             container.image,
-            Some("fm-agent-runtime:latest".to_string())
+            Some("fm-agent-runtime-claude:latest".to_string())
         );
     }
 
@@ -421,6 +428,16 @@ mod tests {
         assert_eq!(
             labels.get("forgemaster.io/task").unwrap(),
             "task-abc"
+        );
+    }
+
+    #[test]
+    fn pod_service_account_name() {
+        let pod = build_pod_from(&test_agent());
+        let spec = pod.spec.unwrap();
+        assert_eq!(
+            spec.service_account_name,
+            Some("fm-agent-runtime-claude".to_string())
         );
     }
 

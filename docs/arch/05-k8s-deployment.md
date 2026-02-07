@@ -331,7 +331,7 @@ flowchart TB
             TCPC[TCP Controller<br/>PID feedback loop]
             subgraph Operator["forgemaster-operator"]
                 ATC[AgentTask Controller<br/>WebSocket + Reconciler]
-                AGC[Agent Controller]
+                AGC[Agent Controller<br/>MCP Server]
                 MCPC[MCPServer Controller]
             end
         end
@@ -371,7 +371,7 @@ flowchart TB
 
     TCPC -->|"error signal"| OA
     TCPC <-->|"read metrics"| FBA
-    OA -->|"create/adjust agents"| API
+    OA -->|"MCP tool calls"| AGC
 
     ATC -->|"reconcile"| Task1
     AGC -->|"manages"| CoreAgents & ExecutorAgents
@@ -386,7 +386,7 @@ flowchart TB
 1. User submits: "Create an e-commerce backend with product catalog, shopping cart, and checkout flow. Include Stripe integration."
 2. AgentTask Controller creates AgentTask CR and isolated namespace `task-ecommerce-abc123`
 3. Agent Controller detects new task (Running), creates Orchestrator Agent CR, spawns Orchestrator pod
-4. Orchestrator analyzes task (LLM), creates Agent CRs (test-gen, code-gen, test-runner, feedback) and MCPServer CRs (github, postgres, stripe)
+4. Orchestrator analyzes task (LLM), uses MCP tools via Agent Controller to create Agent CRs (test-gen, code-gen, test-runner, feedback) and MCPServer CRs (github, postgres, stripe)
 5. Agent Controller spawns executor agent pods, MCPServer Controller spawns MCP server pods
 6. Test Generator creates 12 Gherkin scenarios for product CRUD, cart operations, checkout flow
 7. TCP feedback loop runs until all tests pass
@@ -401,7 +401,7 @@ sequenceDiagram
     participant WEB as A2UI Web Portal
     participant ATC as AgentTask Controller
     participant API as K8s API
-    participant AGC as Agent Controller
+    participant AGC as Agent Controller (MCP)
     participant MCPC as MCPServer Controller
     participant OA as Orchestrator Agent
     participant EX as Executor Agents
@@ -422,8 +422,10 @@ sequenceDiagram
     AGC->>OA: Spawn Orchestrator pod
 
     OA->>OA: Analyze task (LLM reasoning)
-    OA->>API: Create Agent CRs (code-gen, test-gen, test-runner, feedback)
-    OA->>API: Create MCPServer CRs (github, postgres, stripe)
+    OA->>AGC: MCP tool call: create agents (code-gen, test-gen, test-runner, feedback)
+    AGC->>API: Create Agent CRs
+    OA->>AGC: MCP tool call: create MCP servers (github, postgres, stripe)
+    AGC->>API: Create MCPServer CRs
     AGC-->>API: Watch detects new Agent CRs
     AGC->>EX: Spawn executor agent pods
     AGC->>TRA: Spawn Test Runner Agent pod
@@ -446,9 +448,11 @@ sequenceDiagram
 
         alt error > threshold
             OA->>OA: Adjust strategy (swap agent, change prompt)
-            OA->>API: Update Agent CRs
+            OA->>AGC: MCP tool call: update/create agents
+            AGC->>API: Update Agent CRs
         else error ≤ threshold
-            OA->>API: Update AgentTask status → Succeeded
+            OA->>AGC: MCP tool call: mark task succeeded
+            AGC->>API: Update AgentTask status → Succeeded
             ATC->>WEB: Task completed
             WEB->>U: Task completed successfully
         end

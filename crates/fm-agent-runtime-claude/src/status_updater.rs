@@ -6,7 +6,7 @@ use kube::Api;
 use kube::api::{Patch, PatchParams};
 use tracing::debug;
 
-const FIELD_MANAGER: &str = "fm-agent-runtime";
+const FIELD_MANAGER: &str = "fm-agent-runtime-claude";
 
 /// Updates Agent CR status fields via status subresource patches.
 pub struct StatusUpdater {

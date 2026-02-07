@@ -2,428 +2,159 @@
 
 ## Overview
 
-ForgeMaster dynamically creates agents based on task requirements. This document specifies how agents are instantiated, configured, and deployed.
+The **Agent Controller** (`fm-controller-agent`) is responsible for creating and managing agents. When an AgentTask is created, the Agent Controller creates Agent CRs in the task namespace. Each Agent CR triggers pod creation with the appropriate runtime (e.g. `fm-agent-runtime-claude`). Agents are long-lived — after the initial prompt they stay alive and communicate via **A2A** (agent-to-agent) and **MCP** (model context protocol). Agents can update their own CR status.
 
 ## Agent Creation Flow
 
 ```mermaid
 flowchart TB
-    TaskReq[Task Requirements] --> SkillAnalyzer[Skill Analyzer]
-    SkillAnalyzer --> RegistryQuery[Registry Query]
-    RegistryQuery --> Decision{Agents Found?}
-
-    Decision -->|YES| Reuse[Reuse Existing]
-    Decision -->|NO| Create[Create New Agent]
-
-    Create --> GenConfig[Generate Config]
-    GenConfig --> Deploy[Deploy to K8s]
-    Deploy --> Register[Register in Agent Registry]
-
-    Reuse --> Assign[Assign to Task]
-    Register --> Assign
+    AgentTask[AgentTask CR created] --> Controller[Agent Controller]
+    Controller --> CreateCR[Create Agent CR in task namespace]
+    CreateCR --> Reconcile[Controller reconciles Agent CR]
+    Reconcile --> CreatePod[Create pod with fm-agent-runtime-claude]
+    CreatePod --> InitPrompt[Pod sends initial prompt to Claude API]
+    InitPrompt --> Alive[Agent stays alive — A2A / MCP]
+    Alive --> UpdateCR[Agent updates own CR status]
 ```
 
-## Step 1: Skill Analysis
-
-### Input: Task Requirements
-
-```json
-{
-  "type": "web-api",
-  "language": "rust",
-  "framework": "axum",
-  "features": ["product-catalog", "shopping-cart", "checkout", "stripe-integration"]
-}
-```
-
-### Output: Required Skills
-
-```json
-{
-  "required_skills": [
-    {"skill": "gherkin-generation", "min_proficiency": 0.8},
-    {"skill": "rust-code-generation", "min_proficiency": 0.9},
-    {"skill": "axum-framework", "min_proficiency": 0.7},
-    {"skill": "code-review", "min_proficiency": 0.8},
-    {"skill": "authentication-patterns", "min_proficiency": 0.6}
-  ]
-}
-```
-
-### Skill Mapping Rules
-
-```yaml
-task_type_to_skills:
-  web-api:
-    - gherkin-generation
-    - code-generation
-    - code-review
-    - api-design
-
-  data-pipeline:
-    - gherkin-generation
-    - python-code-generation
-    - data-validation
-    - etl-patterns
-
-  ml-experiment:
-    - experiment-design
-    - python-code-generation
-    - model-training
-    - metrics-analysis
-
-language_to_skills:
-  rust:
-    - rust-code-generation
-    - cargo-tooling
-  python:
-    - python-code-generation
-    - pip-tooling
-  typescript:
-    - typescript-code-generation
-    - npm-tooling
-
-feature_to_skills:
-  authentication:
-    - authentication-patterns
-    - security-review
-  validation:
-    - input-validation
-    - error-handling
-  pagination:
-    - api-pagination
-    - query-optimization
-```
-
-## Step 2: Registry Query
-
-### Agent Matching Algorithm
-
-```
-For each required_skill:
-  1. Query registry: agents with skill AND proficiency >= min
-  2. Filter by availability (not at max concurrent tasks)
-  3. Sort by:
-     a. Proficiency (higher is better)
-     b. Success rate on similar tasks
-     c. Current load (lower is better)
-  4. Select top candidate
-
-If no match found:
-  → Create new agent with this skill
-```
-
-## Step 3: Agent Configuration Generation
+## Step 1: Agent Configuration Generation
 
 ### When Creating New Agent
 
-The Orchestrator Agent generates agent configuration using LLM:
+The Agent Controller builds the Agent CR spec based on the AgentTask requirements:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                  AGENT CONFIG GENERATION                         │
 │                                                                  │
-│  Input:                                                          │
-│  - Required skill: "rust-code-generation"                        │
-│  - Task context: "Build e-commerce backend with Axum"            │
-│  - Feature requirements: ["catalog", "cart", "checkout"]         │
+│  Input (from AgentTask):                                         │
+│  - Task description and requirements                             │
+│  - Agent type needed (orchestrator, code-generator, etc.)        │
 │                                                                  │
-│  LLM generates:                                                  │
-│  - System prompt tailored to skill + context                     │
-│  - Model selection (claude-3-sonnet for code gen)               │
-│  - MCP server requirements                                       │
-│  - Resource requirements                                         │
+│  Agent Controller generates Agent CR with:                       │
+│  - taskPrompt: role definition + task description                │
+│  - model: name, temperature, maxTokens                           │
+│  - mcpServers: MCP servers the agent can use                     │
+│  - resources: CPU/memory requests and limits                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Agent Configuration Template
+### Agent CRD Spec
 
-```yaml
-apiVersion: forgemaster.io/v1alpha1
-kind: Agent
-metadata:
-  name: code-generator-${random_id}
-  namespace: task-${task_id}
-  labels:
-    forgemaster.io/agent-type: code-generator
-    forgemaster.io/task-id: ${task_id}
-    forgemaster.io/created-by: orchestrator
-spec:
-  # Model Configuration
-  model:
-    provider: anthropic
-    name: claude-3-sonnet
-    temperature: 0.3
-    max_tokens: 4096
+The Agent CRD is defined in [`crates/fm-controller-agent/src/crd/agent/crd.rs`](../../crates/fm-controller-agent/src/crd/agent/crd.rs).
 
-  # System Prompt (generated by Orchestrator)
-  system_prompt: |
-    You are a Rust code generation agent specialized in building REST APIs.
+Key fields:
 
-    Context:
-    - Framework: Axum
-    - Features required: product catalog, shopping cart, checkout, Stripe integration
+| Field | Type | Description |
+|-------|------|-------------|
+| `spec.type` | `String` | Agent type (e.g. `orchestrator`, `code-generator`, `architect`) |
+| `spec.model` | `ModelConfig` | LLM model settings (`name`, `temperature`, `maxTokens`) |
+| `spec.taskPrompt` | `String` | Full instruction prompt: role definition + task description |
+| `spec.mcpServers` | `Vec<McpServerRef>` | MCP servers this agent can use |
+| `spec.resources` | `ResourceRequirements` | CPU/memory requests and limits |
 
-    Guidelines:
-    - Follow Rust best practices and idioms
-    - Use typed-builder for structs with optional fields
-    - Implement proper error handling with anyhow
-    - Write clean, documented code
+Related types:
+- ModelConfig: [`crates/fm-controller-agent/src/crd/model_config.rs`](../../crates/fm-controller-agent/src/crd/model_config.rs)
+- McpServerRef: [`crates/fm-controller-agent/src/crd/mcp_server_ref.rs`](../../crates/fm-controller-agent/src/crd/mcp_server_ref.rs)
+- ResourceRequirements: [`crates/fm-controller-agent/src/crd/resource_requirements.rs`](../../crates/fm-controller-agent/src/crd/resource_requirements.rs)
 
-    Output format:
-    - Respond with complete, compilable Rust code
-    - Include necessary Cargo.toml dependencies
-    - Add unit tests for core functionality
-
-  # Skills (for registry)
-  skills:
-    - name: rust-code-generation
-      proficiency: 0.9
-    - name: axum-framework
-      proficiency: 0.8
-    - name: api-design
-      proficiency: 0.7
-
-  # MCP Servers needed
-  mcp_servers:
-    - name: github-mcp
-      config:
-        repository: ${github_repo}
-        branch: task-${task_id}
-    - name: filesystem-mcp
-      config:
-        root_path: /workspace
-
-  # Resource limits
-  resources:
-    requests:
-      cpu: "500m"
-      memory: "512Mi"
-    limits:
-      cpu: "1000m"
-      memory: "1Gi"
-
-  # Lifecycle
-  lifecycle:
-    max_concurrent_tasks: 3
-    idle_timeout: 10m
-    max_lifetime: 2h
-```
-
-## Step 4: Agent Deployment
+## Step 2: Agent Deployment
 
 ### Deployment Sequence
 
 ```
-1. Create Agent CRD in task namespace
-2. K8s Operator detects new Agent CRD
-3. Operator creates:
-   - Pod with agent runtime
-   - Service for agent communication
-   - ConfigMap with system prompt
-   - Secret with API keys
-4. Agent pod starts
-5. Agent registers with Agent Registry
-6. Orchestrator receives "agent ready" event
+1. AgentTask CR is created in the cluster
+2. Agent Controller watches AgentTask, creates Agent CR in the task namespace
+3. Agent Controller reconciles Agent CR (Pending phase), creates:
+   - Pod running fm-agent-runtime-claude (see pod_builder.rs)
+   - RBAC resources (ServiceAccount, ClusterRoleBinding)
+4. Agent pod starts → sends initial prompt to Claude API → stays alive
+5. Agent is now long-lived: communicates via A2A and MCP
+6. Agent updates its own CR status (phase, tokens used, etc.)
 ```
 
-### Agent Pod Specification
+### Long-lived Runtime
 
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: code-generator-abc123
-  namespace: task-a1b2c3d4
-spec:
-  containers:
-    - name: agent
-      image: forgemaster/agent-runtime:latest
-      env:
-        - name: AGENT_ID
-          value: "code-generator-abc123"
-        - name: AGENT_REGISTRY_URL
-          value: "http://agent-registry.forgemaster-system:8080"
-        - name: ANTHROPIC_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: llm-credentials
-              key: anthropic-api-key
-      volumeMounts:
-        - name: system-prompt
-          mountPath: /config/system-prompt.txt
-          subPath: system-prompt.txt
-        - name: workspace
-          mountPath: /workspace
-  volumes:
-    - name: system-prompt
-      configMap:
-        name: code-generator-abc123-config
-    - name: workspace
-      emptyDir: {}
-```
+All agent runtime pods are **long-lived processes**. After sending the initial prompt, the runtime stays alive and waits for incoming MCP or A2A requests. The pod only exits on:
+- Shutdown signal (SIGTERM from K8s)
+- Explicit task completion (future implementation)
+- Error / timeout
 
-## Step 5: Agent Registration
+### Runtime Providers
 
-### Registration Request
+The runtime is provider-specific — currently `fm-agent-runtime-claude` for Anthropic Claude. The architecture supports multiple providers:
 
-```json
-POST /api/v1/agents/register
-{
-  "agent_id": "code-generator-abc123",
-  "namespace": "task-a1b2c3d4",
-  "endpoint": "http://code-generator-abc123.task-a1b2c3d4:8080",
-  "skills": [
-    {"name": "rust-code-generation", "proficiency": 0.9},
-    {"name": "axum-framework", "proficiency": 0.8}
-  ],
-  "status": "available",
-  "metadata": {
-    "model": "claude-3-sonnet",
-    "created_by": "orchestrator",
-    "task_id": "a1b2c3d4"
-  }
-}
-```
+| Runtime | Provider | Status |
+|---------|----------|--------|
+| `fm-agent-runtime-claude` | Anthropic Claude | Implemented |
+| `fm-agent-runtime-gemini` | Google Gemini | Future |
+| `fm-agent-runtime-chatgpt` | OpenAI ChatGPT | Future |
+| `fm-agent-runtime-custom` | Custom / self-hosted | Future |
 
-## Agent Type Templates
+Each runtime implements the same contract: read Agent CR config from env vars, send initial prompt, stay alive for A2A/MCP communication, update own CR status.
 
-### Pre-defined Agent Types
+### Pod Spec Generation
 
-| Type | Skills | Model | Purpose |
-|------|--------|-------|---------|
-| `test-generator` | gherkin-generation | claude-3-sonnet | Generate E2E tests |
-| `code-generator` | code-generation, language-specific | claude-3-sonnet | Write implementation |
-| `reviewer` | code-review, security | claude-3-opus | Review and suggest fixes |
-| `feedback-analyzer` | analysis, summarization | claude-3-haiku | Summarize results |
-| `specialist` | domain-specific | varies | Handle specific domains |
+The Agent Controller creates Pod specs programmatically — config is injected via env vars (no ConfigMap/volume mounts). The container image is pre-built and available in the registry.
 
-### Template Inheritance
+- **CI/CD pipeline**: Builds `fm-agent-runtime-claude` image, pushes to container registry
+- **Local development**: Ansible builds the image and pushes to local OrbStack storage (see [`ansible/roles/fm-agent-runtime-claude/`](../../ansible/roles/fm-agent-runtime-claude/))
 
-```yaml
-# Base template
-agent_templates:
-  base:
-    model:
-      provider: anthropic
-      temperature: 0.3
-    resources:
-      requests:
-        cpu: "500m"
-        memory: "512Mi"
-    lifecycle:
-      idle_timeout: 10m
+Source references:
+- Pod spec builder: [`crates/fm-controller-agent/src/controller/pod_builder.rs`](../../crates/fm-controller-agent/src/controller/pod_builder.rs)
+- RBAC propagator: [`crates/fm-controller-agent/src/controller/rbac_propagator.rs`](../../crates/fm-controller-agent/src/controller/rbac_propagator.rs)
+- Agent runtime: [`crates/fm-agent-runtime-claude/src/runtime.rs`](../../crates/fm-agent-runtime-claude/src/runtime.rs)
+- Helm chart (Agent Controller): [`crates/fm-controller-agent/helm/`](../../crates/fm-controller-agent/helm/)
+- Helm chart (RBAC/CRD): [`crates/fm-controller-agent/helm/templates/rbac.yaml`](../../crates/fm-controller-agent/helm/templates/rbac.yaml)
 
-  # Inherits from base
-  code-generator:
-    extends: base
-    model:
-      name: claude-3-sonnet
-      max_tokens: 4096
-    skills:
-      - code-generation
-    system_prompt_template: |
-      You are a code generation agent for {{language}}.
-      Framework: {{framework}}
-      ...
+## Step 3: Agent Communication
 
-  # Inherits from base with overrides
-  reviewer:
-    extends: base
-    model:
-      name: claude-3-opus  # Override for better review
-      temperature: 0.1     # More deterministic
-    skills:
-      - code-review
-      - security-review
-```
+Agents are long-lived and communicate after initial prompt:
+- **A2A** (Agent-to-Agent): Agents communicate with each other directly
+- **MCP** (Model Context Protocol): Agents use MCP servers for tool access (filesystem, GitHub, K8s API, etc.)
+- **CR updates**: Agents update their own Agent CR status (phase, tokens used, iterations)
 
-## Custom Agent Creation
+Status updater: [`crates/fm-agent-runtime-claude/src/status_updater.rs`](../../crates/fm-agent-runtime-claude/src/status_updater.rs)
 
-When no template matches, Orchestrator creates custom agent:
+## Agent Types
 
-```mermaid
-flowchart TB
-    A[Orchestrator analyzes missing skill] --> B[LLM generates custom config]
-    B --> C[Validate against schema]
-    C --> D[Deploy to K8s]
-    D --> E[Register in Agent Registry]
-    E --> F[Tag as 'custom' for future templating]
-```
+| Type | Purpose |
+|------|---------|
+| `orchestrator` | Decomposes tasks, coordinates child agents via A2A |
+| `code-generator` | Write implementation code |
+| `test-generator` | Generate E2E Gherkin tests |
+| `reviewer` | Review code and suggest fixes |
+| `architect` | Design system architecture |
 
-### Custom Agent Example
-
-```yaml
-# Auto-generated for "kubernetes-deployment" skill
-apiVersion: forgemaster.io/v1alpha1
-kind: Agent
-metadata:
-  name: k8s-deployer-custom-xyz789
-  labels:
-    forgemaster.io/agent-type: custom
-    forgemaster.io/origin-skill: kubernetes-deployment
-spec:
-  model:
-    name: claude-3-sonnet
-    temperature: 0.2
-  system_prompt: |
-    You are a Kubernetes deployment specialist.
-
-    Expertise:
-    - Writing Kubernetes manifests (Deployment, Service, ConfigMap)
-    - Helm chart creation and templating
-    - Resource optimization and limits
-    - Security best practices (RBAC, NetworkPolicy)
-
-    Output format:
-    - Valid YAML manifests
-    - Include comments explaining choices
-    - Follow K8s naming conventions
-  skills:
-    - name: kubernetes-deployment
-      proficiency: 0.85
-    - name: helm-charts
-      proficiency: 0.75
-  mcp_servers:
-    - name: kubernetes-mcp
-      config:
-        kubeconfig: /etc/kubernetes/config
-```
+Agent CRD definition: [`crates/fm-controller-agent/helm/templates/agent-crd.yaml`](../../crates/fm-controller-agent/helm/templates/agent-crd.yaml)
+Orchestrator factory: [`crates/fm-controller-agent/src/task_watcher/orchestrator_factory.rs`](../../crates/fm-controller-agent/src/task_watcher/orchestrator_factory.rs)
 
 ## Agent Lifecycle States
 
+Defined in [`crates/fm-controller-agent/src/crd/agent/phase.rs`](../../crates/fm-controller-agent/src/crd/agent/phase.rs).
+
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING
-    PENDING --> STARTING: pod created
-    STARTING --> READY: registered
+    [*] --> Pending
+    Pending --> Running: pod started + initial prompt sent
+    Running --> Running: processing MCP/A2A requests
+    Running --> Succeeded: task completed (future)
+    Running --> Failed: error or timeout
+    Pending --> Failed: pod creation error
 
-    READY --> BUSY: task assigned
-    BUSY --> READY: task complete
-
-    READY --> IDLE: timeout
-    BUSY --> IDLE: task complete + no new work
-
-    IDLE --> READY: new task
-    IDLE --> TERMINATED: shutdown
-    IDLE --> EVICTED: resource pressure
-
-    READY --> FAILED: error
-    BUSY --> FAILED: error
-    STARTING --> FAILED: error
-
-    TERMINATED --> [*]
-    FAILED --> [*]
-    EVICTED --> [*]
+    Succeeded --> [*]
+    Failed --> [*]
 ```
 
-| State | Description |
+| Phase | Description |
 |-------|-------------|
-| `PENDING` | CRD created, awaiting pod |
-| `STARTING` | Pod starting, loading model |
-| `READY` | Registered, accepting tasks |
-| `BUSY` | Currently processing task |
-| `IDLE` | No tasks, waiting |
-| `TERMINATED` | Clean shutdown |
-| `FAILED` | Error, needs attention |
-| `EVICTED` | Resource pressure, removed |
+| `Pending` | Agent CR created, waiting for pod to be scheduled |
+| `Running` | Pod started, initial prompt sent, accepting MCP/A2A requests (long-lived) |
+| `Succeeded` | Work completed successfully, output stored (future — currently agents stay Running) |
+| `Failed` | Error occurred or timeout reached |
+
+Reconciler implementations per phase:
+- Pending: [`crates/fm-controller-agent/src/controller/reconciler/pending.rs`](../../crates/fm-controller-agent/src/controller/reconciler/pending.rs)
+- Running: [`crates/fm-controller-agent/src/controller/reconciler/running.rs`](../../crates/fm-controller-agent/src/controller/reconciler/running.rs)
+- Succeeded: [`crates/fm-controller-agent/src/controller/reconciler/succeeded.rs`](../../crates/fm-controller-agent/src/controller/reconciler/succeeded.rs)
+- Failed: [`crates/fm-controller-agent/src/controller/reconciler/failed.rs`](../../crates/fm-controller-agent/src/controller/reconciler/failed.rs)

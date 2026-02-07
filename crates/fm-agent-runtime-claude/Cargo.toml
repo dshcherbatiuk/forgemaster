@@ -1,13 +1,13 @@
 [package]
-name = "fm-agent-runtime"
-description = "Base agent execution runtime for ForgeMaster"
+name = "fm-agent-runtime-claude"
+description = "Claude/Anthropic agent execution runtime for ForgeMaster"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "fm-agent-runtime"
+name = "fm-agent-runtime-claude"
 path = "src/main.rs"
 
 [lib]
@@ -36,6 +36,9 @@ typed-builder = { workspace = true }
 dashmap = { workspace = true }
 
 reqwest = { workspace = true }
+
+# SSE parsing (Claude streaming API)
+eventsource-stream = "0.2"
 
 [lints]
 workspace = true

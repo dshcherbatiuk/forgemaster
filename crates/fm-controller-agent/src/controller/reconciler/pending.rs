@@ -1,6 +1,7 @@
 //! Reconciliation strategy for Pending phase.
 //!
-//! Creates a runtime pod for the agent if one does not already exist,
+//! Ensures the LLM provider secret exists in the task namespace,
+//! creates a runtime pod for the agent if one does not already exist,
 //! then transitions the agent to Running.
 
 use std::sync::Arc;
@@ -18,6 +19,8 @@ use crate::crd::{Agent, AgentPhase, PodRef};
 use super::super::context::ControllerContext;
 use super::super::error::{ReconcileError, ReconcileResult};
 use super::super::pod_builder;
+use super::super::rbac_propagator;
+use super::super::secret_propagator;
 use super::ReconcileStrategy;
 
 /// Requeue duration for pending agents.
@@ -42,6 +45,10 @@ impl ReconcileStrategy for PendingStrategy {
         let namespace = agent
             .namespace()
             .ok_or_else(|| ReconcileError::MissingField("metadata.namespace".to_string()))?;
+
+        // Ensure RBAC and LLM provider secret exist in task namespace
+        rbac_propagator::ensure_rbac(&self.ctx, &namespace).await?;
+        secret_propagator::ensure_secret(&self.ctx, &namespace).await?;
 
         let pod_api: Api<Pod> = Api::namespaced(self.ctx.client().clone(), &namespace);
 

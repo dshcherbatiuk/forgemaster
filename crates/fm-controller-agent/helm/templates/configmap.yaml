@@ -13,4 +13,5 @@ data:
   RUNTIME_AGENT_IMAGE: "{{ index .Values "runtime-agent" "image" "repository" }}:{{ index .Values "runtime-agent" "image" "tag" }}"
   LLM_PROVIDER_SECRET_NAME: "{{ index .Values "runtime-agent" "llm-provider" "secretName" }}"
   LLM_PROVIDER_SECRET_KEY: "{{ index .Values "runtime-agent" "llm-provider" "secretKey" }}"
+  LLM_PROVIDER_DEFAULT_MODEL: "{{ index .Values "runtime-agent" "model" }}"
 {{- end }}

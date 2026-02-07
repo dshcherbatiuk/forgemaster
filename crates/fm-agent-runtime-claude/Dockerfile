@@ -13,7 +13,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
 # Build release binary
-RUN cargo build --release -p fm-agent-runtime
+RUN cargo build --release -p fm-agent-runtime-claude
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/fm-agent-runtime /app/fm-agent-runtime
+COPY --from=builder /app/target/release/fm-agent-runtime-claude /app/fm-agent-runtime-claude
 
 # Non-root user
 RUN groupadd -g 1000 forgemaster && \
@@ -35,4 +35,4 @@ USER forgemaster
 
 ENV RUST_LOG=info
 
-ENTRYPOINT ["/app/fm-agent-runtime"]
+ENTRYPOINT ["/app/fm-agent-runtime-claude"]

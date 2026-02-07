@@ -167,7 +167,7 @@ sequenceDiagram
     actor User
     participant ATC as AgentTask Controller
     participant API as K8s API
-    participant AGC as Agent Controller
+    participant AGC as Agent Controller (MCP)
     participant OA as Orchestrator Agent
     participant AG as Executor Agents
     participant MCP as MCPServers
@@ -177,11 +177,13 @@ sequenceDiagram
     AGC-->>API: Watch detects AgentTask CR (Running)
     AGC->>API: Create Orchestrator Agent CR
     AGC->>OA: Spawn Orchestrator pod
-    OA->>API: Create Agent CRs
-    OA->>API: Create MCPServer CRs
+    OA->>AGC: MCP tool call: create Agent CRs
+    AGC->>API: Create Agent CRs
+    OA->>AGC: MCP tool call: create MCPServer CRs
+    AGC->>API: Create MCPServer CRs
     AGC->>AG: Spawn executor agent pods
     AG->>MCP: Use tools (read/write files)
-    AG->>API: Update status (iteration, error)
+    AG->>AGC: MCP tool call: update status
     API-->>ATC: Status changes (watch)
     ATC-->>User: Real-time progress (WebSocket)
 ```

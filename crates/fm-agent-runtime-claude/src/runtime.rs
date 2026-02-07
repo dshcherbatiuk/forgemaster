@@ -1,4 +1,7 @@
-//! Agent execution orchestrator.
+//! Long-lived agent runtime.
+//!
+//! Sends the initial prompt to Claude, then stays alive waiting for
+//! MCP/A2A requests. The pod only exits on shutdown signal or task completion.
 
 use anyhow::{Result, bail};
 use tracing::{debug, info};
@@ -12,19 +15,21 @@ use crate::conversation::Conversation;
 use crate::output_writer::OutputWriter;
 use crate::status_updater::StatusUpdater;
 
-/// Orchestrates the full agent execution lifecycle.
-pub struct AgentExecution {
+/// Long-lived agent runtime.
+///
+/// Sends the initial prompt, then stays alive for MCP/A2A communication.
+pub struct AgentRuntime {
     config: RuntimeConfig,
     k8s_client: kube::Client,
 }
 
-impl AgentExecution {
-    /// Creates a new execution for the given config and K8s client.
+impl AgentRuntime {
+    /// Creates a new runtime for the given config and K8s client.
     pub fn new(config: RuntimeConfig, k8s_client: kube::Client) -> Self {
         Self { config, k8s_client }
     }
 
-    /// Runs the agent: calls Claude API, logs output, updates Agent CR status.
+    /// Runs the agent: sends initial prompt, then stays alive for requests.
     pub async fn run(&self) -> Result<()> {
         let status_updater = StatusUpdater::new(
             self.k8s_client.clone(),
@@ -41,17 +46,16 @@ impl AgentExecution {
         // 1. Transition to Running
         status_updater.transition_to_running().await?;
 
-        // 2. Build conversation
-        let mut conversation = Conversation::new(self.config.system_prompt.clone());
-        conversation.add_user_message(self.config.task_prompt.clone());
+        // 2. Build conversation (task_prompt contains role + task description)
+        let mut conversation = Conversation::new(self.config.task_prompt.clone());
 
         // 3. Call Claude API with streaming
         let client = ClaudeClient::new(&self.config.api_key, &self.config.api_base_url);
         let request = MessagesRequest::builder()
             .model(self.config.model_name.clone())
             .max_tokens(self.config.model_max_tokens)
-            .messages(vec![Message::user(&self.config.task_prompt)])
-            .system(self.config.system_prompt.clone())
+            .messages(vec![Message::user("Execute the task described in the system prompt.")])
+            .system(self.config.task_prompt.clone())
             .temperature(self.config.model_temperature)
             .build();
 
@@ -67,16 +71,15 @@ impl AgentExecution {
         // 5. Log the output
         output_writer.write(&assistant_text);
 
-        // 6. Transition to Succeeded
-        status_updater
-            .transition_to_succeeded(conversation.total_tokens(), 1)
-            .await?;
-
         info!(
-            "✅ Agent {} completed — {} tokens used",
+            "🧠 Agent {} initial prompt done — {} tokens used, waiting for requests",
             self.config.agent_name,
             conversation.total_tokens()
         );
+
+        // 6. Stay alive — MCP/A2A communication will be handled here
+        tokio::signal::ctrl_c().await?;
+        info!("🛑 Agent {} received shutdown signal", self.config.agent_name);
 
         Ok(())
     }
