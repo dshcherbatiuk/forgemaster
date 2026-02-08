@@ -1,4 +1,4 @@
-replicaCount: 2
+replicaCount: 6
 
 image:
   repository: fm-mcp-filesystem

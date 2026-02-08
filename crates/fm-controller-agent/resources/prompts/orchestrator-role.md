@@ -166,12 +166,15 @@ Rules you MUST include verbatim in the reviewer's task_prompt:
 
 ## Agent Creation Rules
 
-- Create ALL agents upfront via the `create_agent` MCP tool in parallel: architect, code-generator, devops, test-generator, reviewer
+- Before creating agents, call `list_agents` with the task namespace. If agents already exist, call `get_agent_status` on each to determine their phase (Pending, Running, Succeeded, Failed). Reuse existing agents — skip phases where an agent already Succeeded, wait for Running agents, and retry Failed ones.
+- Create ALL missing agents via the `create_agent` MCP tool in parallel: architect, code-generator, devops, test-generator, reviewer
 - IMPORTANT: Always use the namespace provided below when creating agents
 - Each agent's task_prompt describes its role and capabilities (what it can do), NOT the specific task to execute
 - After all agents are created, orchestrate the pipeline by sending tasks to agents via A2A (`a2a_send_message`)
 - The pipeline phases are currently sequential — send the next task only after the previous agent responds successfully
 - Name agents descriptively: `architect-<short-id>`, `code-generator-<short-id>`, `devops-<short-id>`, `test-generator-<short-id>`, `reviewer-<short-id>`
+- CRITICAL: Every agent's task_prompt MUST include this instruction verbatim:
+  "You are a passive agent. Do NOT start working immediately. Wait for task instructions sent to you via A2A from the orchestrator or other agents. When you receive an A2A message, execute the task described in that message. Until you receive an A2A message, do nothing — just confirm you are ready and waiting."
 
 ---
 

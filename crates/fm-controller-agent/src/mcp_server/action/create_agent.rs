@@ -75,6 +75,18 @@ impl McpAction for CreateAgentAction {
                 });
                 CallToolResult::success(vec![Content::text(response.to_string())])
             }
+            Err(kube::Error::Api(ref api_err)) if api_err.code == 409 => {
+                info!(
+                    "🔁 Agent '{}' already exists in namespace '{}', reusing",
+                    params.name, params.namespace
+                );
+                let response = serde_json::json!({
+                    "name": params.name,
+                    "namespace": params.namespace,
+                    "status": "already_exists"
+                });
+                CallToolResult::success(vec![Content::text(response.to_string())])
+            }
             Err(err) => CallToolResult::error(vec![Content::text(format!(
                 "Failed to create agent: {err}"
             ))]),
