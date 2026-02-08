@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Follow SOLID principles
 - Follow DRY principle
 - Follow YAGNI principle
+- Follow Code Quality: Boy-Scout Principle
 - Keep CSS in separate files
 
 ## Project Overview
