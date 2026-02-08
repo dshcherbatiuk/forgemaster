@@ -18,10 +18,6 @@ pub struct CreateAgentParams {
     #[schemars(description = "Type of the agent (e.g. code-generator, architect, reviewer)")]
     pub agent_type: String,
 
-    /// LLM model name (e.g., "claude-sonnet-4-20250514").
-    #[schemars(description = "LLM model name to use")]
-    pub model_name: String,
-
     /// Full instruction prompt for the agent.
     #[schemars(description = "Task prompt describing what the agent should do")]
     pub task_prompt: String,
@@ -41,7 +37,6 @@ mod tests {
             "name": "code-gen-1",
             "namespace": "task-abc",
             "agent_type": "code-generator",
-            "model_name": "claude-sonnet-4-20250514",
             "task_prompt": "Write a hello world",
             "mcp_servers": "github-mcp:3000"
         }"#;
@@ -50,7 +45,6 @@ mod tests {
         assert_eq!(params.name, "code-gen-1");
         assert_eq!(params.namespace, "task-abc");
         assert_eq!(params.agent_type, "code-generator");
-        assert_eq!(params.model_name, "claude-sonnet-4-20250514");
         assert_eq!(params.task_prompt, "Write a hello world");
         assert_eq!(params.mcp_servers.as_deref(), Some("github-mcp:3000"));
     }
@@ -61,7 +55,6 @@ mod tests {
             "name": "reviewer-1",
             "namespace": "task-xyz",
             "agent_type": "reviewer",
-            "model_name": "claude-sonnet-4-20250514",
             "task_prompt": "Review the code"
         }"#;
 
@@ -85,8 +78,8 @@ mod tests {
         assert!(properties.get("name").is_some());
         assert!(properties.get("namespace").is_some());
         assert!(properties.get("agent_type").is_some());
-        assert!(properties.get("model_name").is_some());
         assert!(properties.get("task_prompt").is_some());
         assert!(properties.get("mcp_servers").is_some());
+        assert!(properties.get("model_name").is_none());
     }
 }

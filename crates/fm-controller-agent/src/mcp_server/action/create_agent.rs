@@ -17,12 +17,16 @@ use super::McpAction;
 /// Creates a new Agent CR in Kubernetes.
 pub struct CreateAgentAction {
     client: Client,
+    default_model: String,
 }
 
 impl CreateAgentAction {
-    /// Creates a new action with the given Kubernetes client.
-    pub fn new(client: Client) -> Self {
-        Self { client }
+    /// Creates a new action with the given Kubernetes client and default model fallback.
+    pub fn new(client: Client, default_model: String) -> Self {
+        Self {
+            client,
+            default_model,
+        }
     }
 }
 
@@ -34,7 +38,7 @@ impl McpAction for CreateAgentAction {
         info!(
             "🔧 MCP: create_agent name={} namespace={} type={} model={} mcp_servers={:?}\n📝 task_prompt:\n{}",
             params.name, params.namespace, params.agent_type,
-            params.model_name, params.mcp_servers, params.task_prompt
+            self.default_model, params.mcp_servers, params.task_prompt
         );
 
         let mcp_servers = params
@@ -48,7 +52,7 @@ impl McpAction for CreateAgentAction {
             &params.name,
             AgentCrd {
                 agent_type: params.agent_type,
-                model: ModelConfig::builder().name(params.model_name).build(),
+                model: ModelConfig::builder().name(self.default_model.clone()).build(),
                 task_prompt: params.task_prompt,
                 mcp_servers,
                 resources: None,

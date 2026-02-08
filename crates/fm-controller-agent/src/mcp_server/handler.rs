@@ -17,15 +17,17 @@ use super::{CreateAgentParams, GetAgentParams, ListAgentsParams};
 #[derive(Clone)]
 pub struct AgentMcpHandler {
     client: Client,
+    default_model: String,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl AgentMcpHandler {
-    /// Creates a new handler with the given Kubernetes client.
-    pub fn new(client: Client) -> Self {
+    /// Creates a new handler with the given Kubernetes client and default model.
+    pub fn new(client: Client, default_model: String) -> Self {
         Self {
             client,
+            default_model,
             tool_router: Self::tool_router(),
         }
     }
@@ -35,7 +37,7 @@ impl AgentMcpHandler {
         &self,
         Parameters(params): Parameters<CreateAgentParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let action = CreateAgentAction::new(self.client.clone());
+        let action = CreateAgentAction::new(self.client.clone(), self.default_model.clone());
         Ok(action.execute(params).await)
     }
 

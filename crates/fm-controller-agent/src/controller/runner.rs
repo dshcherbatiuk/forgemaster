@@ -56,7 +56,7 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
         });
 
     let task_watcher = task_watcher::run(client.clone(), namespace, &default_model, &default_mcp_servers, &workspace_container_path);
-    let mcp_server = crate::mcp_server::start(client);
+    let mcp_server = crate::mcp_server::start(client, &default_model);
 
     tokio::select! {
         () = agent_controller => {
