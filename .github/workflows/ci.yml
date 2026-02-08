@@ -58,7 +58,7 @@ jobs:
             context: .
             dockerfile: crates/fm-agent-runtime-claude/Dockerfile
           - image: fm-mcp-filesystem
-            context: crates/fm-mcp-filesystem
+            context: .
             dockerfile: crates/fm-mcp-filesystem/Dockerfile
           - image: fm-mcp-devtools
             context: .

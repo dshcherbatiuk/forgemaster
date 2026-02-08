@@ -1,6 +1,6 @@
 # ADR-0008: Filesystem MCP Server for Agent Workspace Access
 
-**Status:** Accepted
+**Status:** Superseded (switched from Option 1 to Option 4)
 
 **Date:** 2026-02-08
 
@@ -10,172 +10,106 @@
 
 ## Context
 
-Agents (code-generator, test-generator, reviewer) need to read and write files in the shared workspace directory (`/workspace`). Currently agents produce output as text in their conversation response, but cannot persist files to disk. The orchestrator relays outputs between agents via `task_prompt`, but this doesn't scale for large codebases and prevents agents from working with real files.
+Agents (code-generator, test-generator, reviewer) need to read and write files in the shared workspace directory (`/workspace`). A filesystem MCP server gives agents tools like `read_file`, `write_file`, `list_directory`.
 
-A filesystem MCP server would give agents tools like `read_file`, `write_file`, `list_directory` — enabling them to work with the shared workspace as a real filesystem.
+The agent runtime connects to MCP servers via rmcp SDK with Streamable HTTP transport. The `McpServerRef` convention expects servers at `http://<name>.<namespace>.svc.cluster.local:<port>/mcp`.
 
-The agent runtime already supports MCP via rmcp SDK with Streamable HTTP transport. The `McpServerRef` convention expects servers at `http://<name>.<namespace>.svc.cluster.local:<port>/mcp`.
+### Why Option 1 was replaced
 
-## Decision Drivers
+The original decision (Node.js supergateway + @modelcontextprotocol/server-filesystem) proved unstable in production:
 
-- **Time to deploy** — hackathon timeline, must be deployable immediately
-- **Proven implementation** — use battle-tested official tooling, not custom code
-- **Streamable HTTP** — agents connect via Streamable HTTP transport
-- **Security** — path sandboxing to restrict access to the workspace directory only
-- **Simplicity** — wrap existing tools, don't reinvent
+- **supergateway closes SSE streams after each response** — rmcp client interprets this as a fatal transport error, killing the connection permanently
+- **Single stdio pipe bottleneck** — `--stateful` mode processes requests sequentially; concurrent agents cause timeouts and "empty sse stream" errors
+- **Session management failures** — 400 errors on session cleanup
+- **Unreliable health checks** — `/healthz` served by supergateway itself, not the child process; K8s thinks the pod is healthy even when the filesystem server has crashed
+- **Large image size** — ~250MB for Node.js runtime
 
-## Considered Options
-
-### Option 1: Official Node.js server + supergateway bridge
-
-The [official `@modelcontextprotocol/server-filesystem`](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem) is stdio-only. Wrap with [supergateway](https://github.com/supercorp-ai/supergateway) to expose Streamable HTTP.
-
-Deploy as a K8s Service per task namespace. Agents connect via `MCP_SERVER_URLS`.
-
-```
-supergateway --stdio "npx -y @modelcontextprotocol/server-filesystem /workspace" \
-  --port 3000 --outputTransport streamableHttp
-```
-
-**Pros:**
-- Official implementation, 13 tools, well-tested
-- supergateway handles Streamable HTTP bridging
-- Zero custom filesystem code
-- Ready to deploy immediately (npm packages)
-- Built-in path sandboxing (only allowed directories accessible)
-
-**Cons:**
-- Requires Node.js runtime (~250MB image)
-- Two processes per pod (supergateway + filesystem server)
-- Inconsistent with Rust codebase
-- Extra dependency (npm, Node.js)
-
-### Option 2: Go server fork with Streamable HTTP
-
-Fork [mark3labs/mcp-filesystem-server](https://github.com/mark3labs/mcp-filesystem-server) (Go, 14 tools). The underlying `mcp-go` library supports Streamable HTTP natively — change `ServeStdio()` to `ServeStreamableHTTP()`.
-
-**Pros:**
-- Small binary (~20MB image)
-- Native Streamable HTTP via `mcp-go`
-
-**Cons:**
-- Go dependency in a Rust project
-- Must maintain a fork
-- Different build toolchain
-
-### Option 3: Existing Rust crate (`filesystem-mcp-rs`)
-
-[filesystem-mcp-rs](https://docs.rs/crate/filesystem-mcp-rs/0.1.7) (v0.1.7) — Rust port of the official server with 27 tools.
-
-**Pros:**
-- Rust, small binary, feature-rich
-
-**Cons:**
-- Uses SSE transport, not Streamable HTTP
-- Does not use `rmcp` SDK
-- Early stage (v0.1.7)
-
-### Option 4: Build own with rmcp SDK
-
-Build a custom filesystem MCP server in Rust using rmcp SDK.
-
-**Pros:**
-- Same SDK and patterns as existing code
-- Smallest image (~15MB)
-
-**Cons:**
-- Must implement and test ~8-10 filesystem tools
-- Must implement path sandboxing (security-critical)
-- Development time: 1-2 days — too much for hackathon timeline
+These issues caused cascading failures: orchestrator agents crash 3+ times per task due to MCP connection errors, creating duplicate agents and losing pipeline progress.
 
 ## Decision
 
-**Use Option 1: Official Node.js filesystem server + supergateway bridge.**
+**Use Option 4: Native Rust MCP server using rmcp SDK.**
 
-The hackathon timeline does not allow building a custom filesystem MCP server. The official implementation is battle-tested with 13 tools, built-in path sandboxing, and active maintenance. supergateway bridges stdio to Streamable HTTP, which is exactly what the rmcp client expects.
-
-The ~250MB image size is acceptable for the hackathon. Post-hackathon, this can be replaced with a custom Rust implementation (Option 4) if image size or consistency becomes a concern.
+Same SDK, same transport, same patterns as `fm-mcp-devtools` and `fm-controller-agent`. Zero transport translation layers.
 
 ## Implementation
 
-### Docker image
+### Architecture
 
-Single Dockerfile that bundles Node.js + supergateway + filesystem server:
-
-```dockerfile
-FROM node:22-slim
-RUN npm install -g @anthropic-ai/supergateway @modelcontextprotocol/server-filesystem
-EXPOSE 3000
-ENTRYPOINT ["supergateway", \
-  "--stdio", "npx -y @modelcontextprotocol/server-filesystem /workspace", \
-  "--port", "3000", \
-  "--outputTransport", "streamableHttp"]
+```
+rmcp client (agent) → Streamable HTTP → fm-mcp-filesystem (Rust, rmcp server SDK)
 ```
 
-### K8s deployment
+No supergateway, no stdio bridge, no Node.js.
 
-- Deploy as a **K8s Deployment + Service** per task namespace
-- Service name: `fm-mcp-filesystem` — agents connect via `http://fm-mcp-filesystem.<namespace>.svc.cluster.local:3000/mcp`
-- Mount the same workspace hostPath volume as agent pods
-- Helm chart in `crates/fm-mcp-filesystem/helm/`
-- Ansible role for build + deploy
+### Crate structure
 
-### Agent wiring
+`crates/fm-mcp-filesystem/` — follows the same pattern as `fm-mcp-devtools`:
+- `handler.rs` — `FilesystemHandler` with `#[tool_router]` and `#[tool_handler]` macros
+- `param/` — one param struct per tool (Deserialize + JsonSchema)
+- `action/` — one action module per tool (validates workspace path, performs I/O)
+- `workspace.rs` — path sandboxing (all paths must be under `WORKSPACE_ROOT`)
+- `lib.rs` — server startup with `StreamableHttpService` at `/mcp` + `/healthz`
 
-- Add `fm-mcp-filesystem` to agent `McpServerRef` list (alongside `fm-controller-agent-mcp`)
-- Agent Controller creates the filesystem MCP server pod in the task namespace (during Pending → Running transition, or via orchestrator factory)
-- Agents discover filesystem tools via `tools/list` at startup
-
-### Available tools (13)
+### Available tools (7)
 
 | Tool | Description |
 |------|-------------|
-| `read_text_file` | Read file contents as text |
-| `read_media_file` | Read image/audio as base64 |
-| `read_multiple_files` | Read multiple files at once |
-| `write_file` | Create or overwrite a file |
-| `edit_file` | Pattern-matching selective edits |
-| `create_directory` | Create directory with parents |
-| `list_directory` | List contents with type prefixes |
-| `list_directory_with_sizes` | List with sizes and sorting |
-| `move_file` | Move or rename |
-| `search_files` | Recursive glob search |
-| `directory_tree` | Recursive JSON tree |
-| `get_file_info` | File metadata |
-| `list_allowed_directories` | List sandboxed directories |
+| `read_file` | Read file contents as text |
+| `write_file` | Create or overwrite a file (creates parent dirs) |
+| `edit_file` | Find-and-replace first occurrence |
+| `create_directory` | Create directory with parents (mkdir -p) |
+| `list_directory` | List entries with type indicators (dir suffix `/`) |
+| `directory_tree` | Recursive tree with visual connectors |
+| `search_files` | Recursive regex search with file:line:match output |
+
+### Health check
+
+`/healthz` endpoint verifies `/workspace` directory is accessible (not just that the server process is running).
+
+### K8s deployment
+
+Unchanged from original — same Helm chart, same service name, same port 3000.
+
+- Service name: `fm-mcp-filesystem`
+- URL: `http://fm-mcp-filesystem.<namespace>.svc.cluster.local:3000/mcp`
+- Helm chart: `crates/fm-mcp-filesystem/helm/`
+
+### Docker image
+
+Multi-stage Rust build, minimal runtime image (~30MB vs ~250MB):
+
+```dockerfile
+FROM rust:1.93-slim-bookworm AS builder
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+RUN cargo build --release -p fm-mcp-filesystem
+
+FROM debian:bookworm-slim
+COPY --from=builder /app/target/release/fm-mcp-filesystem /app/fm-mcp-filesystem
+ENTRYPOINT ["/app/fm-mcp-filesystem"]
+```
 
 ## Consequences
 
 ### Positive
 
-- Agents can read/write files in the shared workspace immediately
-- Zero custom filesystem code to maintain
-- Official implementation with active maintenance
-- Built-in path sandboxing (only `/workspace` accessible)
-- 13 tools available out of the box
+- **No transport translation** — rmcp server SDK speaks the same protocol as rmcp client
+- **Multi-threaded** — handles concurrent agent connections properly
+- **Reliable health checks** — `/healthz` verifies actual filesystem access
+- **Consistent tech stack** — Rust, same patterns as all other MCP servers
+- **Small image** — ~30MB vs ~250MB
+- **No external dependencies** — no Node.js, no npm, no supergateway
 
 ### Negative
 
-- Node.js runtime dependency (~250MB image)
-- Two processes per pod (supergateway + filesystem server)
-- Inconsistent tech stack (Node.js in a Rust project)
-- supergateway is an additional dependency to track
-
-### Risks
-
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| supergateway Streamable HTTP incompatible with rmcp client | Low | High | Test connectivity before deploying to agents; both follow MCP spec |
-| Node.js image too large for cluster resources | Low | Low | Acceptable for hackathon; replace with Rust post-hackathon |
-| File conflicts between concurrent agents | Low | Medium | Agents execute sequentially (orchestrator controls ordering) |
-| supergateway or filesystem server breaking update | Low | Medium | Pin npm versions in Dockerfile |
+- Must implement and maintain filesystem tools (7 tools, ~200 lines each)
+- Must implement path sandboxing (security-critical, but straightforward)
 
 ## Related
 
 - [ADR-0004: MCP for Tool Integration](0004-mcp-for-tool-integration.md)
 - [ADR-0006: MCP Client SDK Selection](0006-mcp-client-sdk-selection.md)
-- [ADR-0007: Per-Agent-Type Prompt Guidelines](0007-per-agent-type-prompt-injection.md)
-- Agent Controller MCP server: `crates/fm-controller-agent/src/mcp_server/`
-- [Official Filesystem MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem)
-- [supergateway](https://github.com/supercorp-ai/supergateway)
+- Source: `crates/fm-mcp-filesystem/`
+- Pattern reference: `crates/fm-mcp-devtools/`
 - [rmcp SDK](https://docs.rs/rmcp/latest/rmcp/)

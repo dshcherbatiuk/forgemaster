@@ -5,6 +5,7 @@ members = [
     "crates/fm-controller-agent",
     "crates/fm-agent-runtime-claude",
     "crates/fm-mcp-devtools",
+    "crates/fm-mcp-filesystem",
 ]
 
 [workspace.package]
