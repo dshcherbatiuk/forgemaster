@@ -23,6 +23,7 @@ export function useWebSocket(url: string): UseWebSocketResult {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     const socket = new WebSocket(url);
@@ -64,13 +65,17 @@ export function useWebSocket(url: string): UseWebSocketResult {
 
       const delay = reconnectDelayRef.current;
       reconnectDelayRef.current = Math.min(delay * 2, MAX_RECONNECT_DELAY_MS);
-      reconnectTimerRef.current = setTimeout(connect, delay);
+      reconnectTimerRef.current = setTimeout(() => connectRef.current(), delay);
     };
 
     socket.onerror = () => {
       socket.close();
     };
   }, [url]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     connect();
