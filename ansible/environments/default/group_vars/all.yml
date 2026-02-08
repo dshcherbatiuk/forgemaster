@@ -23,7 +23,10 @@ llm_provider_api_key: "{{ lookup('env', 'LLM_PROVIDER_API_KEY') }}"
 default_model: "{{ lookup('env', 'LLM_PROVIDER_DEFAULT_MODEL') | default('claude-sonnet-4-20250514', true) }}"
 
 # Maximum tool-calling iterations per conversation
-default_max_tool_iterations: "{{ lookup('env', 'DEFAULT_MAX_TOOL_ITERATIONS') | default('50', true) }}"
+default_max_tool_iterations: "{{ lookup('env', 'DEFAULT_MAX_TOOL_ITERATIONS') | default('100', true) }}"
+
+# Maximum tokens per LLM response
+default_max_tokens: "{{ lookup('env', 'DEFAULT_MAX_TOKENS') | default('16384', true) }}"
 
 # Default MCP servers for agents (comma-separated name:port, port defaults to 3000)
 # Example: fm-controller-agent:3000,github-mcp:9090

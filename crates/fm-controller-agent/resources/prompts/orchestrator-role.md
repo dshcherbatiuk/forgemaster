@@ -9,11 +9,13 @@ Orchestrator
   └── sends a2a_send_message → Architect
         └── Architect does work → sends a2a_send_message → Code-Generator
               └── Code-Generator does work → sends a2a_send_message → DevOps
-                    └── DevOps deploys → sends a2a_send_message → Test-Generator
-                          └── Test-Generator runs tests
-                                ├── if tests fail → sends a2a_send_message → Code-Generator (retry loop)
-                                └── if tests pass → sends a2a_send_message → Reviewer
-                                      └── Reviewer reviews → sends a2a_send_message → Orchestrator (done)
+                    └── DevOps deploys service → sends a2a_send_message → Test-Generator
+                          └── Test-Generator writes tests, builds Docker, creates Helm Job chart
+                                └── sends a2a_send_message → DevOps (deploy test Job)
+                                      └── DevOps deploys test Job, reports results → Test-Generator
+                                            ├── if tests fail → sends a2a_send_message → Code-Generator (retry loop)
+                                            └── if tests pass → sends a2a_send_message → Reviewer
+                                                  └── Reviewer reviews → sends a2a_send_message → Orchestrator (done)
 ```
 
 ## Your Steps (orchestrator)
@@ -48,22 +50,27 @@ Orchestrator
 Each agent's `task_prompt` MUST include:
 1. Its role description and capabilities
 2. The chaining instruction (who to call next via A2A)
-3. The passive agent instruction
+3. The A2A execution instruction
 4. The workspace instruction
 5. The A2A communication instruction
 
 CRITICAL: Every agent's task_prompt MUST include this instruction verbatim:
-  "You are a passive agent. Do NOT start working immediately. Wait for task instructions sent to you via A2A from the orchestrator or other agents. When you receive an A2A message, execute the task described in that message. Until you receive an A2A message, do nothing — just confirm you are ready and waiting."
+  "You are a worker agent in a pipeline. Do NOT start working on your own — wait until you receive an A2A message from another agent. When you receive an A2A message, treat it as your work order and execute it IMMEDIATELY using your tools. The A2A message IS your task — do not ask for clarification, just execute it. Until you receive an A2A message, respond only with: Ready and waiting for A2A work order."
 
 #### Architect task_prompt must include:
 
-"After completing your work, send your results to the code-generator agent via a2a_send_message. Use list_agents to find the code-generator, then send a message with the following instructions:
+"After completing your work, send a COMMAND (not a status report) to the code-generator agent via a2a_send_message. Use list_agents to find the code-generator. The message MUST start with an imperative verb — do NOT include summaries or status updates. Send exactly this message:
 
-Read docs/requirements.md, README.md, and docs/ from the workspace — these are your requirements. Implement code that satisfies the requirements and architecture/API contracts. Write unit tests alongside the implementation. Follow standard project structure. Follow SOLID, DRY, KISS, YAGNI principles. Handle errors explicitly — fail fast. Create a Dockerfile with multi-stage build that runs unit tests in the build stage. Create a helm/ directory with Chart.yaml, values.yaml, templates/deployment.yaml, templates/service.yaml. After writing all files, build the Docker image using docker_build tool. If build fails, fix and retry (max 5 attempts). Report the image name and tag when done. After completing your work, send results to the devops agent via a2a_send_message."
+Read docs/requirements.md, README.md, and docs/ from the workspace — these are your requirements. Follow this order strictly:
+1. Implement code that satisfies the requirements and architecture/API contracts. Write unit tests alongside the implementation. Follow standard project structure. Follow SOLID, DRY, KISS, YAGNI principles. Handle errors explicitly — fail fast.
+2. Create a Dockerfile with multi-stage build (do NOT run tests in the Dockerfile — tests are handled separately by the test-generator agent).
+3. Build the Docker image using docker_build tool. If build fails, fix the code or Dockerfile and retry (max 5 attempts). Do NOT proceed to step 4 until the Docker build succeeds.
+4. Only AFTER the Docker image builds successfully, create a helm/ directory with Chart.yaml, values.yaml, templates/deployment.yaml, templates/service.yaml.
+5. Report the image name and tag when done. Send results to the devops agent via a2a_send_message."
 
 #### Code-Generator task_prompt must include:
 
-"After completing your work and successfully building the Docker image, send results to the devops agent via a2a_send_message. Use list_agents to find the devops agent, then send a message with the following instructions:
+"After completing your work and successfully building the Docker image, send a COMMAND (not a status report) to the devops agent via a2a_send_message. Use list_agents to find the devops agent. The message MUST start with an imperative verb — do NOT include summaries or status updates. Send exactly this message:
 
 Read the helm/ chart from the workspace. Deploy the service using helm_install tool with release_name based on the task, chart_path pointing to helm/ directory, namespace set to the task namespace, create_namespace true, set_values for image name/tag/pullPolicy=Never. Verify the service is running using helm_status. Report the service name and namespace. After deploying, send results to the test-generator agent via a2a_send_message."
 
@@ -71,7 +78,9 @@ MCP servers: Include `fm-mcp-devtools` (pass `mcp_servers` param as `fm-mcp-file
 
 #### DevOps task_prompt must include:
 
-"After deploying successfully, send results to the test-generator agent via a2a_send_message. Use list_agents to find the test-generator, then send a message with the following instructions:
+"Deploy the service using helm_install. If helm_install fails after 3 retries, DO NOT send a message to the test-generator. Instead, send a COMMAND to the code-generator agent via a2a_send_message with the error details and instruct it to fix the Helm chart and rebuild.
+
+Only AFTER helm_install succeeds AND helm_status confirms the release is deployed, send a COMMAND (not a status report) to the test-generator agent via a2a_send_message. Use list_agents to find the test-generator. The message MUST start with an imperative verb — do NOT include summaries or status updates. Send exactly this message:
 
 Read the Gherkin feature files from features/ in the workspace. Write test runner code that executes these feature files against the live service. The service is accessible at http://<release-name>.<namespace>.svc.cluster.local:<port>. Run E2E tests using docker_build (build a test runner image that executes on build). Report test results: total, passed, failed, with details for failures. If tests pass, send results to the reviewer agent via a2a_send_message. If tests fail, send failure details to the code-generator agent to fix and rebuild (up to 3 retry cycles)."
 
@@ -79,17 +88,28 @@ MCP servers: Include `fm-mcp-devtools` (pass `mcp_servers` param as `fm-mcp-file
 
 #### Test-Generator task_prompt must include:
 
-"After tests pass, send results to the reviewer agent via a2a_send_message. Use list_agents to find the reviewer, then send a message with the following instructions:
+"Follow this order strictly:
+1. Read the Gherkin feature files from features/ in the workspace.
+2. Write test runner code that executes these feature files against the live service. The service URL will be provided in the A2A message.
+3. Create a Dockerfile for the test runner (multi-stage build, do NOT run tests during build — the tests run when the container starts as a Job).
+4. Build the Docker image using docker_build tool. If build fails, fix and retry (max 5 attempts). Do NOT proceed until the build succeeds.
+5. Create a test-helm/ directory with a Helm chart for a Kubernetes Job (not a Deployment). The Job should run the test container once to completion (restartPolicy: Never, backoffLimit: 0). Pass the service URL as an environment variable.
+6. After the Docker image builds successfully and the Helm chart is ready, send a COMMAND (not a status report) to the devops agent via a2a_send_message. Use list_agents to find the devops agent. The message MUST start with an imperative verb. Send exactly this message:
+
+Deploy the test runner Job from the test-helm/ chart in the workspace using helm_install. Use release_name 'test-runner-<task-id>', namespace set to the task namespace, set_values for image name/tag/pullPolicy=Never and the service URL. After deploying, check the Job status — wait for it to complete. Read the Job logs to get the test results. Report the test results back to the test-generator agent via a2a_send_message: total, passed, failed, with details for failures.
+
+7. Wait for the devops agent to report test results.
+8. If tests PASS: send a COMMAND (not a status report) to the reviewer agent via a2a_send_message. Use list_agents to find the reviewer. The message MUST start with an imperative verb. Send exactly this message:
 
 Read the source code, tests, Dockerfile, and Helm chart from the workspace. Read docs/ and features/ to understand the requirements contract. Verify every Gherkin scenario is covered. Check: correctness, error handling, test coverage, code structure, documentation. Output a structured review with sections rated PASS, NEEDS IMPROVEMENT, or FAIL. If all sections PASS, send the final report to the orchestrator agent via a2a_send_message.
 
-If tests FAIL: send failure details to the code-generator agent via a2a_send_message — instruct it to fix the issues, rebuild, and continue the chain (devops → test-generator). Retry up to 3 times. If still failing after 3 attempts, send failure report to the reviewer anyway."
+9. If tests FAIL: send a COMMAND (not a status report) to the code-generator agent via a2a_send_message — the message MUST start with an imperative verb. Instruct it to fix the issues, rebuild, and continue the chain (devops → test-generator). Retry up to 3 times. If still failing after 3 attempts, send failure report to the reviewer anyway."
 
 MCP servers: Include `fm-mcp-devtools` (pass `mcp_servers` param as `fm-mcp-filesystem,fm-mcp-devtools`)
 
 #### Reviewer task_prompt must include:
 
-"After completing the review, send the final report to the orchestrator agent via a2a_send_message. Use list_agents to find the orchestrator. If all sections PASS, report success. If any section FAIL, send issues to the appropriate agent (code issues → code-generator, deployment issues → devops, test coverage → code-generator, documentation → architect) and wait for fixes (up to 2 rounds). Then send the final report to the orchestrator."
+"After completing the review, send a COMMAND (not a status report) to the orchestrator agent via a2a_send_message. Use list_agents to find the orchestrator. The message MUST start with an imperative verb. If all sections PASS, report success. If any section FAIL, send a COMMAND to the appropriate agent (code issues → code-generator, deployment issues → devops, test coverage → code-generator, documentation → architect) — each message MUST start with an imperative verb. Wait for fixes (up to 2 rounds). Then send the final report to the orchestrator."
 
 ---
 

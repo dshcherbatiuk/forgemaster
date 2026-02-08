@@ -5,16 +5,21 @@ use anyhow::{Result, bail};
 
 use crate::claude_api::request::Message as ClaudeMessage;
 
+/// Prefix added to A2A messages so the agent recognises them as work orders.
+const A2A_WORK_ORDER_PREFIX: &str = "[A2A WORK ORDER] This is an A2A message from a peer agent. Execute it immediately.\n\n";
+
 /// Converts A2A protocol messages to Claude API messages.
 ///
 /// Extracts text content from A2A message parts and constructs
 /// a Claude user message suitable for the conversation loop.
+/// Prefixes the text with [`A2A_WORK_ORDER_PREFIX`] so the agent
+/// can distinguish A2A work orders from the initial prompt.
 pub struct A2aMessageConverter;
 
 impl A2aMessageConverter {
     /// Extracts text from A2A message parts and creates a Claude user message.
     ///
-    /// Joins all text parts with newlines.
+    /// Joins all text parts with newlines and prepends the A2A work order prefix.
     ///
     /// # Errors
     ///
@@ -26,7 +31,7 @@ impl A2aMessageConverter {
             bail!("A2A message contains no text content");
         }
 
-        Ok(ClaudeMessage::user(text))
+        Ok(ClaudeMessage::user(format!("{A2A_WORK_ORDER_PREFIX}{text}")))
     }
 }
 
@@ -61,24 +66,26 @@ mod tests {
     }
 
     #[test]
-    fn single_text_part_converts() {
+    fn single_text_part_converts_with_prefix() {
         let message = message_with_parts(vec![Part::text("Hello agent!")]);
         let claude_msg = A2aMessageConverter::to_claude_message(&message).expect("convert");
         match &claude_msg.content {
             crate::claude_api::request::MessageContent::Text(t) => {
-                assert_eq!(t, "Hello agent!");
+                assert!(t.starts_with(A2A_WORK_ORDER_PREFIX));
+                assert!(t.ends_with("Hello agent!"));
             }
             _ => panic!("Expected Text content"),
         }
     }
 
     #[test]
-    fn multiple_text_parts_joined_with_newline() {
+    fn multiple_text_parts_joined_with_newline_and_prefix() {
         let message = message_with_parts(vec![Part::text("Line 1"), Part::text("Line 2")]);
         let claude_msg = A2aMessageConverter::to_claude_message(&message).expect("convert");
         match &claude_msg.content {
             crate::claude_api::request::MessageContent::Text(t) => {
-                assert_eq!(t, "Line 1\nLine 2");
+                assert!(t.starts_with(A2A_WORK_ORDER_PREFIX));
+                assert!(t.ends_with("Line 1\nLine 2"));
             }
             _ => panic!("Expected Text content"),
         }

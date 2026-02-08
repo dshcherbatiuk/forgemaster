@@ -22,7 +22,7 @@ pub struct ModelConfig {
     pub temperature: f64,
 
     /// Maximum tokens the LLM can generate per response.
-    #[builder(default = 4096)]
+    #[builder(default = 16384)]
     pub max_tokens: i32,
 
     /// Maximum tool-calling iterations per conversation.
@@ -48,7 +48,7 @@ mod tests {
         assert_eq!(config.provider, ModelProvider::Anthropic);
         assert_eq!(config.name, "claude-sonnet-4-20250514");
         assert!((config.temperature - 0.7).abs() < f64::EPSILON);
-        assert_eq!(config.max_tokens, 4096);
+        assert_eq!(config.max_tokens, 16384);
         assert_eq!(config.max_tool_iterations, 50);
     }
 
@@ -75,7 +75,7 @@ mod tests {
         let json = serde_json::to_value(&config).unwrap_or_default();
         assert_eq!(json["provider"], "anthropic");
         assert_eq!(json["name"], "claude-sonnet-4-20250514");
-        assert_eq!(json["maxTokens"], 4096);
+        assert_eq!(json["maxTokens"], 16384);
         assert_eq!(json["maxToolIterations"], 50);
     }
 

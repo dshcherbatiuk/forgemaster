@@ -5,7 +5,7 @@
 use anyhow::{Result, bail};
 
 const DEFAULT_API_BASE_URL: &str = "https://api.anthropic.com";
-const DEFAULT_MAX_TOKENS: i32 = 4096;
+const DEFAULT_MAX_TOKENS: i32 = 16384;
 const DEFAULT_TEMPERATURE: f64 = 0.7;
 const DEFAULT_MAX_TOOL_ITERATIONS: u32 = 50;
 
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn default_max_tokens() {
-        assert_eq!(DEFAULT_MAX_TOKENS, 4096);
+        assert_eq!(DEFAULT_MAX_TOKENS, 16384);
     }
 
     #[test]

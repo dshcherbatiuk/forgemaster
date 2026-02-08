@@ -24,7 +24,7 @@ const DEFAULT_MCP_PORT: u16 = 3000;
 ///
 /// Serves agent lifecycle tools (`create_agent`, `list_agents`, `get_agent_status`)
 /// via Streamable HTTP transport at `/mcp`.
-pub async fn start(client: Client, default_model: &str, default_mcp_servers: &[crate::crd::McpServerRef]) -> anyhow::Result<()> {
+pub async fn start(client: Client, default_model: &str, default_max_tokens: i32, default_mcp_servers: &[crate::crd::McpServerRef]) -> anyhow::Result<()> {
     let port = std::env::var("MCP_SERVER_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -33,7 +33,7 @@ pub async fn start(client: Client, default_model: &str, default_mcp_servers: &[c
     let default_model = default_model.to_string();
     let default_mcp_servers: McpServerRefs = default_mcp_servers.into();
     let service = StreamableHttpService::new(
-        move || Ok(AgentMcpHandler::new(client.clone(), default_model.clone(), default_mcp_servers.clone())),
+        move || Ok(AgentMcpHandler::new(client.clone(), default_model.clone(), default_max_tokens, default_mcp_servers.clone())),
         LocalSessionManager::default().into(),
         Default::default(),
     );

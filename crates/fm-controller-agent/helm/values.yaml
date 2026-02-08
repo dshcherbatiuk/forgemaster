@@ -34,6 +34,7 @@ runtime-agent:
     repository: fm-agent-runtime-claude
     tag: latest
   model: claude-sonnet-4-20250514
+  maxTokens: 16384
   llm-provider:
     secretName: anthropic-credentials
     secretKey: api-key

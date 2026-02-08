@@ -21,6 +21,9 @@ const DEFAULT_WORKSPACE_CONTAINER_PATH: &str = "/workspace";
 /// Most orchestrators use 1–2 MCP servers; stack-allocate up to 4.
 pub type McpServerRefs = SmallVec<[McpServerRef; 4]>;
 
+/// Default max tokens per LLM response when not configured.
+const DEFAULT_MAX_TOKENS: i32 = 16384;
+
 /// Shared context for the Agent controller.
 #[derive(Clone)]
 pub struct ControllerContext {
@@ -28,6 +31,7 @@ pub struct ControllerContext {
     namespace: String,
     runtime_agent_image: String,
     default_model: String,
+    default_max_tokens: i32,
     llm_provider_secret_name: String,
     llm_provider_secret_key: String,
     default_mcp_servers: McpServerRefs,
@@ -45,6 +49,7 @@ impl ControllerContext {
         namespace: String,
         runtime_agent_image: String,
         default_model: String,
+        default_max_tokens: i32,
         llm_provider_secret_name: String,
         llm_provider_secret_key: String,
         default_mcp_servers: McpServerRefs,
@@ -58,6 +63,7 @@ impl ControllerContext {
             namespace,
             runtime_agent_image,
             default_model,
+            default_max_tokens,
             llm_provider_secret_name,
             llm_provider_secret_key,
             default_mcp_servers,
@@ -91,6 +97,11 @@ impl ControllerContext {
     /// Returns the default LLM model name (e.g. "claude-sonnet-4-20250514").
     pub fn default_model(&self) -> &str {
         &self.default_model
+    }
+
+    /// Returns the default max tokens per LLM response.
+    pub fn default_max_tokens(&self) -> i32 {
+        self.default_max_tokens
     }
 
     /// Returns the key within the LLM provider secret.
@@ -159,6 +170,11 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
     let llm_provider_secret_name = require_env("LLM_PROVIDER_SECRET_NAME")?;
     let llm_provider_secret_key = require_env("LLM_PROVIDER_SECRET_KEY")?;
 
+    let default_max_tokens = std::env::var("DEFAULT_MAX_TOKENS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_MAX_TOKENS);
+
     let default_mcp_servers = std::env::var("DEFAULT_MCP_SERVERS")
         .ok()
         .map(|val| parse_mcp_server_refs(&val))
@@ -187,6 +203,7 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
         namespace,
         runtime_agent_image,
         default_model,
+        default_max_tokens,
         llm_provider_secret_name,
         llm_provider_secret_key,
         default_mcp_servers,
@@ -347,5 +364,10 @@ mod tests {
     #[test]
     fn default_workspace_container_path() {
         assert_eq!(DEFAULT_WORKSPACE_CONTAINER_PATH, "/workspace");
+    }
+
+    #[test]
+    fn default_max_tokens_value() {
+        assert_eq!(DEFAULT_MAX_TOKENS, 16384);
     }
 }

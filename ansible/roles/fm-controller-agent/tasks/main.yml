@@ -21,6 +21,7 @@
     --set controller.image.tag={{ image_tag }}
     --set controller.image.pullPolicy={{ image_pull_policy }}
     --set runtime-agent.model={{ default_model }}
+    --set runtime-agent.maxTokens={{ default_max_tokens }}
     --set runtime-agent.llm-provider.secretName={{ llm_provider_secret_name }}
     --set runtime-agent.llm-provider.secretKey={{ llm_provider_secret_key }}
     --set "controller.defaultMcpServers={{ default_mcp_servers | replace(',', '\\,') }}"

@@ -190,7 +190,7 @@ mod tests {
         };
 
         assert_eq!(loop_config.model, "claude-sonnet-4-20250514");
-        assert_eq!(loop_config.max_tokens, 4096);
+        assert_eq!(loop_config.max_tokens, 16384);
         assert_eq!(loop_config.system.as_deref(), Some("You are an agent"));
         assert_eq!(loop_config.max_iterations, 50);
     }

@@ -12,7 +12,7 @@ const ORCHESTRATOR_ROLE: &str =
     include_str!("../../resources/prompts/orchestrator-role.md");
 
 /// Builds an Orchestrator Agent CR for the given AgentTask.
-pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef], workspace_path: &str) -> Agent {
+pub fn build(task: &AgentTask, model_name: &str, default_max_tokens: i32, mcp_servers: &[McpServerRef], workspace_path: &str) -> Agent {
     let task_name = task.name_any();
     // Agent goes into the task-specific namespace (same name as the task)
     let task_namespace = task_name.clone();
@@ -51,6 +51,7 @@ pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef], w
             agent_type: "orchestrator".to_string(),
             model: ModelConfig::builder()
                 .name(model_name.to_string())
+                .max_tokens(default_max_tokens)
                 .build(),
             task_prompt,
             mcp_servers: mcp_servers.to_vec(),
@@ -87,7 +88,7 @@ mod tests {
     }
 
     fn build_test_agent() -> Agent {
-        build(&test_task(), "claude-sonnet-4-20250514", &[], "/workspace")
+        build(&test_task(), "claude-sonnet-4-20250514", 16384, &[], "/workspace")
     }
 
     #[test]
@@ -181,7 +182,7 @@ mod tests {
                 .port(9090)
                 .build(),
         ];
-        let agent = build(&test_task(), "claude-sonnet-4-20250514", &servers, "/workspace");
+        let agent = build(&test_task(), "claude-sonnet-4-20250514", 16384, &servers, "/workspace");
         assert_eq!(agent.spec.mcp_servers.len(), 2);
         assert_eq!(agent.spec.mcp_servers[0].name, "fm-controller-agent");
         assert_eq!(agent.spec.mcp_servers[1].name, "github-mcp");

@@ -18,6 +18,7 @@ pub async fn run(
     client: Client,
     namespace: &str,
     default_model: &str,
+    default_max_tokens: i32,
     default_mcp_servers: &[McpServerRef],
     workspace_container_path: &str,
 ) -> anyhow::Result<()> {
@@ -32,7 +33,7 @@ pub async fn run(
     while let Some(event) = stream.try_next().await? {
         match event {
             watcher::Event::Apply(task) | watcher::Event::InitApply(task) => {
-                handle_task(&client, &task, default_model, default_mcp_servers, workspace_container_path).await;
+                handle_task(&client, &task, default_model, default_max_tokens, default_mcp_servers, workspace_container_path).await;
             }
             _ => {}
         }
@@ -45,6 +46,7 @@ async fn handle_task(
     client: &Client,
     task: &AgentTask,
     default_model: &str,
+    default_max_tokens: i32,
     default_mcp_servers: &[McpServerRef],
     workspace_container_path: &str,
 ) {
@@ -63,7 +65,7 @@ async fn handle_task(
         return;
     }
 
-    let agent = orchestrator_factory::build(task, default_model, default_mcp_servers, workspace_container_path);
+    let agent = orchestrator_factory::build(task, default_model, default_max_tokens, default_mcp_servers, workspace_container_path);
     let agent_api: Api<Agent> = Api::namespaced(client.clone(), &task_namespace);
 
     match agent_api.create(&PostParams::default(), &agent).await {

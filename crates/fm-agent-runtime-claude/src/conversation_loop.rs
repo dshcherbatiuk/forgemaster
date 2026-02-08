@@ -136,7 +136,18 @@ pub async fn run(
 
                 messages.push(Message::tool_results(tool_result_blocks));
             }
-            Some(StopReason::EndTurn | StopReason::MaxTokens) | None => {
+            Some(StopReason::MaxTokens) => {
+                // Response was truncated — Claude ran out of output tokens mid-response.
+                // Append the partial assistant message and ask Claude to continue.
+                warn!(
+                    "⚠️ Response truncated (max_tokens) at iteration {iteration}, continuing"
+                );
+                if !response.text.is_empty() {
+                    messages.push(Message::assistant(response.text.clone()));
+                }
+                messages.push(Message::user("Continue."));
+            }
+            Some(StopReason::EndTurn) | None => {
                 info!(
                     "✅ Conversation complete after {iteration} iteration(s), {} tokens",
                     total_usage.total()

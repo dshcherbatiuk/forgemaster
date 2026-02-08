@@ -52,8 +52,8 @@ spec:
                       default: 0.7
                     maxTokens:
                       type: integer
-                      description: "Maximum tokens the LLM can generate per response (~4 chars/token). 4096 ≈ 3000 words, sufficient for typical code files."
-                      default: 4096
+                      description: "Maximum tokens the LLM can generate per response (~4 chars/token). 16384 gives agents room for multi-file code generation."
+                      default: 16384
                 taskPrompt:
                   type: string
                   description: "Full instruction prompt: role definition + task description."

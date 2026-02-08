@@ -20,17 +20,19 @@ use super::{CreateAgentParams, GetAgentParams, ListAgentsParams};
 pub struct AgentMcpHandler {
     client: Client,
     default_model: String,
+    default_max_tokens: i32,
     default_mcp_servers: McpServerRefs,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl AgentMcpHandler {
-    /// Creates a new handler with the given Kubernetes client, default model, and default MCP servers.
-    pub fn new(client: Client, default_model: String, default_mcp_servers: McpServerRefs) -> Self {
+    /// Creates a new handler with the given Kubernetes client, default model, max tokens, and default MCP servers.
+    pub fn new(client: Client, default_model: String, default_max_tokens: i32, default_mcp_servers: McpServerRefs) -> Self {
         Self {
             client,
             default_model,
+            default_max_tokens,
             default_mcp_servers,
             tool_router: Self::tool_router(),
         }
@@ -41,7 +43,7 @@ impl AgentMcpHandler {
         &self,
         Parameters(params): Parameters<CreateAgentParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let action = CreateAgentAction::new(self.client.clone(), self.default_model.clone(), self.default_mcp_servers.clone());
+        let action = CreateAgentAction::new(self.client.clone(), self.default_model.clone(), self.default_max_tokens, self.default_mcp_servers.clone());
         Ok(action.execute(params).await)
     }
 

@@ -19,6 +19,7 @@ spec:
         app.kubernetes.io/component: mcp-server
         app.kubernetes.io/part-of: forgemaster
     spec:
+      serviceAccountName: {{ .Chart.Name }}
       containers:
         - name: mcp-devtools
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
