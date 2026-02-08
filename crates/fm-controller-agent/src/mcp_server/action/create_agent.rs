@@ -9,6 +9,7 @@ use kube::api::{Api, PostParams};
 use rmcp::model::*;
 use tracing::info;
 
+use crate::controller::McpServerRefs;
 use crate::crd::{Agent, AgentCrd, McpServerRef, ModelConfig};
 use crate::mcp_server::CreateAgentParams;
 
@@ -18,14 +19,16 @@ use super::McpAction;
 pub struct CreateAgentAction {
     client: Client,
     default_model: String,
+    default_mcp_servers: McpServerRefs,
 }
 
 impl CreateAgentAction {
-    /// Creates a new action with the given Kubernetes client and default model fallback.
-    pub fn new(client: Client, default_model: String) -> Self {
+    /// Creates a new action with the given Kubernetes client, default model, and default MCP servers.
+    pub fn new(client: Client, default_model: String, default_mcp_servers: McpServerRefs) -> Self {
         Self {
             client,
             default_model,
+            default_mcp_servers,
         }
     }
 }
@@ -44,7 +47,7 @@ impl McpAction for CreateAgentAction {
         let mcp_servers = params
             .mcp_servers
             .map(|s| parse_mcp_servers(&s))
-            .unwrap_or_default();
+            .unwrap_or_else(|| self.default_mcp_servers.to_vec());
 
         let labels = build_agent_labels(&params.namespace, &params.agent_type);
 

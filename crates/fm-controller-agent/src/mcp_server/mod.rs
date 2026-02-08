@@ -10,6 +10,8 @@ pub mod param;
 pub use handler::AgentMcpHandler;
 pub use param::{CreateAgentParams, GetAgentParams, ListAgentsParams};
 
+use crate::controller::McpServerRefs;
+
 use kube::Client;
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::StreamableHttpService;
@@ -22,15 +24,16 @@ const DEFAULT_MCP_PORT: u16 = 3000;
 ///
 /// Serves agent lifecycle tools (`create_agent`, `list_agents`, `get_agent_status`)
 /// via Streamable HTTP transport at `/mcp`.
-pub async fn start(client: Client, default_model: &str) -> anyhow::Result<()> {
+pub async fn start(client: Client, default_model: &str, default_mcp_servers: &[crate::crd::McpServerRef]) -> anyhow::Result<()> {
     let port = std::env::var("MCP_SERVER_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(DEFAULT_MCP_PORT);
 
     let default_model = default_model.to_string();
+    let default_mcp_servers: McpServerRefs = default_mcp_servers.into();
     let service = StreamableHttpService::new(
-        move || Ok(AgentMcpHandler::new(client.clone(), default_model.clone())),
+        move || Ok(AgentMcpHandler::new(client.clone(), default_model.clone(), default_mcp_servers.clone())),
         LocalSessionManager::default().into(),
         Default::default(),
     );

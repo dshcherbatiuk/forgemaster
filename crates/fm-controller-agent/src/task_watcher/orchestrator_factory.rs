@@ -34,9 +34,10 @@ pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef], w
     // are not supported by K8s. Cleanup is handled by namespace
     // deletion (AgentTask finalizer deletes the entire task namespace).
 
+    let workspace_dir = format!("{}/{}", workspace_path, task_namespace);
     let task_prompt = format!(
         "{}\n\n---\n\nTask ID: {}\nNamespace: {}\nWorkspace: {}\n\nTask Description:\n{}",
-        ORCHESTRATOR_ROLE, task_name, task_namespace, workspace_path, task.spec.description
+        ORCHESTRATOR_ROLE, task_name, task_namespace, workspace_dir, task.spec.description
     );
 
     Agent {
@@ -152,9 +153,9 @@ mod tests {
     }
 
     #[test]
-    fn task_prompt_contains_workspace_path() {
+    fn task_prompt_contains_workspace_path_with_task_namespace() {
         let agent = build_test_agent();
-        assert!(agent.spec.task_prompt.contains("Workspace: /workspace"));
+        assert!(agent.spec.task_prompt.contains("Workspace: /workspace/task-abc123"));
     }
 
     #[test]

@@ -198,6 +198,11 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Add per-agent-type guidelines to orchestrator prompt ([ADR-0007](adr/0007-per-agent-type-prompt-injection.md))
 - [x] Sequential orchestration — orchestrator relays outputs between agents via task_prompt
 - [x] Code-generator rules: SOLID, DRY, KISS, YAGNI, fail fast, one class per file
+- [x] Deploy Filesystem MCP server ([ADR-0008](adr/0008-filesystem-mcp-server.md)) — static Helm chart + Ansible role, supergateway bridge
+- [x] Default MCP servers fallback for child agents (create_agent uses controller config when mcp_servers omitted)
+- [x] Workspace path scoped per task namespace (`/workspace/<task-namespace>/`)
+- [x] Parallel agent creation — orchestrator creates all agents at once, agents are independent
+- [x] A2A inter-agent communication in orchestrator prompt
 
 ### 2.4 Core Agents
 
@@ -267,7 +272,8 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Wire MCP_SERVER_URLS injection in pod_builder
 - [x] Add DEFAULT_MCP_SERVERS config (env → Ansible → Helm → ConfigMap)
 - [x] Implement Agent Controller MCP server (create_agent, list_agents, get_agent_status via rmcp SDK)
-- [ ] Integrate external MCP servers (filesystem, GitHub, K8s API)
+- [x] Integrate filesystem MCP server (fm-mcp-filesystem — supergateway + @modelcontextprotocol/server-filesystem)
+- [ ] Integrate external MCP servers (GitHub, K8s API)
 - [ ] Test tool discovery and execution end-to-end
 - [ ] Dynamic MCP server registry (future — out of scope for now)
 
@@ -406,6 +412,10 @@ forgemaster/
 │   │       ├── tool_executor/        # ToolExecutor trait, CompositeToolExecutor, NoOp
 │   │       └── conversation_loop.rs  # Multi-turn tool calling loop
 │   │
+│   ├── fm-mcp-filesystem/            # Filesystem MCP server (supergateway + Node.js)
+│   │   ├── Dockerfile
+│   │   └── helm/
+│   │
 │   ├── fm-tcp-controller/            # TCP Controller service (future)
 │   │
 │   └── fm-a2a/                       # A2A protocol (future)
@@ -426,7 +436,8 @@ forgemaster/
 │       ├── ui/
 │       ├── fm-controller-agenttask/
 │       ├── fm-controller-agent/
-│       └── fm-agent-runtime-claude/
+│       ├── fm-agent-runtime-claude/
+│       └── fm-mcp-filesystem/
 │
 └── docs/
 ```
@@ -476,7 +487,7 @@ forgemaster/
 - [x] MCP client integration (rmcp SDK, multi-server, tool calling loop)
 - [ ] A2A protocol for agent coordination
 - [ ] TCP Controller with PID logic
-- [ ] Orchestrator + Test Generator + Code Generator agents
+- [x] Orchestrator + Test Generator + Code Generator + Reviewer agents
 - [ ] Single working demo: E-commerce API generation
 
 **Nice to Have:**

@@ -28,6 +28,7 @@
     - fm-controller-agenttask
     - fm-controller-agent
     - fm-agent-runtime-claude
+    - fm-mcp-filesystem
     - ui
 
   post_tasks:

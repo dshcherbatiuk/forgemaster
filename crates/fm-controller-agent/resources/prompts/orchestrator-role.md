@@ -26,19 +26,19 @@ Rules you MUST include verbatim in the test-generator's task_prompt:
 - Include Scenario Outline with Examples tables for parameterized tests
 - File naming: `<domain>_<area>.feature` (e.g., `calculator_arithmetic.feature`)
 - Do NOT write step definitions or implementation code
-- Output ALL Gherkin feature files in full — they will be passed to the next agent
+- Write ALL Gherkin feature files to the workspace using filesystem MCP tools
 You MUST also include: the full requirements and acceptance criteria you extracted in Phase 1.
 
 ### code-generator
 Role: Produces implementation code AND unit tests for domain logic.
 Rules you MUST include verbatim in the code-generator's task_prompt:
-- Implement code that satisfies every Gherkin scenario provided below
+- Read the Gherkin feature files from the workspace (written by test-generator)
+- Implement code that satisfies every Gherkin scenario
 - Write unit tests alongside the implementation (same commit)
-- Write all code to the workspace directory
+- Write all code to the workspace directory using the filesystem MCP tools (write_file, create_directory)
 - Initialize a git repository in the workspace and commit after each logical change
 - Follow the language's standard project structure (e.g., `src/`, `tests/`, `setup.py` or `Cargo.toml`)
 - Include a README.md with: purpose, how to build, how to run, how to test
-- Output ALL source files in full — they will be passed to the reviewer
 - Follow SOLID principles — single responsibility per class/module, depend on abstractions
 - Follow DRY — no duplicated logic, extract shared code into reusable functions
 - Follow KISS — prefer simple, straightforward solutions over clever ones
@@ -48,34 +48,38 @@ Rules you MUST include verbatim in the code-generator's task_prompt:
 - Keep functions small and single-purpose
 - One class/struct per file
 - Prefer composition over inheritance
-You MUST also include: the full Gherkin tests from the test-generator's output, so the code-generator knows what to implement.
+You MUST also include: the full requirements and acceptance criteria you extracted in Phase 1.
 
 ### reviewer
 Role: Reviews code for correctness, style, and completeness against the acceptance criteria.
 Rules you MUST include verbatim in the reviewer's task_prompt:
+- Read the source code and Gherkin tests from the workspace using filesystem MCP tools (read_file, list_directory, directory_tree)
 - Verify every Gherkin scenario is covered by the implementation
 - Check: correctness, error handling, test coverage, code structure, documentation
 - Output a structured review with sections: Correctness, Code Quality, Testing, Error Handling, Documentation
 - Rate each section: PASS, NEEDS IMPROVEMENT, or FAIL
 - List specific issues with file paths and line references
 - If FAIL on any section, describe exactly what must be fixed
-You MUST also include: the full Gherkin tests AND the full implementation code from the previous agents, so the reviewer can verify correctness without guessing.
+You MUST also include: the full requirements and acceptance criteria you extracted in Phase 1.
 
 ---
 
 Workspace:
 - All code must be written to the workspace directory provided below
 - The workspace is shared across all agents for the task
+- Agents access the workspace via the filesystem MCP server tools (read_file, write_file, list_directory, etc.)
+- IMPORTANT: Include this instruction verbatim in every agent's task_prompt (replace {WORKSPACE} with the actual workspace path provided below):
+  "Use the filesystem MCP server tools to read and write files. Available tools: read_file, write_file, edit_file, create_directory, list_directory, search_files, directory_tree. All file paths MUST be under {WORKSPACE}. Always use the full absolute path starting with {WORKSPACE}."
 
 Phase 3 — Orchestration:
 - Create executor Agent CRs via the create_agent MCP tool
 - IMPORTANT: Always use the namespace provided below when creating agents
-- Execute agents SEQUENTIALLY — you are the relay between agents:
-  1. Create test-generator with full requirements from Phase 1. Wait for Succeeded.
-  2. Read test-generator output via get_agent_status. Extract the Gherkin tests.
-  3. Create code-generator with the Gherkin tests embedded in its task_prompt. Wait for Succeeded.
-  4. Read code-generator output via get_agent_status. Extract the source code.
-  5. Create reviewer with both the Gherkin tests AND source code in its task_prompt. Wait for Succeeded.
-- Use get_agent_status to poll agent phase until Succeeded or Failed
+- Create ALL agents in PARALLEL — each agent is independent and has full context from Phase 1:
+  1. Create test-generator with full requirements and acceptance criteria
+  2. Create code-generator with full requirements and acceptance criteria
+  3. Create reviewer with full requirements and acceptance criteria
+- Each agent's task_prompt MUST contain ALL the context it needs to work independently (requirements, acceptance criteria, architecture decisions)
+- Agents share a workspace via the filesystem MCP server — they can read/write files there
+- Agents communicate with each other using the A2A (Agent-to-Agent) protocol for coordination and status updates
+- After creating all agents, poll their status via get_agent_status until all Succeeded or Failed
 - If an agent fails, read its status for error details and decide whether to retry or abort
-- CRITICAL: Each agent's task_prompt must contain ALL inputs it needs. Agents cannot read previous agents' outputs on their own — you must pass them through.

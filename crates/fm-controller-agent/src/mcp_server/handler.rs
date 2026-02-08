@@ -7,6 +7,8 @@ use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::*;
 use rmcp::{ErrorData, tool, tool_handler, tool_router};
 
+use crate::controller::McpServerRefs;
+
 use super::action::{CreateAgentAction, GetAgentAction, ListAgentsAction, McpAction};
 use super::{CreateAgentParams, GetAgentParams, ListAgentsParams};
 
@@ -18,16 +20,18 @@ use super::{CreateAgentParams, GetAgentParams, ListAgentsParams};
 pub struct AgentMcpHandler {
     client: Client,
     default_model: String,
+    default_mcp_servers: McpServerRefs,
     tool_router: ToolRouter<Self>,
 }
 
 #[tool_router]
 impl AgentMcpHandler {
-    /// Creates a new handler with the given Kubernetes client and default model.
-    pub fn new(client: Client, default_model: String) -> Self {
+    /// Creates a new handler with the given Kubernetes client, default model, and default MCP servers.
+    pub fn new(client: Client, default_model: String, default_mcp_servers: McpServerRefs) -> Self {
         Self {
             client,
             default_model,
+            default_mcp_servers,
             tool_router: Self::tool_router(),
         }
     }
@@ -37,7 +41,7 @@ impl AgentMcpHandler {
         &self,
         Parameters(params): Parameters<CreateAgentParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let action = CreateAgentAction::new(self.client.clone(), self.default_model.clone());
+        let action = CreateAgentAction::new(self.client.clone(), self.default_model.clone(), self.default_mcp_servers.clone());
         Ok(action.execute(params).await)
     }
 

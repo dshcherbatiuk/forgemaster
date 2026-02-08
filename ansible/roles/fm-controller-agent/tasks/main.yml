@@ -23,7 +23,7 @@
     --set runtime-agent.model={{ default_model }}
     --set runtime-agent.llm-provider.secretName={{ llm_provider_secret_name }}
     --set runtime-agent.llm-provider.secretKey={{ llm_provider_secret_key }}
-    --set controller.defaultMcpServers={{ default_mcp_servers }}
+    --set "controller.defaultMcpServers={{ default_mcp_servers | replace(',', '\\,') }}"
     --set controller.workspace.basePath={{ fm_controller_agent_workspace_base_path | realpath }}
     --set controller.workspace.containerPath={{ fm_controller_agent_workspace_container_path }}
   changed_when: false

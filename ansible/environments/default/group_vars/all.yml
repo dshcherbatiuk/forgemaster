@@ -24,7 +24,7 @@ default_model: "{{ lookup('env', 'LLM_PROVIDER_DEFAULT_MODEL') | default('claude
 
 # Default MCP servers for agents (comma-separated name:port, port defaults to 3000)
 # Example: fm-controller-agent:3000,github-mcp:9090
-default_mcp_servers: "{{ lookup('env', 'DEFAULT_MCP_SERVERS') | default('fm-controller-agent-mcp', true) }}"
+default_mcp_servers: "{{ lookup('env', 'DEFAULT_MCP_SERVERS') | default('fm-controller-agent-mcp,fm-mcp-filesystem', true) }}"
 
 # UI
 ui_image_name: forgemaster-ui

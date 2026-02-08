@@ -1,0 +1,13 @@
+---
+# Image name (environment provides image_tag, image_registry)
+fm_mcp_filesystem_image_name: fm-mcp-filesystem
+
+# Build paths (environment provides build_enabled)
+fm_mcp_filesystem_dockerfile: "{{ playbook_dir }}/../crates/fm-mcp-filesystem/Dockerfile"
+fm_mcp_filesystem_build_context: "{{ playbook_dir }}/../crates/fm-mcp-filesystem"
+
+# Helm chart path
+fm_mcp_filesystem_chart: "{{ playbook_dir }}/../crates/fm-mcp-filesystem/helm"
+
+# Workspace base path (shared with agent controller)
+fm_mcp_filesystem_workspace_base_path: "{{ playbook_dir }}/../target/tasks"

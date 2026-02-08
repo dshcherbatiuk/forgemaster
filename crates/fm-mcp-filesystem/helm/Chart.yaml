@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fm-mcp-filesystem
+description: Filesystem MCP server for agent workspace access
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

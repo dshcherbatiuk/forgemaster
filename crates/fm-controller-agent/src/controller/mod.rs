@@ -10,7 +10,7 @@ mod reconciler;
 mod runner;
 pub mod secret_propagator;
 
-pub use context::{ControllerContext, create_context};
+pub use context::{ControllerContext, McpServerRefs, create_context};
 pub use dispatcher::Dispatcher;
 pub use error::{ReconcileError, ReconcileResult};
 pub use reconciler::{
