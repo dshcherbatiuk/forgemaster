@@ -18,6 +18,10 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
         literal("MODEL_NAME", &spec.model.name),
         literal("MODEL_TEMPERATURE", &spec.model.temperature.to_string()),
         literal("MODEL_MAX_TOKENS", &spec.model.max_tokens.to_string()),
+        literal(
+            "MAX_TOOL_ITERATIONS",
+            &spec.model.max_tool_iterations.to_string(),
+        ),
         literal("RUST_LOG", "info"),
         from_secret(
             "ANTHROPIC_API_KEY",
@@ -126,6 +130,10 @@ mod tests {
             literal("MODEL_NAME", &spec.model.name),
             literal("MODEL_TEMPERATURE", &spec.model.temperature.to_string()),
             literal("MODEL_MAX_TOKENS", &spec.model.max_tokens.to_string()),
+            literal(
+                "MAX_TOOL_ITERATIONS",
+                &spec.model.max_tool_iterations.to_string(),
+            ),
             literal("RUST_LOG", "info"),
             from_secret("ANTHROPIC_API_KEY", "anthropic-credentials", "api-key"),
         ];
@@ -185,6 +193,16 @@ mod tests {
         let env_vars = build_test_env_vars(&test_agent());
         let var = env_vars.iter().find(|e| e.name == "MODEL_MAX_TOKENS").unwrap();
         assert_eq!(var.value, Some("8192".to_string()));
+    }
+
+    #[test]
+    fn env_contains_max_tool_iterations() {
+        let env_vars = build_test_env_vars(&test_agent());
+        let var = env_vars
+            .iter()
+            .find(|e| e.name == "MAX_TOOL_ITERATIONS")
+            .expect("MAX_TOOL_ITERATIONS");
+        assert_eq!(var.value, Some("50".to_string()));
     }
 
     #[test]

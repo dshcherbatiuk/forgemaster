@@ -15,7 +15,7 @@ use crate::claude_api::response_collector::{self, CollectedResponse};
 use crate::claude_api::tool_definition::ToolDefinition;
 use crate::tool_executor::ToolExecutor;
 
-const DEFAULT_MAX_ITERATIONS: u32 = 25;
+const DEFAULT_MAX_ITERATIONS: u32 = 50;
 
 /// Configuration for the conversation loop.
 #[derive(Debug, Clone)]
