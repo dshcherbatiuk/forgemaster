@@ -26,6 +26,8 @@
     --set "controller.defaultMcpServers={{ default_mcp_servers | replace(',', '\\,') }}"
     --set controller.workspace.basePath={{ fm_controller_agent_workspace_base_path | realpath }}
     --set controller.workspace.containerPath={{ fm_controller_agent_workspace_container_path }}
+    --set controller.dockerSocket.enabled={{ fm_controller_agent_docker_socket_enabled }}
+    --set controller.dockerSocket.path={{ fm_controller_agent_docker_socket_path }}
   changed_when: false
 
 - name: Wait for Agent CRD

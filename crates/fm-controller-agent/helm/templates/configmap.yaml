@@ -21,4 +21,8 @@ data:
   WORKSPACE_BASE_PATH: "{{ .Values.controller.workspace.basePath }}"
   WORKSPACE_CONTAINER_PATH: "{{ .Values.controller.workspace.containerPath }}"
   {{- end }}
+  {{- if .Values.controller.dockerSocket }}
+  DOCKER_SOCKET_ENABLED: "{{ .Values.controller.dockerSocket.enabled }}"
+  DOCKER_SOCKET_PATH: "{{ .Values.controller.dockerSocket.path }}"
+  {{- end }}
 {{- end }}

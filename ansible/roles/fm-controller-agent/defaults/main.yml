@@ -13,3 +13,7 @@ fm_controller_agent_build_context: "{{ playbook_dir }}/.."
 # Workspace for agent task output (hostPath mount into agent pods)
 fm_controller_agent_workspace_base_path: "{{ playbook_dir }}/../target/tasks"
 fm_controller_agent_workspace_container_path: "/workspace"
+
+# Docker socket mount for agent pods (enables docker_build via fm-mcp-devtools)
+fm_controller_agent_docker_socket_enabled: true
+fm_controller_agent_docker_socket_path: /var/run/docker.sock

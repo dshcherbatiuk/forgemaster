@@ -37,11 +37,18 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
 
     let env_vars = super::env_vars::build(agent, ctx);
     let resource_requirements = super::resource_requirements::build(agent);
-    let (volumes, volume_mounts) = super::workspace_volume::build(
+    let (mut volumes, mut volume_mounts) = super::workspace_volume::build(
         ctx.workspace_base_path(),
         ctx.workspace_container_path(),
         &agent_namespace,
     );
+
+    let (docker_volumes, docker_mounts) = super::docker_socket_volume::build(
+        ctx.docker_socket_enabled(),
+        ctx.docker_socket_path(),
+    );
+    volumes.extend(docker_volumes);
+    volume_mounts.extend(docker_mounts);
 
     Pod {
         metadata: ObjectMeta {

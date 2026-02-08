@@ -17,6 +17,10 @@ controller:
   workspace:
     basePath: ""  # Set via Ansible (resolved to absolute path at deploy time)
     containerPath: "/workspace"
+  # Docker socket mount for agent pods (enables docker_build in fm-mcp-devtools)
+  dockerSocket:
+    enabled: false
+    path: /var/run/docker.sock
   resources:
     limits:
       memory: "256Mi"

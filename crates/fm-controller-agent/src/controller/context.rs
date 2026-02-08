@@ -33,10 +33,13 @@ pub struct ControllerContext {
     default_mcp_servers: McpServerRefs,
     workspace_base_path: Option<String>,
     workspace_container_path: String,
+    docker_socket_enabled: bool,
+    docker_socket_path: Option<String>,
 }
 
 impl ControllerContext {
     /// Creates a new controller context.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client: Client,
         namespace: String,
@@ -47,6 +50,8 @@ impl ControllerContext {
         default_mcp_servers: McpServerRefs,
         workspace_base_path: Option<String>,
         workspace_container_path: String,
+        docker_socket_enabled: bool,
+        docker_socket_path: Option<String>,
     ) -> Self {
         Self {
             client,
@@ -58,6 +63,8 @@ impl ControllerContext {
             default_mcp_servers,
             workspace_base_path,
             workspace_container_path,
+            docker_socket_enabled,
+            docker_socket_path,
         }
     }
 
@@ -104,6 +111,16 @@ impl ControllerContext {
     /// Returns the container mount path for workspace (e.g. "/workspace").
     pub fn workspace_container_path(&self) -> &str {
         &self.workspace_container_path
+    }
+
+    /// Returns whether Docker socket mounting is enabled.
+    pub fn docker_socket_enabled(&self) -> bool {
+        self.docker_socket_enabled
+    }
+
+    /// Returns the custom Docker socket path (if configured).
+    pub fn docker_socket_path(&self) -> Option<&str> {
+        self.docker_socket_path.as_deref()
     }
 
     /// Updates the agent phase via status subresource patch.
@@ -156,6 +173,15 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
         .filter(|v| !v.is_empty())
         .unwrap_or_else(|| DEFAULT_WORKSPACE_CONTAINER_PATH.to_string());
 
+    let docker_socket_enabled = std::env::var("DOCKER_SOCKET_ENABLED")
+        .ok()
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    let docker_socket_path = std::env::var("DOCKER_SOCKET_PATH")
+        .ok()
+        .filter(|v| !v.is_empty());
+
     Ok(Arc::new(ControllerContext::new(
         client,
         namespace,
@@ -166,6 +192,8 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
         default_mcp_servers,
         workspace_base_path,
         workspace_container_path,
+        docker_socket_enabled,
+        docker_socket_path,
     )))
 }
 
