@@ -1,19 +1,18 @@
 //! Long-lived agent runtime.
 //!
-//! Sends the initial prompt to Claude, then stays alive waiting for
-//! MCP/A2A requests. The pod only exits on shutdown signal or task completion.
+//! Sends the initial prompt to Claude via the conversation loop,
+//! executing tool calls through MCP servers when configured.
 
-use anyhow::{Result, bail};
-use tracing::{debug, info};
+use anyhow::Result;
+use tracing::info;
 
 use crate::claude_api::client::ClaudeClient;
-use crate::claude_api::request::{Message, MessagesRequest};
-use crate::claude_api::response::Usage;
-use crate::claude_api::sse::SseEvent;
+use crate::claude_api::request::Message;
 use crate::config::RuntimeConfig;
-use crate::conversation::Conversation;
+use crate::conversation_loop::{self, ConversationLoopConfig};
 use crate::output_writer::OutputWriter;
 use crate::status_updater::StatusUpdater;
+use crate::tool_executor::{CompositeToolExecutor, NoOpToolExecutor, ToolExecutor};
 
 /// Long-lived agent runtime.
 ///
@@ -29,7 +28,7 @@ impl AgentRuntime {
         Self { config, k8s_client }
     }
 
-    /// Runs the agent: sends initial prompt, then stays alive for requests.
+    /// Runs the agent: sends initial prompt with tools, then stays alive.
     pub async fn run(&self) -> Result<()> {
         let status_updater = StatusUpdater::new(
             self.k8s_client.clone(),
@@ -39,42 +38,54 @@ impl AgentRuntime {
         let output_writer = OutputWriter::new(&self.config.agent_name);
 
         info!(
-            "📋 Agent: {}, model: {}",
-            self.config.agent_name, self.config.model_name
+            "📋 Agent: {}, model: {}, MCP servers: {}",
+            self.config.agent_name,
+            self.config.model_name,
+            if self.config.mcp_server_urls.is_empty() {
+                "none".to_string()
+            } else {
+                self.config.mcp_server_urls.len().to_string()
+            }
         );
 
         // 1. Transition to Running
         status_updater.transition_to_running().await?;
 
-        // 2. Build conversation (task_prompt contains role + task description)
-        let mut conversation = Conversation::new(self.config.task_prompt.clone());
+        // 2. Create tool executor (composite or no-op)
+        let executor: Box<dyn ToolExecutor> = if self.config.mcp_server_urls.is_empty() {
+            Box::new(NoOpToolExecutor)
+        } else {
+            Box::new(
+                CompositeToolExecutor::connect(&self.config.mcp_server_urls).await?,
+            )
+        };
 
-        // 3. Call Claude API with streaming
+        // 3. Build conversation loop config
+        let loop_config = ConversationLoopConfig {
+            model: self.config.model_name.clone(),
+            max_tokens: self.config.model_max_tokens,
+            system: Some(self.config.task_prompt.clone()),
+            temperature: Some(self.config.model_temperature),
+            max_iterations: self.config.max_tool_iterations,
+        };
+
+        // 4. Run conversation loop
         let client = ClaudeClient::new(&self.config.api_key, &self.config.api_base_url);
-        let request = MessagesRequest::builder()
-            .model(self.config.model_name.clone())
-            .max_tokens(self.config.model_max_tokens)
-            .messages(vec![Message::user("Execute the task described in the system prompt.")])
-            .system(self.config.task_prompt.clone())
-            .temperature(self.config.model_temperature)
-            .build();
+        let initial_messages =
+            vec![Message::user("Execute the task described in the system prompt.")];
 
-        debug!("🤖 Sending request to Claude API");
-        let events = client.send_streaming(&request).await?;
-
-        // 4. Extract text and usage from SSE events
-        let (assistant_text, usage) = collect_response(&events)?;
-
-        conversation.add_assistant_message(assistant_text.clone());
-        conversation.add_usage(usage);
+        let result =
+            conversation_loop::run(&client, executor.as_ref(), &loop_config, initial_messages)
+                .await?;
 
         // 5. Log the output
-        output_writer.write(&assistant_text);
+        output_writer.write(&result.final_text);
 
         info!(
-            "🧠 Agent {} initial prompt done — {} tokens used, waiting for requests",
+            "🧠 Agent {} done — {} iteration(s), {} tokens, waiting for requests",
             self.config.agent_name,
-            conversation.total_tokens()
+            result.iterations,
+            result.total_usage.total()
         );
 
         // 6. Stay alive — MCP/A2A communication will be handled here
@@ -85,129 +96,31 @@ impl AgentRuntime {
     }
 }
 
-/// Extracts the accumulated text and combined usage from SSE events.
-fn collect_response(events: &[SseEvent]) -> Result<(String, Usage)> {
-    let mut text = String::new();
-    let mut combined_usage = Usage::default();
-
-    for event in events {
-        match event {
-            SseEvent::MessageStart { usage, .. } => {
-                combined_usage.input_tokens += usage.input_tokens;
-                combined_usage.output_tokens += usage.output_tokens;
-            }
-            SseEvent::ContentBlockDelta { text: delta, .. } => {
-                text.push_str(delta);
-            }
-            SseEvent::MessageDelta { usage, .. } => {
-                combined_usage.input_tokens += usage.input_tokens;
-                combined_usage.output_tokens += usage.output_tokens;
-            }
-            SseEvent::Error {
-                error_type,
-                message,
-            } => {
-                bail!("Claude API error: {error_type} — {message}");
-            }
-            _ => {}
-        }
-    }
-
-    Ok((text, combined_usage))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::claude_api::response::StopReason;
+    use crate::conversation_loop::ConversationLoopConfig;
 
     #[test]
-    fn collect_response_empty_events() {
-        let (text, usage) = collect_response(&[]).unwrap();
-        assert!(text.is_empty());
-        assert_eq!(usage.input_tokens, 0);
-        assert_eq!(usage.output_tokens, 0);
-    }
+    fn loop_config_from_runtime_config() {
+        let runtime_config = crate::config::RuntimeConfig::new(
+            "agent".to_string(),
+            "ns".to_string(),
+            "key".to_string(),
+            "You are an agent".to_string(),
+            "claude-sonnet-4-20250514".to_string(),
+        );
 
-    #[test]
-    fn collect_response_accumulates_text() {
-        let events = vec![
-            SseEvent::MessageStart {
-                message_id: "msg_1".to_string(),
-                usage: Usage {
-                    input_tokens: 100,
-                    output_tokens: 0,
-                },
-            },
-            SseEvent::ContentBlockStart { index: 0 },
-            SseEvent::ContentBlockDelta {
-                index: 0,
-                text: "Hello".to_string(),
-            },
-            SseEvent::ContentBlockDelta {
-                index: 0,
-                text: " World".to_string(),
-            },
-            SseEvent::ContentBlockStop { index: 0 },
-            SseEvent::MessageDelta {
-                stop_reason: Some(StopReason::EndTurn),
-                usage: Usage {
-                    input_tokens: 0,
-                    output_tokens: 25,
-                },
-            },
-            SseEvent::MessageStop,
-        ];
+        let loop_config = ConversationLoopConfig {
+            model: runtime_config.model_name.clone(),
+            max_tokens: runtime_config.model_max_tokens,
+            system: Some(runtime_config.task_prompt.clone()),
+            temperature: Some(runtime_config.model_temperature),
+            max_iterations: runtime_config.max_tool_iterations,
+        };
 
-        let (text, usage) = collect_response(&events).unwrap();
-        assert_eq!(text, "Hello World");
-        assert_eq!(usage.input_tokens, 100);
-        assert_eq!(usage.output_tokens, 25);
-    }
-
-    #[test]
-    fn collect_response_error_event_fails() {
-        let events = vec![SseEvent::Error {
-            error_type: "overloaded_error".to_string(),
-            message: "Server busy".to_string(),
-        }];
-
-        let result = collect_response(&events);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("overloaded_error"));
-        assert!(err.contains("Server busy"));
-    }
-
-    #[test]
-    fn collect_response_multiple_content_blocks() {
-        let events = vec![
-            SseEvent::ContentBlockDelta {
-                index: 0,
-                text: "First block. ".to_string(),
-            },
-            SseEvent::ContentBlockDelta {
-                index: 1,
-                text: "Second block.".to_string(),
-            },
-        ];
-
-        let (text, _) = collect_response(&events).unwrap();
-        assert_eq!(text, "First block. Second block.");
-    }
-
-    #[test]
-    fn collect_response_ping_ignored() {
-        let events = vec![
-            SseEvent::Ping,
-            SseEvent::ContentBlockDelta {
-                index: 0,
-                text: "data".to_string(),
-            },
-            SseEvent::Ping,
-        ];
-
-        let (text, _) = collect_response(&events).unwrap();
-        assert_eq!(text, "data");
+        assert_eq!(loop_config.model, "claude-sonnet-4-20250514");
+        assert_eq!(loop_config.max_tokens, 4096);
+        assert_eq!(loop_config.system.as_deref(), Some("You are an agent"));
+        assert_eq!(loop_config.max_iterations, 25);
     }
 }

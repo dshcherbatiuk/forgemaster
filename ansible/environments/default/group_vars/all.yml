@@ -22,5 +22,9 @@ llm_provider_api_key: "{{ lookup('env', 'LLM_PROVIDER_API_KEY') }}"
 # Default LLM model for agents
 default_model: "{{ lookup('env', 'LLM_PROVIDER_DEFAULT_MODEL') | default('claude-sonnet-4-20250514', true) }}"
 
+# Default MCP servers for agents (comma-separated name:port, port defaults to 3000)
+# Example: fm-controller-agent:3000,github-mcp:9090
+default_mcp_servers: "{{ lookup('env', 'DEFAULT_MCP_SERVERS') | default('fm-controller-agent', true) }}"
+
 # UI
 ui_image_name: forgemaster-ui

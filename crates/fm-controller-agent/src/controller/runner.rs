@@ -29,6 +29,7 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
 
     let ctx = create_context(client.clone(), namespace.to_string())?;
     let default_model = ctx.default_model().to_string();
+    let default_mcp_servers = ctx.default_mcp_servers().to_vec();
     let dispatcher = Arc::new(Dispatcher::new(Arc::clone(&ctx)));
 
     let api: Api<Agent> = Api::all(client.clone());
@@ -53,7 +54,7 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
             }
         });
 
-    let task_watcher = task_watcher::run(client, namespace, &default_model);
+    let task_watcher = task_watcher::run(client, namespace, &default_model, &default_mcp_servers);
 
     tokio::select! {
         () = agent_controller => {

@@ -2,102 +2,192 @@
 
 ## Overview
 
-ForgeMaster agents communicate with external tools via [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction). The Anthropic Messages API has a native **MCP connector** (beta) that handles connection management, tool discovery, and execution automatically — no custom MCP client code needed.
+ForgeMaster agents communicate with external tools via [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction). The agent runtime (`fm-agent-runtime-claude`) acts as the MCP client — connecting to MCP servers inside the Kubernetes cluster, discovering available tools, and bridging them to the Claude Messages API.
+
+**Why a local MCP client?** The Anthropic Messages API has a native MCP connector (`mcp_servers` parameter), but it requires HTTPS endpoints reachable from Anthropic's infrastructure. Since our MCP servers run inside a private K8s cluster, the runtime handles the MCP protocol locally and passes tools as regular `tools` definitions to the Claude API.
 
 ## How It Works
 
 ```mermaid
 sequenceDiagram
     participant Runtime as Agent Runtime
-    participant API as Claude Messages API
     participant MCP as Agent Controller MCP Server
+    participant API as Claude Messages API
 
-    Runtime->>API: Messages request with mcp_servers + tools
-    API->>MCP: list_tools (auto-discovery)
-    MCP-->>API: Available tools (create_agent, etc.)
-    API->>API: Claude reasons about tool selection
-    API->>MCP: Tool call (e.g. create_agent)
-    MCP-->>API: Tool result
-    API-->>Runtime: Response with mcp_tool_use + mcp_tool_result
+    Runtime->>MCP: JSON-RPC: tools/list
+    MCP-->>Runtime: Tool definitions (create_agent, etc.)
+    Runtime->>Runtime: Convert MCP tools → Claude tools format
+
+    loop Tool calling loop
+        Runtime->>API: Messages request with tools
+        API-->>Runtime: Response (text + tool_use blocks)
+
+        alt stop_reason = tool_use
+            Runtime->>MCP: JSON-RPC: tools/call (create_agent, {...})
+            MCP-->>Runtime: Tool result
+            Runtime->>Runtime: Build tool_result message
+        else stop_reason = end_turn
+            Runtime->>Runtime: Done — return final text
+        end
+    end
 ```
 
-The Claude API acts as the MCP client:
-1. Connects to the specified MCP server URL
-2. Discovers available tools via `list_tools`
-3. Claude decides which tools to call based on the prompt
-4. API executes tool calls and returns results
-5. Runtime receives the final response with tool use/result blocks
+The runtime acts as the MCP client:
+1. Connects to the MCP server inside the cluster (HTTP, no TLS required for in-cluster)
+2. Discovers available tools via `tools/list` (JSON-RPC 2.0)
+3. Converts MCP tool definitions to Claude `tools` parameter format
+4. Sends Messages API request with tools
+5. When Claude returns `tool_use` blocks, executes them via `tools/call`
+6. Feeds `tool_result` back to Claude in the next message
+7. Repeats until Claude returns `end_turn`
 
-## API Parameters
+## MCP Protocol (JSON-RPC 2.0)
 
-### `mcp_servers` — Server connection
+### Tool Discovery — `tools/list`
 
 ```json
+// Request
+POST /mcp HTTP/1.1
+Content-Type: application/json
+
 {
-  "mcp_servers": [
-    {
-      "type": "url",
-      "url": "https://agent-controller.forgemaster-system:8080/mcp/",
-      "name": "forgemaster",
-      "authorization_token": "optional-token"
-    }
-  ]
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list"
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "create_agent",
+        "description": "Create a child Agent CR in the task namespace",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "agent_type": { "type": "string" },
+            "task_prompt": { "type": "string" }
+          },
+          "required": ["agent_type", "task_prompt"]
+        }
+      }
+    ]
+  }
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `type` | Yes | Must be `"url"` |
-| `url` | Yes | MCP server URL (HTTPS required, supports SSE and Streamable HTTP) |
-| `name` | Yes | Unique identifier, referenced by `mcp_toolset` in `tools` array |
-| `authorization_token` | No | OAuth Bearer token for authenticated servers |
+### Tool Execution — `tools/call`
 
-### `tools` — Toolset configuration
+```json
+// Request
+POST /mcp HTTP/1.1
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "create_agent",
+    "arguments": {
+      "agent_type": "code-generator",
+      "task_prompt": "Implement the REST API endpoints"
+    }
+  }
+}
+
+// Response
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [
+      { "type": "text", "text": "Agent created: code-generator-task-abc123" }
+    ],
+    "isError": false
+  }
+}
+```
+
+## Claude API Tool Calling
+
+The runtime converts MCP tools to the Claude Messages API `tools` parameter format.
+
+### Request with tools
 
 ```json
 {
+  "model": "claude-sonnet-4-20250514",
+  "max_tokens": 4096,
+  "system": "You are an orchestrator agent...",
   "tools": [
     {
-      "type": "mcp_toolset",
-      "mcp_server_name": "forgemaster"
+      "name": "create_agent",
+      "description": "Create a child Agent CR in the task namespace",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "agent_type": { "type": "string" },
+          "task_prompt": { "type": "string" }
+        },
+        "required": ["agent_type", "task_prompt"]
+      }
+    }
+  ],
+  "messages": [
+    { "role": "user", "content": "Execute the task described in the system prompt." }
+  ]
+}
+```
+
+### Response with tool_use
+
+When Claude decides to use a tool, it returns `stop_reason: "tool_use"`:
+
+```json
+{
+  "stop_reason": "tool_use",
+  "content": [
+    { "type": "text", "text": "I'll create a code generator agent..." },
+    {
+      "type": "tool_use",
+      "id": "toolu_01A09q90qw90lq917835lq9",
+      "name": "create_agent",
+      "input": { "agent_type": "code-generator", "task_prompt": "..." }
     }
   ]
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `type` | Yes | Must be `"mcp_toolset"` |
-| `mcp_server_name` | Yes | Must match a `name` in `mcp_servers` |
-| `default_config` | No | Default config for all tools (`enabled`, `defer_loading`) |
-| `configs` | No | Per-tool overrides keyed by tool name |
+### Sending tool_result back
 
-### Beta header
+The runtime executes the tool via MCP, then sends the result back:
 
-Required: `"anthropic-beta": "mcp-client-2025-11-20"`
-
-## Response Content Types
-
-Claude returns two new content block types when using MCP tools:
-
-**`mcp_tool_use`** — Claude's tool call:
 ```json
 {
-  "type": "mcp_tool_use",
-  "id": "mcptoolu_014Q35RayjACSWkSj4X2yov1",
-  "name": "create_agent",
-  "server_name": "forgemaster",
-  "input": { "type": "code-generator", "taskPrompt": "..." }
-}
-```
-
-**`mcp_tool_result`** — Tool execution result:
-```json
-{
-  "type": "mcp_tool_result",
-  "tool_use_id": "mcptoolu_014Q35RayjACSWkSj4X2yov1",
-  "is_error": false,
-  "content": [{ "type": "text", "text": "Agent created: code-generator-task-abc123" }]
+  "messages": [
+    { "role": "user", "content": "Execute the task..." },
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "text", "text": "I'll create a code generator agent..." },
+        { "type": "tool_use", "id": "toolu_01A09q90qw90lq917835lq9", "name": "create_agent", "input": {...} }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01A09q90qw90lq917835lq9",
+          "content": "Agent created: code-generator-task-abc123"
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -117,9 +207,34 @@ The Agent Controller exposes an MCP server for agent lifecycle management. The o
 
 Source: [`crates/fm-controller-agent/`](../../crates/fm-controller-agent/)
 
+### Multiple MCP Servers
+
+Agents can connect to multiple MCP servers simultaneously. Each `McpServerRef` in the Agent CR carries a service name and port (default: 3000). The Agent Controller builds full K8s DNS URLs at pod creation time and injects them as `MCP_SERVER_URLS`.
+
+The `CompositeToolExecutor` in the runtime aggregates tools from all configured servers and routes `tools/call` requests to the correct server based on which server provides that tool.
+
+```
+Agent CR:
+  mcpServers:
+    - name: github-mcp            # port defaults to 3000
+    - name: filesystem-mcp
+      port: 9090                   # custom port
+
+→ Controller builds URLs via K8s DNS:
+  http://{name}.{namespace}.svc.cluster.local:{port}
+
+→ MCP_SERVER_URLS=http://github-mcp.task-abc.svc.cluster.local:3000,http://filesystem-mcp.task-abc.svc.cluster.local:9090
+
+→ CompositeToolExecutor
+    ├─ McpToolExecutor(github-mcp)     → [create_pr, list_issues]
+    └─ McpToolExecutor(filesystem-mcp) → [read_file, write_file]
+```
+
+**Future: Dynamic MCP Server Registry.** Currently, MCP server URLs are built statically at pod startup from `McpServerRef` entries. In the future, this should evolve into a registry pattern with dynamic MCP server discovery — allowing servers to be registered/deregistered at runtime (e.g., via K8s watch on MCPServer CRDs). This is out of scope for now.
+
 ### Future MCP Servers
 
-Agents can connect to multiple MCP servers simultaneously. Future integrations:
+Planned integrations:
 
 | MCP Server | Purpose |
 |------------|---------|
@@ -127,17 +242,18 @@ Agents can connect to multiple MCP servers simultaneously. Future integrations:
 | Filesystem MCP | File read/write operations |
 | GitHub MCP | Repository operations |
 
-## Limitations
+## Source References
 
-- Only **tool calls** are supported (not MCP resources or prompts)
-- Server must be publicly exposed via HTTP (no local STDIO)
-- HTTPS required for the server URL
-- Not supported on Amazon Bedrock or Google Vertex
+- MCP client (rmcp SDK): [`crates/fm-agent-runtime-claude/src/mcp_client/`](../../crates/fm-agent-runtime-claude/src/mcp_client/)
+- Tool executor trait + composite: [`crates/fm-agent-runtime-claude/src/tool_executor/`](../../crates/fm-agent-runtime-claude/src/tool_executor/)
+- Conversation loop: [`crates/fm-agent-runtime-claude/src/conversation_loop.rs`](../../crates/fm-agent-runtime-claude/src/conversation_loop.rs)
+- Claude API tool types: [`crates/fm-agent-runtime-claude/src/claude_api/tool_definition.rs`](../../crates/fm-agent-runtime-claude/src/claude_api/tool_definition.rs)
+- McpServerRef (name + port → URL): [`crates/fm-controller-agent/src/crd/mcp_server_ref.rs`](../../crates/fm-controller-agent/src/crd/mcp_server_ref.rs)
+- Pod builder (MCP_SERVER_URLS injection): [`crates/fm-controller-agent/src/controller/pod_builder.rs`](../../crates/fm-controller-agent/src/controller/pod_builder.rs)
+- SDK selection: [`docs/adr/0006-mcp-client-sdk-selection.md`](../adr/0006-mcp-client-sdk-selection.md)
 
 ## Official Documentation
 
-- [MCP Connector — Anthropic API Docs](https://docs.anthropic.com/en/docs/agents-and-tools/mcp-connector)
 - [Tool Use with Claude](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
-- [Advanced Tool Use](https://www.anthropic.com/engineering/advanced-tool-use)
 - [MCP Specification](https://modelcontextprotocol.io/introduction)
-- [Agent Capabilities API](https://claude.com/blog/agent-capabilities-api)
+- [MCP Connector — Anthropic API Docs](https://docs.anthropic.com/en/docs/agents-and-tools/mcp-connector) (native connector — not used, requires public HTTPS)

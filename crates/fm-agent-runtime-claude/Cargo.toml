@@ -36,6 +36,8 @@ typed-builder = { workspace = true }
 dashmap = { workspace = true }
 
 reqwest = { workspace = true }
+async-trait = { workspace = true }
+rmcp = { workspace = true }
 
 # SSE parsing (Claude streaming API)
 eventsource-stream = "0.2"

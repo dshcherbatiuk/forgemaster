@@ -7,6 +7,7 @@ use anyhow::{Result, bail};
 const DEFAULT_API_BASE_URL: &str = "https://api.anthropic.com";
 const DEFAULT_MAX_TOKENS: i32 = 4096;
 const DEFAULT_TEMPERATURE: f64 = 0.7;
+const DEFAULT_MAX_TOOL_ITERATIONS: u32 = 25;
 
 /// Configuration for the agent runtime, loaded from environment variables.
 ///
@@ -30,6 +31,13 @@ pub struct RuntimeConfig {
     pub model_temperature: f64,
     /// Max tokens per response (from `spec.model.maxTokens`).
     pub model_max_tokens: i32,
+    /// MCP server URLs (enables tool calling when non-empty).
+    ///
+    /// Injected by the Agent Controller from `spec.mcpServers`.
+    /// Format: comma-separated URLs in `MCP_SERVER_URLS` env var.
+    pub mcp_server_urls: Vec<String>,
+    /// Maximum tool calling iterations per conversation.
+    pub max_tool_iterations: u32,
 }
 
 impl RuntimeConfig {
@@ -37,7 +45,8 @@ impl RuntimeConfig {
     ///
     /// Required: `AGENT_NAME`, `NAMESPACE`, `ANTHROPIC_API_KEY`,
     ///           `TASK_PROMPT`, `MODEL_NAME`.
-    /// Optional: `ANTHROPIC_API_BASE_URL`, `MODEL_TEMPERATURE`, `MODEL_MAX_TOKENS`.
+    /// Optional: `ANTHROPIC_API_BASE_URL`, `MODEL_TEMPERATURE`, `MODEL_MAX_TOKENS`,
+    ///           `MCP_SERVER_URLS` (comma-separated), `MAX_TOOL_ITERATIONS`.
     pub fn from_env() -> Result<Self> {
         let agent_name = require_env("AGENT_NAME")?;
         let namespace = require_env("NAMESPACE")?;
@@ -58,6 +67,13 @@ impl RuntimeConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_MAX_TOKENS);
 
+        let mcp_server_urls = parse_mcp_server_urls();
+
+        let max_tool_iterations = std::env::var("MAX_TOOL_ITERATIONS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_MAX_TOOL_ITERATIONS);
+
         Ok(Self {
             agent_name,
             namespace,
@@ -67,6 +83,8 @@ impl RuntimeConfig {
             model_name,
             model_temperature,
             model_max_tokens,
+            mcp_server_urls,
+            max_tool_iterations,
         })
     }
 
@@ -87,8 +105,30 @@ impl RuntimeConfig {
             model_name,
             model_temperature: DEFAULT_TEMPERATURE,
             model_max_tokens: DEFAULT_MAX_TOKENS,
+            mcp_server_urls: Vec::new(),
+            max_tool_iterations: DEFAULT_MAX_TOOL_ITERATIONS,
         }
     }
+}
+
+/// Parses `MCP_SERVER_URLS` env var as comma-separated list of URLs.
+///
+/// Returns empty vec if not set.
+fn parse_mcp_server_urls() -> Vec<String> {
+    std::env::var("MCP_SERVER_URLS")
+        .ok()
+        .map(|val| split_comma_separated(&val))
+        .unwrap_or_default()
+}
+
+/// Splits a comma-separated string into trimmed, non-empty parts.
+fn split_comma_separated(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect()
 }
 
 /// Reads a required environment variable, failing fast if missing or empty.
@@ -131,6 +171,8 @@ mod tests {
         assert_eq!(config.model_name, "claude-sonnet-4-20250514");
         assert!((config.model_temperature - DEFAULT_TEMPERATURE).abs() < f64::EPSILON);
         assert_eq!(config.model_max_tokens, DEFAULT_MAX_TOKENS);
+        assert!(config.mcp_server_urls.is_empty());
+        assert_eq!(config.max_tool_iterations, DEFAULT_MAX_TOOL_ITERATIONS);
     }
 
     #[test]
@@ -169,5 +211,45 @@ mod tests {
     #[test]
     fn default_max_tokens() {
         assert_eq!(DEFAULT_MAX_TOKENS, 4096);
+    }
+
+    #[test]
+    fn default_max_tool_iterations() {
+        assert_eq!(DEFAULT_MAX_TOOL_ITERATIONS, 25);
+    }
+
+    #[test]
+    fn split_comma_separated_single() {
+        let urls = split_comma_separated("http://github-mcp:8080/mcp");
+        assert_eq!(urls, vec!["http://github-mcp:8080/mcp"]);
+    }
+
+    #[test]
+    fn split_comma_separated_multiple() {
+        let urls = split_comma_separated(
+            "http://github-mcp:8080/mcp, http://fs-mcp:8080/mcp",
+        );
+        assert_eq!(
+            urls,
+            vec!["http://github-mcp:8080/mcp", "http://fs-mcp:8080/mcp"]
+        );
+    }
+
+    #[test]
+    fn split_comma_separated_empty() {
+        let urls = split_comma_separated("");
+        assert!(urls.is_empty());
+    }
+
+    #[test]
+    fn split_comma_separated_trims_whitespace() {
+        let urls = split_comma_separated("  http://a:8080/mcp , http://b:8080/mcp  ");
+        assert_eq!(urls, vec!["http://a:8080/mcp", "http://b:8080/mcp"]);
+    }
+
+    #[test]
+    fn split_comma_separated_ignores_empty_segments() {
+        let urls = split_comma_separated("http://a:8080/mcp,,http://b:8080/mcp,");
+        assert_eq!(urls, vec!["http://a:8080/mcp", "http://b:8080/mcp"]);
     }
 }

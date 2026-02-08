@@ -63,6 +63,9 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "stream"] }
 
+# MCP client (Official Rust MCP SDK) — see ADR-0006
+rmcp = { version = "0.14", features = ["client", "transport-streamable-http-client", "transport-streamable-http-client-reqwest"] }
+
 # Internal crates
 fm-controller-agenttask = { path = "crates/fm-controller-agenttask" }
 fm-controller-agent = { path = "crates/fm-controller-agent" }

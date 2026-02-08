@@ -8,13 +8,18 @@ use kube::api::{Api, ListParams, PostParams};
 use kube::runtime::watcher::{self, Config as WatcherConfig};
 use tracing::{debug, error, info};
 
-use crate::crd::Agent;
+use crate::crd::{Agent, McpServerRef};
 
 use super::orchestrator_factory;
 
 /// Watches AgentTask CRs in the given namespace and creates
 /// Orchestrator Agent CRs when tasks enter Running phase.
-pub async fn run(client: Client, namespace: &str, default_model: &str) -> anyhow::Result<()> {
+pub async fn run(
+    client: Client,
+    namespace: &str,
+    default_model: &str,
+    default_mcp_servers: &[McpServerRef],
+) -> anyhow::Result<()> {
     info!("👀 Starting AgentTask watcher in namespace: {}", namespace);
 
     let task_api: Api<AgentTask> = Api::namespaced(client.clone(), namespace);
@@ -26,7 +31,7 @@ pub async fn run(client: Client, namespace: &str, default_model: &str) -> anyhow
     while let Some(event) = stream.try_next().await? {
         match event {
             watcher::Event::Apply(task) | watcher::Event::InitApply(task) => {
-                handle_task(&client, &task, default_model).await;
+                handle_task(&client, &task, default_model, default_mcp_servers).await;
             }
             _ => {}
         }
@@ -35,7 +40,12 @@ pub async fn run(client: Client, namespace: &str, default_model: &str) -> anyhow
     Ok(())
 }
 
-async fn handle_task(client: &Client, task: &AgentTask, default_model: &str) {
+async fn handle_task(
+    client: &Client,
+    task: &AgentTask,
+    default_model: &str,
+    default_mcp_servers: &[McpServerRef],
+) {
     let phase = task.status.as_ref().map(|s| s.phase).unwrap_or_default();
 
     if phase != AgentTaskPhase::Running {
@@ -51,7 +61,7 @@ async fn handle_task(client: &Client, task: &AgentTask, default_model: &str) {
         return;
     }
 
-    let agent = orchestrator_factory::build(task, default_model);
+    let agent = orchestrator_factory::build(task, default_model, default_mcp_servers);
     let agent_api: Api<Agent> = Api::namespaced(client.clone(), &task_namespace);
 
     match agent_api.create(&PostParams::default(), &agent).await {

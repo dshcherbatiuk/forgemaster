@@ -1,6 +1,6 @@
 //! Manages conversation message history and token tracking.
 
-use crate::claude_api::request::{Message, Role};
+use crate::claude_api::request::Message;
 use crate::claude_api::response::Usage;
 
 /// Tracks conversation state: system prompt, messages, and cumulative token usage.
@@ -32,20 +32,19 @@ impl Conversation {
         &self.messages
     }
 
-    /// Adds a user message to the conversation.
+    /// Adds a user message with text content.
     pub fn add_user_message(&mut self, content: String) {
-        self.messages.push(Message {
-            role: Role::User,
-            content,
-        });
+        self.messages.push(Message::user(content));
     }
 
-    /// Adds an assistant message to the conversation.
+    /// Adds an assistant message with text content.
     pub fn add_assistant_message(&mut self, content: String) {
-        self.messages.push(Message {
-            role: Role::Assistant,
-            content,
-        });
+        self.messages.push(Message::assistant(content));
+    }
+
+    /// Adds any pre-built message (for tool_use/tool_result messages).
+    pub fn add_message(&mut self, message: Message) {
+        self.messages.push(message);
     }
 
     /// Accumulates token usage from a response.
@@ -68,6 +67,7 @@ impl Conversation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::claude_api::request::{MessageContent, MessageRole};
 
     #[test]
     fn new_conversation_has_empty_messages() {
@@ -83,10 +83,33 @@ mod tests {
         conv.add_assistant_message("hi".to_string());
 
         assert_eq!(conv.messages().len(), 2);
-        assert_eq!(conv.messages()[0].role, Role::User);
-        assert_eq!(conv.messages()[0].content, "hello");
-        assert_eq!(conv.messages()[1].role, Role::Assistant);
-        assert_eq!(conv.messages()[1].content, "hi");
+        assert_eq!(conv.messages()[0].role, MessageRole::User);
+        assert!(matches!(
+            &conv.messages()[0].content,
+            MessageContent::Text(t) if t == "hello"
+        ));
+        assert_eq!(conv.messages()[1].role, MessageRole::Assistant);
+        assert!(matches!(
+            &conv.messages()[1].content,
+            MessageContent::Text(t) if t == "hi"
+        ));
+    }
+
+    #[test]
+    fn add_message_accepts_tool_result() {
+        let mut conv = Conversation::new(String::new());
+        use crate::claude_api::content_block::RequestContentBlock;
+        let msg = Message::tool_results(vec![RequestContentBlock::ToolResult {
+            tool_use_id: "toolu_123".to_string(),
+            content: "done".to_string(),
+            is_error: None,
+        }]);
+        conv.add_message(msg);
+        assert_eq!(conv.messages().len(), 1);
+        assert!(matches!(
+            &conv.messages()[0].content,
+            MessageContent::Blocks(_)
+        ));
     }
 
     #[test]
@@ -122,7 +145,6 @@ mod tests {
     fn turn_count_with_pending_user_message() {
         let mut conv = Conversation::new(String::new());
         conv.add_user_message("q".to_string());
-        // No assistant response yet
         assert_eq!(conv.turn_count(), 0);
     }
 

@@ -14,4 +14,7 @@ data:
   LLM_PROVIDER_SECRET_NAME: "{{ index .Values "runtime-agent" "llm-provider" "secretName" }}"
   LLM_PROVIDER_SECRET_KEY: "{{ index .Values "runtime-agent" "llm-provider" "secretKey" }}"
   LLM_PROVIDER_DEFAULT_MODEL: "{{ index .Values "runtime-agent" "model" }}"
+  {{- if .Values.controller.defaultMcpServers }}
+  DEFAULT_MCP_SERVERS: "{{ .Values.controller.defaultMcpServers }}"
+  {{- end }}
 {{- end }}

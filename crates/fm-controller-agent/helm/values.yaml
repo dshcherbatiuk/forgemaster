@@ -8,6 +8,8 @@ controller:
     repository: fm-controller-agent
     tag: latest
     pullPolicy: IfNotPresent
+  # Default MCP servers for agents (comma-separated name:port, port defaults to 3000)
+  defaultMcpServers: "fm-controller-agent"
   resources:
     limits:
       memory: "256Mi"

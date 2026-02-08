@@ -70,13 +70,11 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
 /// Builds env vars for the runtime container from Agent CR fields.
 fn build_env_vars(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
     let spec = &agent.spec;
+    let agent_namespace = agent.namespace().unwrap_or_default();
 
-    vec![
+    let mut env_vars = vec![
         env_value("AGENT_NAME", &agent.name_any()),
-        env_value(
-            "NAMESPACE",
-            &agent.namespace().unwrap_or_default(),
-        ),
+        env_value("NAMESPACE", &agent_namespace),
         env_value("TASK_PROMPT", &spec.task_prompt),
         env_value("MODEL_NAME", &spec.model.name),
         env_value("MODEL_TEMPERATURE", &spec.model.temperature.to_string()),
@@ -87,7 +85,23 @@ fn build_env_vars(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
             ctx.llm_provider_secret_name(),
             ctx.llm_provider_secret_key(),
         ),
-    ]
+    ];
+
+    if !spec.mcp_servers.is_empty() {
+        let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, &agent_namespace);
+        env_vars.push(env_value("MCP_SERVER_URLS", &mcp_urls));
+    }
+
+    env_vars
+}
+
+/// Builds a comma-separated list of MCP server URLs from server refs.
+fn build_mcp_server_urls(servers: &[crate::crd::McpServerRef], namespace: &str) -> String {
+    servers
+        .iter()
+        .map(|s| s.url(namespace))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// Creates an env var with a literal value.
@@ -228,16 +242,25 @@ mod tests {
     /// Test helper that builds env vars without needing ControllerContext.
     fn build_env_vars_test(agent: &Agent) -> Vec<EnvVar> {
         let spec = &agent.spec;
-        vec![
+        let agent_namespace = agent.namespace().unwrap_or_default();
+
+        let mut env_vars = vec![
             env_value("AGENT_NAME", &agent.name_any()),
-            env_value("NAMESPACE", &agent.namespace().unwrap_or_default()),
+            env_value("NAMESPACE", &agent_namespace),
             env_value("TASK_PROMPT", &spec.task_prompt),
             env_value("MODEL_NAME", &spec.model.name),
             env_value("MODEL_TEMPERATURE", &spec.model.temperature.to_string()),
             env_value("MODEL_MAX_TOKENS", &spec.model.max_tokens.to_string()),
             env_value("RUST_LOG", "info"),
             env_secret("ANTHROPIC_API_KEY", "anthropic-credentials", "api-key"),
-        ]
+        ];
+
+        if !spec.mcp_servers.is_empty() {
+            let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, &agent_namespace);
+            env_vars.push(env_value("MCP_SERVER_URLS", &mcp_urls));
+        }
+
+        env_vars
     }
 
     #[test]
@@ -457,5 +480,81 @@ mod tests {
         let secret_ref = env.value_from.unwrap().secret_key_ref.unwrap();
         assert_eq!(secret_ref.name, "secret-name");
         assert_eq!(secret_ref.key, "secret-key");
+    }
+
+    #[test]
+    fn env_no_mcp_server_urls_when_empty() {
+        let agent = test_agent();
+        let env_vars = build_env_vars_test(&agent);
+        assert!(env_vars.iter().all(|e| e.name != "MCP_SERVER_URLS"));
+    }
+
+    #[test]
+    fn env_mcp_server_urls_single_server() {
+        use crate::crd::McpServerRef;
+
+        let mut agent = test_agent();
+        agent.spec.mcp_servers = vec![McpServerRef::builder()
+            .name("github-mcp".to_string())
+            .build()];
+
+        let env_vars = build_env_vars_test(&agent);
+        let mcp_var = env_vars
+            .iter()
+            .find(|e| e.name == "MCP_SERVER_URLS")
+            .expect("MCP_SERVER_URLS should be present");
+        assert_eq!(
+            mcp_var.value,
+            Some("http://github-mcp.task-abc.svc.cluster.local:3000".to_string())
+        );
+    }
+
+    #[test]
+    fn env_mcp_server_urls_multiple_servers() {
+        use crate::crd::McpServerRef;
+
+        let mut agent = test_agent();
+        agent.spec.mcp_servers = vec![
+            McpServerRef::builder()
+                .name("github-mcp".to_string())
+                .build(),
+            McpServerRef::builder()
+                .name("fs-mcp".to_string())
+                .port(9090)
+                .build(),
+        ];
+
+        let env_vars = build_env_vars_test(&agent);
+        let mcp_var = env_vars
+            .iter()
+            .find(|e| e.name == "MCP_SERVER_URLS")
+            .expect("MCP_SERVER_URLS should be present");
+        assert_eq!(
+            mcp_var.value,
+            Some(
+                "http://github-mcp.task-abc.svc.cluster.local:3000,\
+                 http://fs-mcp.task-abc.svc.cluster.local:9090"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn build_mcp_server_urls_joins_with_comma() {
+        use crate::crd::McpServerRef;
+
+        let servers = vec![
+            McpServerRef::builder()
+                .name("a-mcp".to_string())
+                .build(),
+            McpServerRef::builder()
+                .name("b-mcp".to_string())
+                .build(),
+        ];
+        let urls = build_mcp_server_urls(&servers, "ns");
+        assert_eq!(
+            urls,
+            "http://a-mcp.ns.svc.cluster.local:3000,http://b-mcp.ns.svc.cluster.local:3000"
+        );
     }
 }

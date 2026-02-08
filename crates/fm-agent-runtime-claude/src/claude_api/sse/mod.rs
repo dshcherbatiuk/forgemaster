@@ -33,10 +33,19 @@ pub enum SseEvent {
         /// Initial usage (input tokens).
         usage: Usage,
     },
-    /// A new content block is starting.
+    /// A new text content block is starting.
     ContentBlockStart {
         /// Index of this block in the content array.
         index: usize,
+    },
+    /// A tool_use content block is starting.
+    ToolUseStart {
+        /// Index of this block in the content array.
+        index: usize,
+        /// Unique tool use ID.
+        id: String,
+        /// Tool name.
+        name: String,
     },
     /// Incremental text within a content block.
     ContentBlockDelta {
@@ -44,6 +53,13 @@ pub enum SseEvent {
         index: usize,
         /// New text fragment.
         text: String,
+    },
+    /// Incremental JSON input for a tool_use block.
+    InputJsonDelta {
+        /// Index of the content block.
+        index: usize,
+        /// Partial JSON string.
+        partial_json: String,
     },
     /// A content block has finished.
     ContentBlockStop {
@@ -97,6 +113,40 @@ mod tests {
             assert_eq!(text, "Hello");
         } else {
             panic!("expected ContentBlockDelta");
+        }
+    }
+
+    #[test]
+    fn tool_use_start_holds_id_and_name() {
+        let event = SseEvent::ToolUseStart {
+            index: 1,
+            id: "toolu_123".to_string(),
+            name: "create_agent".to_string(),
+        };
+        if let SseEvent::ToolUseStart { index, id, name } = event {
+            assert_eq!(index, 1);
+            assert_eq!(id, "toolu_123");
+            assert_eq!(name, "create_agent");
+        } else {
+            panic!("expected ToolUseStart");
+        }
+    }
+
+    #[test]
+    fn input_json_delta_holds_partial_json() {
+        let event = SseEvent::InputJsonDelta {
+            index: 1,
+            partial_json: r#"{"name":"#.to_string(),
+        };
+        if let SseEvent::InputJsonDelta {
+            index,
+            partial_json,
+        } = event
+        {
+            assert_eq!(index, 1);
+            assert_eq!(partial_json, r#"{"name":"#);
+        } else {
+            panic!("expected InputJsonDelta");
         }
     }
 

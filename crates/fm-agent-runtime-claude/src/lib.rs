@@ -8,7 +8,10 @@
 pub mod claude_api;
 pub mod config;
 pub mod conversation;
+pub mod conversation_loop;
 pub mod error;
-pub mod runtime;
+pub mod mcp_client;
 pub mod output_writer;
+pub mod runtime;
 pub mod status_updater;
+pub mod tool_executor;

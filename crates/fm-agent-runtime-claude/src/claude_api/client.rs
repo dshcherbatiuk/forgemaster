@@ -52,6 +52,12 @@ impl ClaudeClient {
         let mut attempt: u32 = 0;
 
         loop {
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                if let Ok(payload) = serde_json::to_string_pretty(request) {
+                    debug!("📤 Request payload:\n{payload}");
+                }
+            }
+
             let response = self
                 .http
                 .post(&url)
