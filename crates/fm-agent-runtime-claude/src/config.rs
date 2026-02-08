@@ -38,6 +38,10 @@ pub struct RuntimeConfig {
     pub mcp_server_urls: Vec<String>,
     /// Maximum tool calling iterations per conversation.
     pub max_tool_iterations: u32,
+    /// Workspace directory path (mounted by controller when configured).
+    ///
+    /// Agents write code and artifacts here. Set via `WORKSPACE_DIR` env var.
+    pub workspace_dir: Option<String>,
 }
 
 impl RuntimeConfig {
@@ -74,6 +78,10 @@ impl RuntimeConfig {
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_MAX_TOOL_ITERATIONS);
 
+        let workspace_dir = std::env::var("WORKSPACE_DIR")
+            .ok()
+            .filter(|v| !v.is_empty());
+
         Ok(Self {
             agent_name,
             namespace,
@@ -85,6 +93,7 @@ impl RuntimeConfig {
             model_max_tokens,
             mcp_server_urls,
             max_tool_iterations,
+            workspace_dir,
         })
     }
 
@@ -107,6 +116,7 @@ impl RuntimeConfig {
             model_max_tokens: DEFAULT_MAX_TOKENS,
             mcp_server_urls: Vec::new(),
             max_tool_iterations: DEFAULT_MAX_TOOL_ITERATIONS,
+            workspace_dir: None,
         }
     }
 }
@@ -173,6 +183,7 @@ mod tests {
         assert_eq!(config.model_max_tokens, DEFAULT_MAX_TOKENS);
         assert!(config.mcp_server_urls.is_empty());
         assert_eq!(config.max_tool_iterations, DEFAULT_MAX_TOOL_ITERATIONS);
+        assert!(config.workspace_dir.is_none());
     }
 
     #[test]

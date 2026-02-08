@@ -9,3 +9,7 @@ fm_controller_agent_image_name: fm-controller-agent
 # Build paths (environment provides build_enabled)
 fm_controller_agent_dockerfile: "{{ playbook_dir }}/../crates/fm-controller-agent/Dockerfile"
 fm_controller_agent_build_context: "{{ playbook_dir }}/.."
+
+# Workspace for agent task output (hostPath mount into agent pods)
+fm_controller_agent_workspace_base_path: "{{ playbook_dir }}/../target/tasks"
+fm_controller_agent_workspace_container_path: "/workspace"

@@ -13,6 +13,10 @@ controller:
   # MCP server exposed by this controller
   mcp:
     port: 3000
+  # Workspace directory for agent task output (hostPath mount)
+  workspace:
+    basePath: ""  # Set via Ansible (resolved to absolute path at deploy time)
+    containerPath: "/workspace"
   resources:
     limits:
       memory: "256Mi"

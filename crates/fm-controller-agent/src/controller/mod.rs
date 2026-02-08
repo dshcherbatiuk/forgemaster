@@ -3,7 +3,7 @@
 mod context;
 mod dispatcher;
 mod error;
-pub mod pod_builder;
+pub mod pod;
 pub mod rbac_propagator;
 mod reconciler;
 mod runner;

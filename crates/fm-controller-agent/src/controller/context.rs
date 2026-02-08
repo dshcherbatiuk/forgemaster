@@ -15,6 +15,9 @@ use super::error::{ReconcileError, ReconcileResult};
 /// Default port for MCP servers (used when port is omitted in config).
 const DEFAULT_MCP_SERVER_PORT: u16 = 3000;
 
+/// Default container path for workspace mount.
+const DEFAULT_WORKSPACE_CONTAINER_PATH: &str = "/workspace";
+
 /// Most orchestrators use 1–2 MCP servers; stack-allocate up to 4.
 pub type McpServerRefs = SmallVec<[McpServerRef; 4]>;
 
@@ -28,6 +31,8 @@ pub struct ControllerContext {
     llm_provider_secret_name: String,
     llm_provider_secret_key: String,
     default_mcp_servers: McpServerRefs,
+    workspace_base_path: Option<String>,
+    workspace_container_path: String,
 }
 
 impl ControllerContext {
@@ -40,6 +45,8 @@ impl ControllerContext {
         llm_provider_secret_name: String,
         llm_provider_secret_key: String,
         default_mcp_servers: McpServerRefs,
+        workspace_base_path: Option<String>,
+        workspace_container_path: String,
     ) -> Self {
         Self {
             client,
@@ -49,6 +56,8 @@ impl ControllerContext {
             llm_provider_secret_name,
             llm_provider_secret_key,
             default_mcp_servers,
+            workspace_base_path,
+            workspace_container_path,
         }
     }
 
@@ -85,6 +94,16 @@ impl ControllerContext {
     /// Returns default MCP server refs assigned to agents.
     pub fn default_mcp_servers(&self) -> &[McpServerRef] {
         &self.default_mcp_servers
+    }
+
+    /// Returns the host base path for workspace mounts (if configured).
+    pub fn workspace_base_path(&self) -> Option<&str> {
+        self.workspace_base_path.as_deref()
+    }
+
+    /// Returns the container mount path for workspace (e.g. "/workspace").
+    pub fn workspace_container_path(&self) -> &str {
+        &self.workspace_container_path
     }
 
     /// Updates the agent phase via status subresource patch.
@@ -128,6 +147,15 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
         .map(|val| parse_mcp_server_refs(&val))
         .unwrap_or_default();
 
+    let workspace_base_path = std::env::var("WORKSPACE_BASE_PATH")
+        .ok()
+        .filter(|v| !v.is_empty());
+
+    let workspace_container_path = std::env::var("WORKSPACE_CONTAINER_PATH")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| DEFAULT_WORKSPACE_CONTAINER_PATH.to_string());
+
     Ok(Arc::new(ControllerContext::new(
         client,
         namespace,
@@ -136,6 +164,8 @@ pub fn create_context(client: Client, namespace: String) -> anyhow::Result<Arc<C
         llm_provider_secret_name,
         llm_provider_secret_key,
         default_mcp_servers,
+        workspace_base_path,
+        workspace_container_path,
     )))
 }
 
@@ -284,5 +314,10 @@ mod tests {
     fn parse_refs_skips_empty_segments() {
         let servers = parse_mcp_server_refs("a-mcp,,b-mcp,");
         assert_eq!(servers.len(), 2);
+    }
+
+    #[test]
+    fn default_workspace_container_path() {
+        assert_eq!(DEFAULT_WORKSPACE_CONTAINER_PATH, "/workspace");
     }
 }

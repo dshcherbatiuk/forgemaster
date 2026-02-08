@@ -12,7 +12,7 @@ const ORCHESTRATOR_ROLE: &str =
     include_str!("../../resources/prompts/orchestrator-role.md");
 
 /// Builds an Orchestrator Agent CR for the given AgentTask.
-pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef]) -> Agent {
+pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef], workspace_path: &str) -> Agent {
     let task_name = task.name_any();
     // Agent goes into the task-specific namespace (same name as the task)
     let task_namespace = task_name.clone();
@@ -35,8 +35,8 @@ pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef]) -
     // deletion (AgentTask finalizer deletes the entire task namespace).
 
     let task_prompt = format!(
-        "{}\n\n---\n\nTask ID: {}\nNamespace: {}\n\nTask Description:\n{}",
-        ORCHESTRATOR_ROLE, task_name, task_namespace, task.spec.description
+        "{}\n\n---\n\nTask ID: {}\nNamespace: {}\nWorkspace: {}\n\nTask Description:\n{}",
+        ORCHESTRATOR_ROLE, task_name, task_namespace, workspace_path, task.spec.description
     );
 
     Agent {
@@ -86,7 +86,7 @@ mod tests {
     }
 
     fn build_test_agent() -> Agent {
-        build(&test_task(), "claude-sonnet-4-20250514", &[])
+        build(&test_task(), "claude-sonnet-4-20250514", &[], "/workspace")
     }
 
     #[test]
@@ -152,6 +152,12 @@ mod tests {
     }
 
     #[test]
+    fn task_prompt_contains_workspace_path() {
+        let agent = build_test_agent();
+        assert!(agent.spec.task_prompt.contains("Workspace: /workspace"));
+    }
+
+    #[test]
     fn model_defaults_to_sonnet() {
         let agent = build_test_agent();
         assert_eq!(agent.spec.model.name, "claude-sonnet-4-20250514");
@@ -174,7 +180,7 @@ mod tests {
                 .port(9090)
                 .build(),
         ];
-        let agent = build(&test_task(), "claude-sonnet-4-20250514", &servers);
+        let agent = build(&test_task(), "claude-sonnet-4-20250514", &servers, "/workspace");
         assert_eq!(agent.spec.mcp_servers.len(), 2);
         assert_eq!(agent.spec.mcp_servers[0].name, "fm-controller-agent");
         assert_eq!(agent.spec.mcp_servers[1].name, "github-mcp");

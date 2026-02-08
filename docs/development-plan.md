@@ -184,6 +184,12 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Fix MCP URL namespace (use controller namespace, not agent namespace)
 - [x] Handle pod AlreadyExists (409) race condition in pending reconciler
 - [x] Upgrade Rust toolchain to stable 1.93
+- [x] Move orchestrator prompt to external markdown file (`resources/prompts/orchestrator-role.md`, loaded via `include_str!`)
+- [x] Add workspace volume mount (hostPath volume + volumeMount for agent pods)
+- [x] Add workspace config to Helm values and Ansible (relative basePath, resolved via `| realpath`)
+- [x] Inject workspace path into orchestrator prompt context (`Workspace: /workspace`)
+- [x] Add `WORKSPACE_DIR` env var to runtime config
+- [x] Refactor pod_builder into `pod/` module (builder, workspace_volume)
 
 ### 2.4 Core Agents
 

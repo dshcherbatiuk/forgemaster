@@ -17,4 +17,8 @@ data:
   {{- if .Values.controller.defaultMcpServers }}
   DEFAULT_MCP_SERVERS: "{{ .Values.controller.defaultMcpServers }}"
   {{- end }}
+  {{- if .Values.controller.workspace }}
+  WORKSPACE_BASE_PATH: "{{ .Values.controller.workspace.basePath }}"
+  WORKSPACE_CONTAINER_PATH: "{{ .Values.controller.workspace.containerPath }}"
+  {{- end }}
 {{- end }}

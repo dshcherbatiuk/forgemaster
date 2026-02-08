@@ -16,11 +16,11 @@ use tracing::info;
 
 use crate::crd::{Agent, AgentPhase, PodRef};
 
-use super::super::context::ControllerContext;
-use super::super::error::{ReconcileError, ReconcileResult};
-use super::super::pod_builder;
-use super::super::rbac_propagator;
-use super::super::secret_propagator;
+use crate::controller::context::ControllerContext;
+use crate::controller::error::{ReconcileError, ReconcileResult};
+use crate::controller::pod;
+use crate::controller::rbac_propagator;
+use crate::controller::secret_propagator;
 use super::ReconcileStrategy;
 
 /// Requeue duration for pending agents.
@@ -66,7 +66,7 @@ impl ReconcileStrategy for PendingStrategy {
         }
 
         // Build and create the pod
-        let pod = pod_builder::build(agent, &self.ctx);
+        let pod = pod::builder::build(agent, &self.ctx);
         info!("🚀 Creating runtime pod for agent {}", name);
 
         let created_pod = match pod_api.create(&PostParams::default(), &pod).await {

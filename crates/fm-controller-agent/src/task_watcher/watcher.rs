@@ -19,6 +19,7 @@ pub async fn run(
     namespace: &str,
     default_model: &str,
     default_mcp_servers: &[McpServerRef],
+    workspace_container_path: &str,
 ) -> anyhow::Result<()> {
     info!("👀 Starting AgentTask watcher in namespace: {}", namespace);
 
@@ -31,7 +32,7 @@ pub async fn run(
     while let Some(event) = stream.try_next().await? {
         match event {
             watcher::Event::Apply(task) | watcher::Event::InitApply(task) => {
-                handle_task(&client, &task, default_model, default_mcp_servers).await;
+                handle_task(&client, &task, default_model, default_mcp_servers, workspace_container_path).await;
             }
             _ => {}
         }
@@ -45,6 +46,7 @@ async fn handle_task(
     task: &AgentTask,
     default_model: &str,
     default_mcp_servers: &[McpServerRef],
+    workspace_container_path: &str,
 ) {
     let phase = task.status.as_ref().map(|s| s.phase).unwrap_or_default();
 
@@ -61,7 +63,7 @@ async fn handle_task(
         return;
     }
 
-    let agent = orchestrator_factory::build(task, default_model, default_mcp_servers);
+    let agent = orchestrator_factory::build(task, default_model, default_mcp_servers, workspace_container_path);
     let agent_api: Api<Agent> = Api::namespaced(client.clone(), &task_namespace);
 
     match agent_api.create(&PostParams::default(), &agent).await {

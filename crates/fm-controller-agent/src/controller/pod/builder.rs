@@ -9,9 +9,8 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::ResourceExt;
 use kube::api::ObjectMeta;
 
+use crate::controller::context::ControllerContext;
 use crate::crd::Agent;
-
-use super::context::ControllerContext;
 
 /// Builds a runtime pod for the given Agent CR.
 ///
@@ -39,6 +38,11 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
 
     let env_vars = build_env_vars(agent, ctx);
     let resource_requirements = build_resource_requirements(agent);
+    let (volumes, volume_mounts) = super::workspace_volume::build(
+        ctx.workspace_base_path(),
+        ctx.workspace_container_path(),
+        &agent_namespace,
+    );
 
     Pod {
         metadata: ObjectMeta {
@@ -50,15 +54,17 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
         },
         spec: Some(PodSpec {
             service_account_name: Some(
-                super::rbac_propagator::RUNTIME_SERVICE_ACCOUNT.to_string(),
+                crate::controller::rbac_propagator::RUNTIME_SERVICE_ACCOUNT.to_string(),
             ),
             restart_policy: Some("Never".to_string()),
+            volumes: if volumes.is_empty() { None } else { Some(volumes) },
             containers: vec![Container {
                 name: "agent-runtime".to_string(),
                 image: Some(ctx.runtime_agent_image().to_string()),
                 image_pull_policy: Some("Never".to_string()),
                 env: Some(env_vars),
                 resources: resource_requirements,
+                volume_mounts: if volume_mounts.is_empty() { None } else { Some(volume_mounts) },
                 ..Default::default()
             }],
             ..Default::default()
@@ -90,6 +96,10 @@ fn build_env_vars(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
     if !spec.mcp_servers.is_empty() {
         let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, ctx.namespace());
         env_vars.push(env_value("MCP_SERVER_URLS", &mcp_urls));
+    }
+
+    if ctx.workspace_base_path().is_some() {
+        env_vars.push(env_value("WORKSPACE_DIR", ctx.workspace_container_path()));
     }
 
     env_vars
