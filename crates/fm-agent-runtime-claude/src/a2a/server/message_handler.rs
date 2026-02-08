@@ -2,6 +2,8 @@
 //!
 //! Implements the `MessageHandler` trait from `a2a-rs-server`,
 //! processing incoming messages from peer agents with SSE streaming support.
+//! When conversation deps are provided, messages are processed through
+//! the Claude conversation loop for real responses.
 
 use std::sync::{Arc, OnceLock};
 
@@ -12,10 +14,12 @@ use a2a_rs_core::{
 use a2a_rs_server::{AuthContext, HandlerResult, MessageHandler};
 use async_trait::async_trait;
 use tokio::sync::broadcast;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
+use super::a2a_message_converter::A2aMessageConverter;
 use super::agent_card_builder::AgentCardBuilder;
+use super::conversation_deps::ConversationDeps;
 
 /// Type alias for the lazily-initialized event sender.
 pub type EventSender = Arc<OnceLock<broadcast::Sender<StreamResponse>>>;
@@ -23,8 +27,9 @@ pub type EventSender = Arc<OnceLock<broadcast::Sender<StreamResponse>>>;
 /// Handles incoming A2A messages from peer agents.
 ///
 /// Implements the [`MessageHandler`] trait from `a2a-rs-server`.
-/// Returns a `Submitted` task immediately, then transitions to
-/// `Working` → `Completed` in the background via broadcast events.
+/// Returns a `Submitted` task immediately, then processes the message
+/// in the background via the Claude conversation loop (if configured)
+/// or a stub acknowledgment (if not).
 pub struct AgentMessageHandler {
     /// Name of this agent (from Agent CR `metadata.name`).
     agent_name: String,
@@ -33,16 +38,25 @@ pub struct AgentMessageHandler {
     /// Broadcast sender for streaming task status updates.
     /// Set after server creation via [`EventSender`] `OnceLock`.
     event_sender: EventSender,
+    /// Shared dependencies for running the conversation loop.
+    /// When `None`, the handler returns a stub acknowledgment.
+    conversation_deps: Option<ConversationDeps>,
 }
 
 impl AgentMessageHandler {
     /// Creates a new handler for the given agent.
     #[must_use]
-    pub fn new(agent_name: String, agent_type: String, event_sender: EventSender) -> Self {
+    pub fn new(
+        agent_name: String,
+        agent_type: String,
+        event_sender: EventSender,
+        conversation_deps: Option<ConversationDeps>,
+    ) -> Self {
         Self {
             agent_name,
             agent_type,
             event_sender,
+            conversation_deps,
         }
     }
 }
@@ -54,7 +68,7 @@ impl MessageHandler for AgentMessageHandler {
         message: Message,
         _auth: Option<AuthContext>,
     ) -> HandlerResult<SendMessageResponse> {
-        let sender_text = extract_text(&message);
+        let sender_text = super::a2a_message_converter::extract_text(&message);
 
         info!(
             "📨 A2A message received by {}: {}",
@@ -67,6 +81,9 @@ impl MessageHandler for AgentMessageHandler {
             .clone()
             .unwrap_or_else(|| Uuid::new_v4().to_string());
         let task_id = Uuid::new_v4().to_string();
+
+        // Clone message for the background task (original goes into task history)
+        let message_for_processing = message.clone();
 
         // Return task in Submitted state — SSE will stream transitions
         let task = Task {
@@ -82,9 +99,10 @@ impl MessageHandler for AgentMessageHandler {
             metadata: None,
         };
 
-        // Spawn background processing: Submitted → Working → Completed
+        // Spawn background processing: Submitted → Working → Completed/Failed
         let event_sender = self.event_sender.clone();
         let agent_name = self.agent_name.clone();
+        let conversation_deps = self.conversation_deps.clone();
 
         tokio::spawn(async move {
             broadcast_status_update(
@@ -95,20 +113,44 @@ impl MessageHandler for AgentMessageHandler {
                 None,
             );
 
-            // Acknowledge with completed status
-            let reply = new_message(
-                Role::Agent,
-                &format!("Message received by {agent_name}"),
-                Some(context_id.clone()),
-            );
+            let result = process_message(
+                &agent_name,
+                &message_for_processing,
+                conversation_deps.as_ref(),
+            )
+            .await;
 
-            broadcast_status_update(
-                &event_sender,
-                &task_id,
-                &context_id,
-                TaskState::Completed,
-                Some(reply),
-            );
+            match result {
+                Ok(response_text) => {
+                    let reply = new_message(
+                        Role::Agent,
+                        &response_text,
+                        Some(context_id.clone()),
+                    );
+                    broadcast_status_update(
+                        &event_sender,
+                        &task_id,
+                        &context_id,
+                        TaskState::Completed,
+                        Some(reply),
+                    );
+                }
+                Err(err) => {
+                    error!("❌ A2A processing failed for {agent_name}: {err:#}");
+                    let error_reply = new_message(
+                        Role::Agent,
+                        &format!("Processing failed: {err:#}"),
+                        Some(context_id.clone()),
+                    );
+                    broadcast_status_update(
+                        &event_sender,
+                        &task_id,
+                        &context_id,
+                        TaskState::Failed,
+                        Some(error_reply),
+                    );
+                }
+            }
         });
 
         Ok(SendMessageResponse::Task(task))
@@ -120,6 +162,41 @@ impl MessageHandler for AgentMessageHandler {
 
     fn supports_streaming(&self) -> bool {
         true
+    }
+}
+
+/// Processes an incoming A2A message.
+///
+/// When conversation deps are available, runs the message through the
+/// Claude conversation loop. Otherwise returns a stub acknowledgment.
+async fn process_message(
+    agent_name: &str,
+    message: &Message,
+    conversation_deps: Option<&ConversationDeps>,
+) -> anyhow::Result<String> {
+    match conversation_deps {
+        Some(deps) => {
+            let claude_message = A2aMessageConverter::to_claude_message(message)?;
+
+            info!("🧠 Processing A2A message via conversation loop for {agent_name}");
+
+            let result = crate::conversation_loop::run(
+                &deps.client,
+                deps.executor.as_ref(),
+                &deps.loop_config,
+                vec![claude_message],
+            )
+            .await?;
+
+            info!(
+                "🧠 A2A conversation completed for {agent_name}: {} iteration(s), {} tokens",
+                result.iterations,
+                result.total_usage.total()
+            );
+
+            Ok(result.final_text)
+        }
+        None => Ok(format!("Message received by {agent_name}")),
     }
 }
 
@@ -146,22 +223,11 @@ fn broadcast_status_update(
     }
 }
 
-/// Extracts text content from message parts.
-fn extract_text(message: &Message) -> String {
-    message
-        .parts
-        .iter()
-        .filter_map(|p| p.text.as_deref())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 /// Truncates a string to the given max length, appending "..." if truncated.
 fn truncate(text: &str, max_len: usize) -> String {
     if text.len() <= max_len {
         text.to_string()
     } else {
-        // Find a safe truncation point at a char boundary
         let mut end = max_len;
         while !text.is_char_boundary(end) && end > 0 {
             end -= 1;
@@ -179,15 +245,30 @@ mod tests {
         Arc::new(OnceLock::new())
     }
 
+    fn test_message(text: &str) -> Message {
+        Message {
+            message_id: "msg-test".to_string(),
+            role: Role::User,
+            parts: vec![Part::text(text)],
+            context_id: None,
+            task_id: None,
+            extensions: vec![],
+            reference_task_ids: None,
+            metadata: None,
+        }
+    }
+
     #[test]
-    fn creates_handler() {
+    fn creates_handler_without_deps() {
         let handler = AgentMessageHandler::new(
             "test-gen-task-abc".to_string(),
             "test-generator".to_string(),
             test_event_sender(),
+            None,
         );
         assert_eq!(handler.agent_name, "test-gen-task-abc");
         assert_eq!(handler.agent_type, "test-generator");
+        assert!(handler.conversation_deps.is_none());
     }
 
     #[test]
@@ -196,6 +277,7 @@ mod tests {
             "code-gen-task-abc".to_string(),
             "code-generator".to_string(),
             test_event_sender(),
+            None,
         );
         let card =
             handler.agent_card("http://code-gen-task-abc.task-abc.svc.cluster.local:9090");
@@ -210,53 +292,9 @@ mod tests {
             "agent".to_string(),
             "type".to_string(),
             test_event_sender(),
+            None,
         );
         assert!(handler.supports_streaming());
-    }
-
-    #[test]
-    fn extract_text_single_part() {
-        let message = Message {
-            message_id: "msg-1".to_string(),
-            role: Role::User,
-            parts: vec![Part::text("Hello agent!")],
-            context_id: None,
-            task_id: None,
-            extensions: vec![],
-            reference_task_ids: None,
-            metadata: None,
-        };
-        assert_eq!(extract_text(&message), "Hello agent!");
-    }
-
-    #[test]
-    fn extract_text_multiple_parts() {
-        let message = Message {
-            message_id: "msg-2".to_string(),
-            role: Role::User,
-            parts: vec![Part::text("Line 1"), Part::text("Line 2")],
-            context_id: None,
-            task_id: None,
-            extensions: vec![],
-            reference_task_ids: None,
-            metadata: None,
-        };
-        assert_eq!(extract_text(&message), "Line 1\nLine 2");
-    }
-
-    #[test]
-    fn extract_text_empty_parts() {
-        let message = Message {
-            message_id: "msg-3".to_string(),
-            role: Role::User,
-            parts: vec![],
-            context_id: None,
-            task_id: None,
-            extensions: vec![],
-            reference_task_ids: None,
-            metadata: None,
-        };
-        assert_eq!(extract_text(&message), "");
     }
 
     #[test]
@@ -284,21 +322,11 @@ mod tests {
             "test-gen".to_string(),
             "test-generator".to_string(),
             test_event_sender(),
+            None,
         );
 
-        let message = Message {
-            message_id: "msg-test".to_string(),
-            role: Role::User,
-            parts: vec![Part::text("Run tests please")],
-            context_id: None,
-            task_id: None,
-            extensions: vec![],
-            reference_task_ids: None,
-            metadata: None,
-        };
-
         let response = handler
-            .handle_message(message, None)
+            .handle_message(test_message("Run tests please"), None)
             .await
             .expect("should succeed");
 
@@ -320,21 +348,11 @@ mod tests {
             "test-gen".to_string(),
             "test-generator".to_string(),
             event_sender,
+            None,
         );
 
-        let message = Message {
-            message_id: "msg-test".to_string(),
-            role: Role::User,
-            parts: vec![Part::text("Hello")],
-            context_id: None,
-            task_id: None,
-            extensions: vec![],
-            reference_task_ids: None,
-            metadata: None,
-        };
-
         let response = handler
-            .handle_message(message, None)
+            .handle_message(test_message("Hello"), None)
             .await
             .expect("should succeed");
 
@@ -356,7 +374,7 @@ mod tests {
             _ => panic!("Expected StatusUpdate(Working)"),
         }
 
-        // Should receive Completed update
+        // Should receive Completed update (stub path)
         let event = rx.try_recv().expect("should receive Completed event");
         match event {
             StreamResponse::StatusUpdate(e) => {
@@ -366,6 +384,50 @@ mod tests {
             }
             _ => panic!("Expected StatusUpdate(Completed)"),
         }
+    }
+
+    #[tokio::test]
+    async fn process_message_stub_returns_acknowledgment() {
+        let result = process_message("test-gen", &test_message("Hello"), None)
+            .await
+            .expect("stub should succeed");
+        assert_eq!(result, "Message received by test-gen");
+    }
+
+    #[tokio::test]
+    async fn process_message_with_empty_parts_fails() {
+        let empty_message = Message {
+            message_id: "msg-empty".to_string(),
+            role: Role::User,
+            parts: vec![],
+            context_id: None,
+            task_id: None,
+            extensions: vec![],
+            reference_task_ids: None,
+            metadata: None,
+        };
+
+        // With deps but empty message → conversion error
+        let deps = ConversationDeps {
+            client: Arc::new(crate::claude_api::client::ClaudeClient::new(
+                "key",
+                "http://localhost",
+            )),
+            executor: Arc::new(crate::tool_executor::NoOpToolExecutor),
+            loop_config: Arc::new(crate::conversation_loop::ConversationLoopConfig::new(
+                "model".to_string(),
+                4096,
+            )),
+        };
+
+        let result = process_message("test-gen", &empty_message, Some(&deps)).await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .expect_err("empty")
+                .to_string()
+                .contains("no text content")
+        );
     }
 
     #[test]
@@ -387,6 +449,7 @@ mod tests {
             "agent".to_string(),
             "code-generator".to_string(),
             test_event_sender(),
+            None,
         );
         let card = handler.agent_card("http://agent.ns:9090");
         assert_eq!(

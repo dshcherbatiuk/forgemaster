@@ -7,8 +7,11 @@
 use anyhow::Result;
 use tracing::info;
 
+use std::sync::Arc;
+
 use crate::a2a::client::A2aToolExecutor;
 use crate::a2a::config::A2aConfig;
+use crate::a2a::server::conversation_deps::ConversationDeps;
 use crate::claude_api::client::ClaudeClient;
 use crate::claude_api::request::Message;
 use crate::config::RuntimeConfig;
@@ -64,19 +67,22 @@ impl AgentRuntime {
         // Always add A2A tools for inter-agent communication
         composite.add(Box::new(A2aToolExecutor::new()));
 
-        let executor: Box<dyn ToolExecutor> = Box::new(composite);
+        let executor: Arc<dyn ToolExecutor> = Arc::new(composite);
 
         // 3. Build conversation loop config
-        let loop_config = ConversationLoopConfig {
+        let loop_config = Arc::new(ConversationLoopConfig {
             model: self.config.model_name.clone(),
             max_tokens: self.config.model_max_tokens,
             system: Some(self.config.task_prompt.clone()),
             temperature: Some(self.config.model_temperature),
             max_iterations: self.config.max_tool_iterations,
-        };
+        });
 
         // 4. Run conversation loop
-        let client = ClaudeClient::new(&self.config.api_key, &self.config.api_base_url);
+        let client = Arc::new(ClaudeClient::new(
+            &self.config.api_key,
+            &self.config.api_base_url,
+        ));
         let initial_messages =
             vec![Message::user("Execute the task described in the system prompt.")];
 
@@ -112,8 +118,15 @@ impl AgentRuntime {
             a2a_config.peer_urls.len()
         );
 
+        // Build conversation deps for A2A handler (shared via Arc)
+        let conversation_deps = ConversationDeps {
+            client,
+            executor,
+            loop_config,
+        };
+
         tokio::select! {
-            result = crate::a2a::server::start(&self.config.agent_name, &a2a_config.agent_type, a2a_config.port) => {
+            result = crate::a2a::server::start(&self.config.agent_name, &a2a_config.agent_type, a2a_config.port, Some(conversation_deps)) => {
                 if let Err(e) = result {
                     tracing::error!("🌐 A2A server error: {e}");
                 }
