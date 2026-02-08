@@ -195,6 +195,9 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Add labels to MCP-created agents (forgemaster.io/task, forgemaster.io/type, managed-by)
 - [x] Add Kubernetes Event recording (PodCreated, PodFound, AgentSucceeded, AgentFailed, PodNotFound)
 - [x] Remove model_name from MCP create_agent params (always use LLM_PROVIDER_DEFAULT_MODEL from env)
+- [x] Add per-agent-type guidelines to orchestrator prompt ([ADR-0007](adr/0007-per-agent-type-prompt-injection.md))
+- [x] Sequential orchestration — orchestrator relays outputs between agents via task_prompt
+- [x] Code-generator rules: SOLID, DRY, KISS, YAGNI, fail fast, one class per file
 
 ### 2.4 Core Agents
 
