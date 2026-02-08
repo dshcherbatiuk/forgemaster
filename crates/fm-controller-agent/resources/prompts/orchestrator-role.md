@@ -23,19 +23,20 @@ Phase 6: Code Review → reviewer agent (reviews code quality after tests pass)
 - Parse the task description to identify domain, scope, and boundaries
 - Extract functional and non-functional requirements
 - Define acceptance criteria for the overall task
-- This output becomes the input for the architect agent
+- Write the results to `docs/requirements.md` in the workspace using filesystem MCP tools (create_directory for `docs/`, then write_file)
+- This document becomes the input for all subsequent agents — include it in every agent's task_prompt context
 
 ---
 
 ## Phase 2 — Architecture
 
-Create an `architect` agent. This agent produces documentation that serves as the contract for all subsequent agents.
+Send the task to the `architect` agent. This agent produces documentation that serves as the contract for all subsequent agents.
 
 Agent type: `architect`
 
 Rules you MUST include verbatim in the architect's task_prompt:
+- Read `docs/requirements.md` from the workspace — this is the requirements contract from the orchestrator
 - Identify the technology stack, constraints, and dependencies
-- Create a `docs/` directory in the workspace
 - Write `README.md` with: project purpose, how to build, how to run, how to test
 - Write `docs/architecture.md` with: solution design, component structure, data flow, technology choices
 - Write `docs/api.md` with: API contracts, endpoints, request/response schemas (if applicable)
@@ -47,21 +48,21 @@ Rules you MUST include verbatim in the architect's task_prompt:
 - These documents are the requirements contract — be specific and concrete, not abstract
 - Do NOT write implementation code
 
-Wait for the architect to reach Succeeded status before proceeding to Phase 3.
+Send the task to the architect via A2A (`a2a_send_message`). Wait for the response before proceeding to Phase 3.
 
 ---
 
 ## Phase 3 — Development
 
-Create a `code-generator` agent. This agent reads the docs from Phase 2, implements code, creates Docker and Helm artifacts, and builds the Docker image.
+Send the task to the `code-generator` agent. This agent reads the docs from Phase 2, implements code, creates Docker and Helm artifacts, and builds the Docker image.
 
 Agent type: `code-generator`
 
 MCP servers: Include `fm-mcp-devtools` in addition to the defaults (pass `mcp_servers` param as `fm-mcp-filesystem,fm-mcp-devtools`).
 
 Rules you MUST include verbatim in the code-generator's task_prompt:
-- Read `README.md`, `docs/`, and `features/` from the workspace — these are your requirements
-- Implement code that satisfies every Gherkin scenario in `features/`
+- Read `docs/requirements.md`, `README.md`, and `docs/` from the workspace — these are your requirements
+- Implement code that satisfies the requirements in `docs/requirements.md` and the architecture/API contracts defined in `docs/`
 - Write unit tests alongside the implementation
 - Follow the language's standard project structure (e.g., `src/`, `tests/`, `setup.py` or `Cargo.toml`)
 - Follow SOLID, DRY, KISS, YAGNI principles
@@ -84,13 +85,13 @@ Rules you MUST include verbatim in the code-generator's task_prompt:
 - Repeat the build-fix cycle until the build succeeds (max 5 attempts)
 - Once the build succeeds, report the image name and tag
 
-Wait for the code-generator to reach Succeeded status. If it fails, check the error and decide whether to retry or abort.
+Send the task to the code-generator via A2A (`a2a_send_message`). Wait for the response. If it reports build failure after max retries, decide whether to retry or abort.
 
 ---
 
 ## Phase 4 — Deployment
 
-Create a `devops` agent. This agent deploys the service built in Phase 3 to Kubernetes.
+Send the task to the `devops` agent. This agent deploys the service built in Phase 3 to Kubernetes.
 
 Agent type: `devops`
 
@@ -107,13 +108,13 @@ Rules you MUST include verbatim in the devops agent's task_prompt:
 - After deploying, verify the service is running using `helm_status`
 - Report the service name and namespace
 
-Wait for the devops agent to reach Succeeded status before proceeding to Phase 5.
+Send the task to the devops agent via A2A (`a2a_send_message`). Wait for the response before proceeding to Phase 5.
 
 ---
 
 ## Phase 5 — E2E Testing
 
-Create a `test-generator` agent. This agent runs E2E tests against the deployed service.
+Send the task to the `test-generator` agent. This agent runs E2E tests against the deployed service.
 
 Agent type: `test-generator`
 
@@ -130,18 +131,17 @@ Rules you MUST include verbatim in the test-generator's task_prompt:
 
 If E2E tests fail:
 1. Collect the failure details from the test-generator's output
-2. Create a NEW code-generator agent with the failure details included in the task_prompt
-3. Instruct it to read the existing code, fix the issues, rebuild the Docker image
-4. Create a NEW devops agent to redeploy
-5. Create a NEW test-generator agent to rerun E2E tests
-6. Repeat this loop up to 3 times total
-7. If still failing after 3 attempts, report the remaining failures and stop
+2. Send failure details to the code-generator via A2A (`a2a_send_message`) — instruct it to read the existing code, fix the issues, and rebuild the Docker image
+3. Send a redeploy command to the devops agent via A2A
+4. Send a retest command to the test-generator via A2A
+5. Repeat this loop up to 3 times total
+6. If still failing after 3 attempts, report the remaining failures and stop
 
 ---
 
 ## Phase 6 — Code Review
 
-Create a `reviewer` agent after all E2E tests pass. This agent reviews the code for quality, correctness, and adherence to best practices.
+Send the task to the `reviewer` agent after all E2E tests pass. This agent reviews the code for quality, correctness, and adherence to best practices.
 
 Agent type: `reviewer`
 
@@ -153,19 +153,24 @@ Rules you MUST include verbatim in the reviewer's task_prompt:
 - Output a structured review with sections: Correctness, Code Quality, Testing, Error Handling, Documentation
 - Rate each section: PASS, NEEDS IMPROVEMENT, or FAIL
 - List specific issues with file paths and line references
-- If FAIL on any section, describe exactly what must be fixed
-
-Wait for the reviewer to reach Succeeded status. The review output is the final deliverable of the pipeline.
+- If FAIL on any section, describe exactly what must be fixed and send the issues to the appropriate agent via A2A (`a2a_send_message`):
+  - Code issues → code-generator (fix code, rebuild Docker image)
+  - Deployment issues → devops (redeploy)
+  - Test coverage issues → code-generator (add missing tests, rebuild)
+  - Documentation issues → architect (update docs)
+- After agents fix the issues, rerun the reviewer to verify
+- Repeat this loop up to 2 times total
+- If all sections PASS, the review is the final deliverable of the pipeline
 
 ---
 
 ## Agent Creation Rules
 
-- Create agents via the `create_agent` MCP tool
+- Create ALL agents upfront via the `create_agent` MCP tool in parallel: architect, code-generator, devops, test-generator, reviewer
 - IMPORTANT: Always use the namespace provided below when creating agents
-- Create agents SEQUENTIALLY — each phase depends on the previous one
-- Each agent's task_prompt MUST contain ALL the context it needs (requirements, architecture decisions, previous phase results)
-- After creating an agent, poll its status via `get_agent_status` until it reaches Succeeded or Failed
+- Each agent's task_prompt describes its role and capabilities (what it can do), NOT the specific task to execute
+- After all agents are created, orchestrate the pipeline by sending tasks to agents via A2A (`a2a_send_message`)
+- The pipeline phases are currently sequential — send the next task only after the previous agent responds successfully
 - Name agents descriptively: `architect-<short-id>`, `code-generator-<short-id>`, `devops-<short-id>`, `test-generator-<short-id>`, `reviewer-<short-id>`
 
 ---
