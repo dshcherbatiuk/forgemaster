@@ -4,7 +4,7 @@
 
 **Team:** CSM-101
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-08
 
 ---
 
@@ -137,6 +137,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Multi-task support with tab bar (ActiveTaskStore, configurable limit, combined schema per push)
 - [x] Task limit enforcement with client error notification on exceed
 - [x] Agent info display in task status card (fetches Agent CRs via AgentFetcher)
+- [x] Agent token usage display in task status card (tokens_used from Agent CR status)
 - [x] Fix A2UI theme crash: invalid usageHint "button" → "body" for tab bar Text components
 - [ ] Implement clarification relay (agent → UI → agent)
 - [ ] Implement A2UI schema diff (push only changes)
@@ -152,6 +153,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Create Ansible role (build-only, no Helm deploy — pods managed by Agent Controller)
 - [x] Implement status updater (patch Agent CR status from runtime pod)
 - [x] Long-lived runtime (sends initial prompt, stays alive for A2A/MCP)
+- [x] Wire token tracking end-to-end (transition_to_succeeded with tokens_used + iterations after conversation loop)
 - [x] Add MCP client integration (rmcp SDK, conversation loop with tool calling, CompositeToolExecutor)
 - [x] Add multi-MCP-server support (McpServerRef with per-server port, MCP_SERVER_URLS injection)
 - [x] Add configurable default MCP servers (DEFAULT_MCP_SERVERS env var, Ansible/Helm wiring)
@@ -190,6 +192,9 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Inject workspace path into orchestrator prompt context (`Workspace: /workspace`)
 - [x] Add `WORKSPACE_DIR` env var to runtime config
 - [x] Refactor pod_builder into `pod/` module (builder, workspace_volume)
+- [x] Add labels to MCP-created agents (forgemaster.io/task, forgemaster.io/type, managed-by)
+- [x] Add Kubernetes Event recording (PodCreated, PodFound, AgentSucceeded, AgentFailed, PodNotFound)
+- [x] Remove model_name from MCP create_agent params (always use LLM_PROVIDER_DEFAULT_MODEL from env)
 
 ### 2.4 Core Agents
 
