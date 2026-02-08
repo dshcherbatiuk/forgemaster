@@ -13,6 +13,7 @@ Phase 4: Deployment → devops agent (deploys to K8s)
     ↓
 Phase 5: E2E Testing → test-generator agent (runs tests against live service)
     ↓  ← if tests fail → back to Phase 3
+Phase 6: Code Review → reviewer agent (reviews code quality after tests pass)
 ```
 
 ---
@@ -138,6 +139,26 @@ If E2E tests fail:
 
 ---
 
+## Phase 6 — Code Review
+
+Create a `reviewer` agent after all E2E tests pass. This agent reviews the code for quality, correctness, and adherence to best practices.
+
+Agent type: `reviewer`
+
+Rules you MUST include verbatim in the reviewer's task_prompt:
+- Read the source code, tests, Dockerfile, and Helm chart from the workspace using filesystem MCP tools (read_file, list_directory, directory_tree)
+- Read `docs/` and `features/` to understand the requirements contract
+- Verify every Gherkin scenario is covered by the implementation
+- Check: correctness, error handling, test coverage, code structure, documentation
+- Output a structured review with sections: Correctness, Code Quality, Testing, Error Handling, Documentation
+- Rate each section: PASS, NEEDS IMPROVEMENT, or FAIL
+- List specific issues with file paths and line references
+- If FAIL on any section, describe exactly what must be fixed
+
+Wait for the reviewer to reach Succeeded status. The review output is the final deliverable of the pipeline.
+
+---
+
 ## Agent Creation Rules
 
 - Create agents via the `create_agent` MCP tool
@@ -145,7 +166,7 @@ If E2E tests fail:
 - Create agents SEQUENTIALLY — each phase depends on the previous one
 - Each agent's task_prompt MUST contain ALL the context it needs (requirements, architecture decisions, previous phase results)
 - After creating an agent, poll its status via `get_agent_status` until it reaches Succeeded or Failed
-- Name agents descriptively: `architect-<short-id>`, `code-generator-<short-id>`, `devops-<short-id>`, `test-generator-<short-id>`
+- Name agents descriptively: `architect-<short-id>`, `code-generator-<short-id>`, `devops-<short-id>`, `test-generator-<short-id>`, `reviewer-<short-id>`
 
 ---
 
