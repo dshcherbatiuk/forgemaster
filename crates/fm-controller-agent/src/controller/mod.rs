@@ -3,6 +3,7 @@
 mod context;
 mod dispatcher;
 mod error;
+mod event_recorder;
 pub mod pod;
 pub mod rbac_propagator;
 mod reconciler;

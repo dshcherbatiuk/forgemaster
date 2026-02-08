@@ -16,8 +16,11 @@ use tracing::info;
 
 use crate::crd::{Agent, AgentPhase, PodRef};
 
+use kube::runtime::events::EventType;
+
 use crate::controller::context::ControllerContext;
 use crate::controller::error::{ReconcileError, ReconcileResult};
+use crate::controller::event_recorder;
 use crate::controller::pod;
 use crate::controller::rbac_propagator;
 use crate::controller::secret_propagator;
@@ -60,6 +63,14 @@ impl ReconcileStrategy for PendingStrategy {
 
         if let Some(pod) = existing_pod {
             info!("📦 Pod already exists for agent {}, transitioning to Running", name);
+            event_recorder::publish(
+                self.ctx.client(),
+                agent,
+                EventType::Normal,
+                "PodFound",
+                &format!("Pod already exists for agent {name}"),
+            )
+            .await;
             let pod_uid = pod.metadata.uid.clone().unwrap_or_default();
             update_status_with_pod_ref(&self.ctx, agent, &name, &pod_uid).await?;
             return Ok(Action::requeue(REQUEUE_DURATION));
@@ -88,6 +99,15 @@ impl ReconcileStrategy for PendingStrategy {
 
         let pod_uid = created_pod.metadata.uid.clone().unwrap_or_default();
         update_status_with_pod_ref(&self.ctx, agent, &name, &pod_uid).await?;
+
+        event_recorder::publish(
+            self.ctx.client(),
+            agent,
+            EventType::Normal,
+            "PodCreated",
+            &format!("Created runtime pod {name}"),
+        )
+        .await;
 
         info!("✅ Created runtime pod for agent {}", name);
         Ok(Action::requeue(REQUEUE_DURATION))

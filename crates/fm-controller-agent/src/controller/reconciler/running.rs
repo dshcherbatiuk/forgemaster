@@ -16,10 +16,13 @@ use kube::api::Api;
 use kube::runtime::controller::Action;
 use tracing::info;
 
+use kube::runtime::events::EventType;
+
 use crate::crd::{Agent, AgentPhase, Condition};
 
 use super::super::context::ControllerContext;
 use super::super::error::{ReconcileError, ReconcileResult};
+use crate::controller::event_recorder;
 use super::ReconcileStrategy;
 
 /// Requeue duration for running agents.
@@ -54,6 +57,14 @@ impl ReconcileStrategy for RunningStrategy {
 
         let Some(pod) = pod else {
             info!("🔄 Pod not found for agent {}, transitioning to Pending for recreation", name);
+            event_recorder::publish(
+                self.ctx.client(),
+                agent,
+                EventType::Warning,
+                "PodNotFound",
+                &format!("Pod not found for agent {name}, transitioning to Pending"),
+            )
+            .await;
             self.ctx.update_phase(agent, AgentPhase::Pending).await?;
             return Ok(Action::requeue(REQUEUE_DURATION));
         };
@@ -67,12 +78,28 @@ impl ReconcileStrategy for RunningStrategy {
         match pod_phase {
             "Succeeded" => {
                 info!("✅ Agent {} pod succeeded", name);
+                event_recorder::publish(
+                    self.ctx.client(),
+                    agent,
+                    EventType::Normal,
+                    "AgentSucceeded",
+                    "Agent completed successfully",
+                )
+                .await;
                 self.ctx.update_phase(agent, AgentPhase::Succeeded).await?;
                 Ok(Action::await_change())
             }
             "Failed" => {
                 info!("❌ Agent {} pod failed", name);
                 let message = extract_pod_failure_message(&pod);
+                event_recorder::publish(
+                    self.ctx.client(),
+                    agent,
+                    EventType::Warning,
+                    "AgentFailed",
+                    &format!("Pod failed: {message}"),
+                )
+                .await;
                 update_phase_with_condition(
                     &self.ctx,
                     agent,
