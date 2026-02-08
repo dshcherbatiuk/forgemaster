@@ -4,10 +4,11 @@ Meta-agent system that discovers, creates, orchestrates, and manages task-specif
 
 ## Prerequisites
 
-- [Rust](https://rustup.rs/) (1.87+)
-- [OrbStack](https://orbstack.dev/) (Kubernetes cluster)
-- [Helm](https://helm.sh/)
-- [Ansible](https://docs.ansible.com/)
+- [Rust](https://rustup.rs/) (1.93+)
+- [OrbStack](https://orbstack.dev/) (Kubernetes cluster + Docker runtime)
+- [Docker](https://docs.docker.com/get-docker/) (for building agent service images)
+- [Helm](https://helm.sh/) (3.x)
+- [Ansible](https://docs.ansible.com/) (for orchestrating deployments)
 - [Node.js](https://nodejs.org/) (22+, for UI)
 - Anthropic API key
 
