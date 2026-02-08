@@ -1,5 +1,7 @@
 //! Strategy for the `create_agent` MCP tool.
 
+use std::collections::BTreeMap;
+
 use async_trait::async_trait;
 use kube::Client;
 use kube::ResourceExt;
@@ -40,7 +42,9 @@ impl McpAction for CreateAgentAction {
             .map(|s| parse_mcp_servers(&s))
             .unwrap_or_default();
 
-        let agent = Agent::new(
+        let labels = build_agent_labels(&params.namespace, &params.agent_type);
+
+        let mut agent = Agent::new(
             &params.name,
             AgentCrd {
                 agent_type: params.agent_type,
@@ -50,6 +54,8 @@ impl McpAction for CreateAgentAction {
                 resources: None,
             },
         );
+        agent.metadata.namespace = Some(params.namespace.clone());
+        agent.metadata.labels = Some(labels);
 
         let api: Api<Agent> = Api::namespaced(self.client.clone(), &params.namespace);
 
@@ -67,6 +73,18 @@ impl McpAction for CreateAgentAction {
             ))]),
         }
     }
+}
+
+/// Builds standard labels for an Agent CR.
+fn build_agent_labels(task_name: &str, agent_type: &str) -> BTreeMap<String, String> {
+    let mut labels = BTreeMap::new();
+    labels.insert("forgemaster.io/task".to_string(), task_name.to_string());
+    labels.insert("forgemaster.io/type".to_string(), agent_type.to_string());
+    labels.insert(
+        "app.kubernetes.io/managed-by".to_string(),
+        "fm-controller-agent".to_string(),
+    );
+    labels
 }
 
 /// Parses comma-separated `name:port` entries into `McpServerRef` list.
@@ -123,5 +141,26 @@ mod tests {
     fn parse_mcp_servers_empty() {
         let servers = parse_mcp_servers("");
         assert!(servers.is_empty());
+    }
+
+    #[test]
+    fn labels_contain_task_name() {
+        let labels = build_agent_labels("task-abc", "code-generator");
+        assert_eq!(labels.get("forgemaster.io/task").unwrap(), "task-abc");
+    }
+
+    #[test]
+    fn labels_contain_agent_type() {
+        let labels = build_agent_labels("task-abc", "code-generator");
+        assert_eq!(labels.get("forgemaster.io/type").unwrap(), "code-generator");
+    }
+
+    #[test]
+    fn labels_contain_managed_by() {
+        let labels = build_agent_labels("task-abc", "reviewer");
+        assert_eq!(
+            labels.get("app.kubernetes.io/managed-by").unwrap(),
+            "fm-controller-agent"
+        );
     }
 }
