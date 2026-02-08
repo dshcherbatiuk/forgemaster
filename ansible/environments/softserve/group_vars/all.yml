@@ -1,0 +1,38 @@
+---
+# Inherit everything from default, override only what differs.
+# See ansible/environments/default/group_vars/all.yml for full reference.
+
+# Namespace
+forgemaster_namespace: forgemaster-system
+
+# Images from GitHub Container Registry (CI pipeline publishes here)
+image_tag: "{{ lookup('env', 'VERSION') | default('latest', true) }}"
+image_registry: "ghcr.io/dshcherbatiuk"
+image_pull_policy: IfNotPresent
+
+# No local builds — images come from CI
+build_enabled: false
+
+# Gateway versions
+gateway_api_version: v1.2.1
+envoy_gateway_version: v1.3.0
+
+# LLM provider
+llm_provider_secret_name: "{{ lookup('env', 'LLM_PROVIDER_SECRET_NAME') }}"
+llm_provider_secret_key: "{{ lookup('env', 'LLM_PROVIDER_SECRET_KEY') }}"
+llm_provider_api_key: "{{ lookup('env', 'LLM_PROVIDER_API_KEY') }}"
+
+# Default LLM model for agents
+default_model: "{{ lookup('env', 'LLM_PROVIDER_DEFAULT_MODEL') | default('claude-sonnet-4-20250514', true) }}"
+
+# Maximum tool-calling iterations per conversation
+default_max_tool_iterations: "{{ lookup('env', 'DEFAULT_MAX_TOOL_ITERATIONS') | default('100', true) }}"
+
+# Maximum tokens per LLM response
+default_max_tokens: "{{ lookup('env', 'DEFAULT_MAX_TOKENS') | default('16384', true) }}"
+
+# Default MCP servers for agents
+default_mcp_servers: "{{ lookup('env', 'DEFAULT_MCP_SERVERS') | default('fm-controller-agent-mcp,fm-mcp-filesystem,fm-mcp-devtools', true) }}"
+
+# UI
+ui_image_name: forgemaster-ui

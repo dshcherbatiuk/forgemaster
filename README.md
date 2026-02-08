@@ -38,6 +38,14 @@ make cluster
 
 This starts OrbStack, builds Docker images, and deploys all services via Ansible + Helm. The UI URL is printed at the end of the deploy.
 
+### 4. Deploy without local builds
+
+```bash
+make cluster ENV=softserve
+```
+
+Uses the same local cluster but pulls pre-built images from `ghcr.io/dshcherbatiuk/` (published by CI) instead of building locally.
+
 ## Commands
 
 | Command | Description |
@@ -47,8 +55,8 @@ This starts OrbStack, builds Docker images, and deploys all services via Ansible
 | `make test` | `cargo test` |
 | `make lint` | `cargo clippy` |
 | `make fmt` | `cargo fmt` |
-| `make cluster` | Deploy to local K8s cluster |
-| `make cluster ENV=staging` | Deploy with a specific environment |
+| `make cluster` | Deploy to local K8s cluster (default env) |
+| `make cluster ENV=softserve` | Deploy with pre-built images from ghcr.io |
 | `make cluster-clean` | Remove cluster deployments |
 | `make cluster-reset` | Reset OrbStack Kubernetes |
 | `make ui` | Format, lint, build UI |
@@ -58,15 +66,19 @@ This starts OrbStack, builds Docker images, and deploys all services via Ansible
 ```
 forgemaster/
 ├── crates/
-│   ├── fm-controller-agenttask/  # AgentTask CRD + Controller
-│   ├── fm-controller-agent/      # Agent CRD + Controller
-│   └── fm-agent-runtime/         # Agent execution runtime
-├── ui/                           # React + CopilotKit A2UI portal
+│   ├── fm-controller-agenttask/    # AgentTask CRD + Controller
+│   ├── fm-controller-agent/        # Agent CRD + Controller, orchestrator prompts
+│   ├── fm-agent-runtime-claude/    # Agent execution runtime (Claude API, A2A, SSE)
+│   ├── fm-mcp-filesystem/          # MCP server for filesystem access
+│   └── fm-mcp-devtools/            # MCP server for Docker + Helm operations
+├── ui/                             # React + CopilotKit A2UI portal
 ├── ansible/
 │   ├── site.yml
-│   ├── environments/default/     # Local OrbStack environment
-│   └── roles/                    # Per-service Ansible roles
-└── docs/                         # Architecture & setup docs
+│   ├── environments/
+│   │   ├── default/                # Local OrbStack (builds images locally)
+│   │   └── softserve/              # Remote (pulls images from ghcr.io)
+│   └── roles/                      # Per-service Ansible roles
+└── docs/                           # Architecture, ADRs & setup docs
 ```
 
 ## Documentation
