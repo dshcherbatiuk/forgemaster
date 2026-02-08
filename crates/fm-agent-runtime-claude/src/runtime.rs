@@ -81,6 +81,14 @@ impl AgentRuntime {
         // 5. Log the output
         output_writer.write(&result.final_text);
 
+        // 5. Transition to Succeeded with token metrics
+        status_updater
+            .transition_to_succeeded(
+                result.total_usage.total(),
+                result.iterations as i32,
+            )
+            .await?;
+
         info!(
             "🧠 Agent {} done — {} iteration(s), {} tokens, waiting for requests",
             self.config.agent_name,

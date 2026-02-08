@@ -196,6 +196,7 @@ fn build_single_task_components(
                 "name": a.name,
                 "type": a.agent_type,
                 "phase": a.phase,
+                "tokens": a.tokens_used,
             })
         })
         .collect();
@@ -287,6 +288,7 @@ fn build_agents_section(
             let row_id = format!("{prefix}-status-agent-{i}-row");
             let type_id = format!("{prefix}-status-agent-{i}-type");
             let phase_id = format!("{prefix}-status-agent-{i}-phase");
+            let tokens_id = format!("{prefix}-status-agent-{i}-tokens");
 
             section_children.push(json!(&row_id));
 
@@ -294,7 +296,7 @@ fn build_agents_section(
                 "id": &row_id,
                 "component": { "Row": {
                     "distribution": "spaceBetween",
-                    "children": { "explicitList": [&type_id, &phase_id] }
+                    "children": { "explicitList": [&type_id, &phase_id, &tokens_id] }
                 } }
             }));
             components.push(json!({
@@ -308,6 +310,13 @@ fn build_agents_section(
                 "id": &phase_id,
                 "component": { "Text": {
                     "text": { "path": format!("{data_prefix}/agents/{i}/phase") },
+                    "usageHint": "body"
+                } }
+            }));
+            components.push(json!({
+                "id": &tokens_id,
+                "component": { "Text": {
+                    "text": { "path": format!("{data_prefix}/agents/{i}/tokens") },
                     "usageHint": "body"
                 } }
             }));
@@ -375,11 +384,13 @@ mod tests {
                     name: "orchestrator-task-abc12345".to_string(),
                     agent_type: "orchestrator".to_string(),
                     phase: "Running".to_string(),
+                    tokens_used: 1500,
                 },
                 AgentInfo {
                     name: "code-gen-task-abc12345".to_string(),
                     agent_type: "code-generator".to_string(),
                     phase: "Pending".to_string(),
+                    tokens_used: 0,
                 },
             ],
         }
@@ -561,6 +572,7 @@ mod tests {
         assert!(ids.contains(&"task-0-status-agent-0-row".to_string()));
         assert!(ids.contains(&"task-0-status-agent-0-type".to_string()));
         assert!(ids.contains(&"task-0-status-agent-1-phase".to_string()));
+        assert!(ids.contains(&"task-0-status-agent-0-tokens".to_string()));
     }
 
     #[test]
@@ -582,6 +594,21 @@ mod tests {
         let agents = data["tasks"]["items"][0]["agents"].as_array().unwrap();
         assert_eq!(agents.len(), 2);
         assert_eq!(agents[0]["type"], "orchestrator");
+        assert_eq!(agents[0]["tokens"], 1500);
+        assert_eq!(agents[1]["tokens"], 0);
+    }
+
+    #[test]
+    fn agents_tokens_data_path() {
+        let (_, components, _) = build_multi_task_schema(&[event_with_agents()]);
+        let tokens_comp = components
+            .iter()
+            .find(|c| c["id"] == "task-0-status-agent-0-tokens")
+            .unwrap();
+        assert_eq!(
+            tokens_comp["component"]["Text"]["text"]["path"],
+            "/tasks/items/0/agents/0/tokens"
+        );
     }
 
     #[test]
@@ -652,10 +679,10 @@ mod tests {
     #[test]
     fn count_one_task_with_agents() {
         // hero(1) + tab-bar(1) + tab-0(1) = 3
-        // + card(1) + title(1) + 7*3(21) + agents-title(1) + 2*3(6) + agents-section(1) + col(1) = 32
-        // = 35
+        // + card(1) + title(1) + 7*3(21) + agents-title(1) + 2*4(8) + agents-section(1) + col(1) = 34
+        // = 37
         let (_, components, _) = build_multi_task_schema(&[event_with_agents()]);
-        assert_eq!(components.len(), 35);
+        assert_eq!(components.len(), 37);
     }
 
     // --- Configurable limit ---

@@ -56,10 +56,15 @@ impl AgentFetcher {
             .unwrap_or("Pending")
             .to_string();
 
+        let tokens_used = data["status"]["tokensUsed"]
+            .as_i64()
+            .unwrap_or(0);
+
         AgentInfo {
             name,
             agent_type,
             phase,
+            tokens_used,
         }
     }
 
@@ -75,6 +80,15 @@ mod tests {
     use serde_json::json;
 
     fn dynamic_agent(name: &str, agent_type: &str, phase: &str) -> DynamicObject {
+        dynamic_agent_with_tokens(name, agent_type, phase, 0)
+    }
+
+    fn dynamic_agent_with_tokens(
+        name: &str,
+        agent_type: &str,
+        phase: &str,
+        tokens_used: i64,
+    ) -> DynamicObject {
         let api_resource = ApiResource::from_gvk_with_plural(&AgentFetcher::gvk(), AGENT_PLURAL);
 
         let mut obj = DynamicObject::new(name, &api_resource);
@@ -84,7 +98,7 @@ mod tests {
         };
         obj.data = json!({
             "spec": { "type": agent_type },
-            "status": { "phase": phase }
+            "status": { "phase": phase, "tokensUsed": tokens_used }
         });
         obj
     }
@@ -97,6 +111,17 @@ mod tests {
         assert_eq!(info.name, "orchestrator-task-abc");
         assert_eq!(info.agent_type, "orchestrator");
         assert_eq!(info.phase, "Running");
+        assert_eq!(info.tokens_used, 0);
+    }
+
+    #[test]
+    fn extract_info_with_tokens() {
+        let obj =
+            dynamic_agent_with_tokens("agent-abc", "code-generator", "Succeeded", 4200);
+        let info = AgentFetcher::extract_info(&obj);
+
+        assert_eq!(info.tokens_used, 4200);
+        assert_eq!(info.phase, "Succeeded");
     }
 
     #[test]
@@ -109,6 +134,7 @@ mod tests {
 
         let info = AgentFetcher::extract_info(&obj);
         assert_eq!(info.phase, "Pending");
+        assert_eq!(info.tokens_used, 0);
     }
 
     #[test]

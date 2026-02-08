@@ -19,6 +19,10 @@ pub struct AgentInfo {
 
     /// Current phase as string (e.g. "Pending", "Running", "Succeeded", "Failed").
     pub phase: String,
+
+    /// Total tokens consumed by this agent.
+    #[serde(default)]
+    pub tokens_used: i64,
 }
 
 #[cfg(test)]
@@ -31,6 +35,7 @@ mod tests {
             name: "orchestrator-task-abc123".to_string(),
             agent_type: "orchestrator".to_string(),
             phase: "Running".to_string(),
+            tokens_used: 1500,
         }
     }
 
@@ -49,6 +54,7 @@ mod tests {
         assert_eq!(json["name"], "orchestrator-task-abc123");
         assert_eq!(json["agent_type"], "orchestrator");
         assert_eq!(json["phase"], "Running");
+        assert_eq!(json["tokens_used"], 1500);
     }
 
     #[test]
@@ -66,21 +72,25 @@ mod tests {
                 name: "code-gen-task-abc123".to_string(),
                 agent_type: "code-generator".to_string(),
                 phase: "Pending".to_string(),
+                tokens_used: 0,
             },
             AgentInfo {
                 name: "test-gen-task-abc123".to_string(),
                 agent_type: "test-generator".to_string(),
                 phase: "Succeeded".to_string(),
+                tokens_used: 3200,
             },
             AgentInfo {
                 name: "test-runner-task-abc123".to_string(),
                 agent_type: "test-runner".to_string(),
                 phase: "Pending".to_string(),
+                tokens_used: 0,
             },
             AgentInfo {
                 name: "feedback-task-abc123".to_string(),
                 agent_type: "feedback".to_string(),
                 phase: "Pending".to_string(),
+                tokens_used: 0,
             },
         ];
         assert_eq!(agents.len(), 5);
