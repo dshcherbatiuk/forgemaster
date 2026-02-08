@@ -14,7 +14,7 @@ use fm_agent_runtime_claude::status_updater::StatusUpdater;
 async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env().add_directive("info".parse()?))
+        .with(EnvFilter::from_default_env())
         .init();
 
     info!("🚀 Starting Agent Runtime");

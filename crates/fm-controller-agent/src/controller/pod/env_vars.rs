@@ -22,7 +22,7 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
             "MAX_TOOL_ITERATIONS",
             &spec.model.max_tool_iterations.to_string(),
         ),
-        literal("RUST_LOG", "info"),
+        literal("RUST_LOG", "debug"),
         from_secret(
             "ANTHROPIC_API_KEY",
             ctx.llm_provider_secret_name(),
@@ -134,7 +134,7 @@ mod tests {
                 "MAX_TOOL_ITERATIONS",
                 &spec.model.max_tool_iterations.to_string(),
             ),
-            literal("RUST_LOG", "info"),
+            literal("RUST_LOG", "debug"),
             from_secret("ANTHROPIC_API_KEY", "anthropic-credentials", "api-key"),
         ];
 

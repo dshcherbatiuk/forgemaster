@@ -13,7 +13,7 @@ use rmcp::{
     service::RunningService,
     transport::StreamableHttpClientTransport,
 };
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Type alias for the connected MCP service.
 ///
@@ -29,10 +29,43 @@ pub struct McpClient {
 }
 
 impl McpClient {
-    /// Connects to an MCP server at the given endpoint URL.
+    /// Maximum number of connection attempts.
+    const MAX_RETRIES: u32 = 5;
+
+    /// Initial delay between retries (doubles each attempt).
+    const INITIAL_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
+
+    /// Connects to an MCP server at the given endpoint URL with retry.
     ///
-    /// Performs the MCP protocol handshake (initialize → initialized).
+    /// Retries up to [`Self::MAX_RETRIES`] times with exponential backoff.
     pub async fn connect(endpoint_url: &str) -> Result<Self> {
+        let mut delay = Self::INITIAL_RETRY_DELAY;
+
+        for attempt in 1..=Self::MAX_RETRIES {
+            match Self::try_connect(endpoint_url).await {
+                Ok(client) => return Ok(client),
+                Err(err) if attempt < Self::MAX_RETRIES => {
+                    warn!(
+                        "🔌 MCP connection attempt {attempt}/{} failed: {err:#}, retrying in {delay:?}",
+                        Self::MAX_RETRIES
+                    );
+                    tokio::time::sleep(delay).await;
+                    delay *= 2;
+                }
+                Err(err) => {
+                    return Err(err.context(format!(
+                        "MCP connection to {endpoint_url} failed after {} attempts",
+                        Self::MAX_RETRIES
+                    )));
+                }
+            }
+        }
+
+        unreachable!()
+    }
+
+    /// Single connection attempt to an MCP server.
+    async fn try_connect(endpoint_url: &str) -> Result<Self> {
         debug!("🔌 Connecting to MCP server at {endpoint_url}");
 
         let transport = StreamableHttpClientTransport::from_uri(endpoint_url);
