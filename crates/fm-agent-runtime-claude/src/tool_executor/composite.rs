@@ -1,13 +1,7 @@
-//! Composite tool executor that aggregates tools from multiple MCP servers.
+//! Composite tool executor that aggregates tools from multiple backends.
 //!
-//! Routes tool calls to the correct server based on tool name registration.
-//!
-//! ## Future: Dynamic MCP Server Registry
-//!
-//! Currently, MCP server URLs are provided statically via env vars at startup.
-//! In the future, this should evolve into a registry pattern with dynamic
-//! MCP server discovery — allowing servers to be added/removed at runtime
-//! (e.g., via K8s watch on MCPServer CRDs). This is out of scope for now.
+//! Routes tool calls to the correct executor based on tool name registration.
+//! Supports both MCP servers and A2A tools.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -18,36 +12,47 @@ use crate::claude_api::tool_definition::ToolDefinition;
 use crate::mcp_client::McpToolExecutor;
 use super::{ToolCallResult, ToolExecutor};
 
-/// Aggregates tools from multiple MCP servers.
+/// Aggregates tools from multiple executors (MCP, A2A, etc.).
 ///
-/// On `discover_tools()`, connects to each server and merges their tool lists.
-/// On `execute_tool()`, routes the call to the server that provides the tool.
+/// On `discover_tools()`, queries each executor and merges their tool lists.
+/// On `execute_tool()`, routes the call to the executor that registered the tool.
 pub struct CompositeToolExecutor {
-    /// Individual executors, one per MCP server.
-    executors: Vec<McpToolExecutor>,
+    /// Individual executors (MCP servers, A2A, etc.).
+    executors: Vec<Box<dyn ToolExecutor>>,
     /// Maps tool name → index into `executors`.
     tool_routing: DashMap<String, usize>,
 }
 
 impl CompositeToolExecutor {
+    /// Creates an empty composite executor.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            executors: Vec::new(),
+            tool_routing: DashMap::new(),
+        }
+    }
+
     /// Creates a composite executor by connecting to all given MCP server URLs.
     pub async fn connect(server_urls: &[String]) -> Result<Self> {
-        let mut executors = Vec::with_capacity(server_urls.len());
+        let mut composite = Self::empty();
 
         for url in server_urls {
             let executor = McpToolExecutor::connect(url).await?;
-            executors.push(executor);
+            composite.executors.push(Box::new(executor));
         }
 
         info!(
             "🔌 Connected to {} MCP server(s)",
-            executors.len()
+            composite.executors.len()
         );
 
-        Ok(Self {
-            executors,
-            tool_routing: DashMap::new(),
-        })
+        Ok(composite)
+    }
+
+    /// Adds a tool executor to the composite.
+    pub fn add(&mut self, executor: Box<dyn ToolExecutor>) {
+        self.executors.push(executor);
     }
 }
 
@@ -61,7 +66,7 @@ impl ToolExecutor for CompositeToolExecutor {
             let tools = executor.discover_tools().await?;
 
             for tool in &tools {
-                debug!("📡 Registered tool '{}' → server #{index}", tool.name);
+                debug!("📡 Registered tool '{}' → executor #{index}", tool.name);
                 self.tool_routing.insert(tool.name.clone(), index);
             }
 
@@ -69,7 +74,7 @@ impl ToolExecutor for CompositeToolExecutor {
         }
 
         info!(
-            "🔧 Discovered {} tool(s) from {} server(s)",
+            "🔧 Discovered {} tool(s) from {} executor(s)",
             all_tools.len(),
             self.executors.len()
         );
@@ -83,7 +88,7 @@ impl ToolExecutor for CompositeToolExecutor {
             .get(name)
             .map(|entry| *entry.value())
             .ok_or_else(|| {
-                anyhow::anyhow!("tool '{name}' not found in any connected MCP server")
+                anyhow::anyhow!("tool '{name}' not found in any connected executor")
             })?;
 
         self.executors[index].execute_tool(name, input).await
@@ -122,5 +127,19 @@ mod tests {
 
         routing.clear();
         assert!(routing.is_empty());
+    }
+
+    #[test]
+    fn empty_composite_has_no_executors() {
+        let composite = CompositeToolExecutor::empty();
+        assert!(composite.executors.is_empty());
+        assert!(composite.tool_routing.is_empty());
+    }
+
+    #[tokio::test]
+    async fn empty_composite_discovers_no_tools() {
+        let composite = CompositeToolExecutor::empty();
+        let tools = composite.discover_tools().await.expect("discover");
+        assert!(tools.is_empty());
     }
 }

@@ -9,6 +9,7 @@ pub mod rbac_propagator;
 mod reconciler;
 mod runner;
 pub mod secret_propagator;
+pub mod service_creator;
 
 pub use context::{ControllerContext, McpServerRefs, create_context};
 pub use dispatcher::Dispatcher;

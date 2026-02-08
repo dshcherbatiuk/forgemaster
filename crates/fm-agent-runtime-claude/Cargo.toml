@@ -35,9 +35,14 @@ chrono = { workspace = true }
 typed-builder = { workspace = true }
 dashmap = { workspace = true }
 
+smallvec = { workspace = true }
 reqwest = { workspace = true }
 async-trait = { workspace = true }
 rmcp = { workspace = true }
+
+a2a-rs-core = { workspace = true }
+a2a-rs-server = { workspace = true }
+a2a-rs-client = { workspace = true }
 
 # SSE parsing (Claude streaming API)
 eventsource-stream = "0.2"

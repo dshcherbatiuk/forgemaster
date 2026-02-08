@@ -66,6 +66,11 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 # MCP client (Official Rust MCP SDK) — see ADR-0006
 rmcp = { version = "0.14", features = ["client", "transport-streamable-http-client", "transport-streamable-http-client-reqwest"] }
 
+# A2A protocol (Agent-to-Agent communication) — see ADR-0009
+a2a-rs-core = "1.0"
+a2a-rs-server = "1.0"
+a2a-rs-client = "1.0"
+
 # Internal crates
 fm-controller-agenttask = { path = "crates/fm-controller-agenttask" }
 fm-controller-agent = { path = "crates/fm-controller-agent" }

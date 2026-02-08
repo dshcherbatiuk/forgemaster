@@ -35,6 +35,13 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
         env_vars.push(literal("WORKSPACE_DIR", ctx.workspace_container_path()));
     }
 
+    // A2A communication env vars
+    env_vars.push(literal(
+        "A2A_PORT",
+        &crate::controller::service_creator::A2A_PORT.to_string(),
+    ));
+    env_vars.push(literal("AGENT_TYPE", &spec.agent_type));
+
     env_vars
 }
 
@@ -127,6 +134,13 @@ mod tests {
             let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, TEST_CONTROLLER_NAMESPACE);
             env_vars.push(literal("MCP_SERVER_URLS", &mcp_urls));
         }
+
+        // A2A communication env vars
+        env_vars.push(literal(
+            "A2A_PORT",
+            &crate::controller::service_creator::A2A_PORT.to_string(),
+        ));
+        env_vars.push(literal("AGENT_TYPE", &spec.agent_type));
 
         env_vars
     }
@@ -253,5 +267,19 @@ mod tests {
             urls,
             "http://a-mcp.ns.svc.cluster.local:3000/mcp,http://b-mcp.ns.svc.cluster.local:3000/mcp"
         );
+    }
+
+    #[test]
+    fn env_contains_a2a_port() {
+        let env_vars = build_test_env_vars(&test_agent());
+        let var = env_vars.iter().find(|e| e.name == "A2A_PORT").expect("A2A_PORT");
+        assert_eq!(var.value, Some("9090".to_string()));
+    }
+
+    #[test]
+    fn env_contains_agent_type() {
+        let env_vars = build_test_env_vars(&test_agent());
+        let var = env_vars.iter().find(|e| e.name == "AGENT_TYPE").expect("AGENT_TYPE");
+        assert_eq!(var.value, Some("orchestrator".to_string()));
     }
 }

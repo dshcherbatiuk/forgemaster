@@ -24,6 +24,7 @@ use crate::controller::event_recorder;
 use crate::controller::pod;
 use crate::controller::rbac_propagator;
 use crate::controller::secret_propagator;
+use crate::controller::service_creator;
 use super::ReconcileStrategy;
 
 /// Requeue duration for pending agents.
@@ -96,6 +97,9 @@ impl ReconcileStrategy for PendingStrategy {
                 });
             }
         };
+
+        // Create A2A Service for inter-agent communication
+        service_creator::ensure_service(&self.ctx, agent).await?;
 
         let pod_uid = created_pod.metadata.uid.clone().unwrap_or_default();
         update_status_with_pod_ref(&self.ctx, agent, &name, &pod_uid).await?;

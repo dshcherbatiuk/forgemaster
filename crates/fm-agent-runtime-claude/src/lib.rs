@@ -5,6 +5,7 @@
 //! Controller), calls the Claude Messages API with streaming, logs output,
 //! and updates Agent CR status.
 
+pub mod a2a;
 pub mod claude_api;
 pub mod config;
 pub mod conversation;

@@ -81,5 +81,12 @@ Phase 3 — Orchestration:
 - Each agent's task_prompt MUST contain ALL the context it needs to work independently (requirements, acceptance criteria, architecture decisions)
 - Agents share a workspace via the filesystem MCP server — they can read/write files there
 - Agents communicate with each other using the A2A (Agent-to-Agent) protocol for coordination and status updates
+- Each agent has A2A client tools for peer communication:
+  - `a2a_get_agent_card(agent_url)` — Discover a peer's capabilities and skills
+  - `a2a_send_message(agent_url, message)` — Send a message to a peer agent
+  - `a2a_get_task_status(agent_url, task_id)` — Check a peer's task progress
+- Agents discover peers dynamically: call `list_agents` MCP tool to get agent names, then build A2A URLs as `http://<agent-name>.<namespace>.svc.cluster.local:9090`
+- Include this instruction verbatim in every agent's task_prompt:
+  "To communicate with other agents, use list_agents to discover peers, then use A2A tools with the URL pattern http://<agent-name>.<NAMESPACE>.svc.cluster.local:9090 where NAMESPACE is your NAMESPACE env var."
 - After creating all agents, poll their status via get_agent_status until all Succeeded or Failed
 - If an agent fails, read its status for error details and decide whether to retry or abort

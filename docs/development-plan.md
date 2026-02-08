@@ -21,7 +21,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 │   Foundation     Core Engine    Agents         Integration      │
 │   & UI Portal   & Protocols                   & Demo           │
 │                                                                  │
-│   [██████████]   [████████░░]   [░░░░░░░░░░]   [░░░░░░░░░░]     │
+│   [██████████]   [████████░░]   [████░░░░░░]   [░░░░░░░░░░]     │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -157,7 +157,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Add MCP client integration (rmcp SDK, conversation loop with tool calling, CompositeToolExecutor)
 - [x] Add multi-MCP-server support (McpServerRef with per-server port, MCP_SERVER_URLS injection)
 - [x] Add configurable default MCP servers (DEFAULT_MCP_SERVERS env var, Ansible/Helm wiring)
-- [ ] Add A2A communication support
+- [x] Add A2A communication support (a2a-rs-core/client/server, A2A server on port 9090, A2A client tools, peer discovery via list_agents)
 
 ### 2.3 Agent Controller (fm-controller-agent)
 
@@ -279,12 +279,15 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 
 ### 3.3 A2A Protocol Implementation
 
-- [ ] Create a2a-core crate (types, traits)
-- [ ] Implement A2A server (Axum-based)
-- [ ] Implement A2A client
-- [ ] Add Agent Card generation
+- [x] Use a2a-rs modular crates (a2a-rs-core, a2a-rs-server, a2a-rs-client) — see [ADR-0009](adr/0009-a2a-protocol-crate-selection.md)
+- [x] Implement A2A server in agent runtime (port 9090, MessageHandler trait)
+- [x] Implement A2A client tools (a2a_send_message, a2a_get_agent_card, a2a_get_task_status)
+- [x] Add Agent Card generation (AgentCardBuilder with skills per agent_type)
+- [x] Create K8s Service per agent pod for A2A traffic routing
+- [x] Inject A2A env vars (A2A_PORT, AGENT_TYPE) into agent pods
+- [x] Dynamic peer discovery via list_agents MCP tool + K8s DNS URL pattern
 - [ ] Implement SSE streaming for task updates
-- [ ] Test agent-to-agent communication
+- [ ] Test agent-to-agent communication end-to-end
 
 **Deliverables:**
 - TCP Controller running with PID feedback loop
@@ -408,17 +411,18 @@ forgemaster/
 │   ├── fm-agent-runtime-claude/      # Agent runtime — Anthropic Claude
 │   │   ├── Dockerfile
 │   │   └── src/
+│   │       ├── a2a/                  # A2A protocol integration
+│   │       │   ├── server/           # A2A server (MessageHandler, AgentCardBuilder)
+│   │       │   └── client/           # A2A client tools (A2aToolExecutor)
 │   │       ├── mcp_client/           # rmcp SDK client (connect, list_tools, call_tool)
-│   │       ├── tool_executor/        # ToolExecutor trait, CompositeToolExecutor, NoOp
+│   │       ├── tool_executor/        # ToolExecutor trait, CompositeToolExecutor
 │   │       └── conversation_loop.rs  # Multi-turn tool calling loop
 │   │
 │   ├── fm-mcp-filesystem/            # Filesystem MCP server (supergateway + Node.js)
 │   │   ├── Dockerfile
 │   │   └── helm/
 │   │
-│   ├── fm-tcp-controller/            # TCP Controller service (future)
-│   │
-│   └── fm-a2a/                       # A2A protocol (future)
+│   └── fm-tcp-controller/            # TCP Controller service (future)
 │
 ├── ui/                               # React + CopilotKit A2UI portal
 │   ├── helm/
@@ -485,7 +489,7 @@ forgemaster/
 - [x] Agent Controller with pod lifecycle (Phase 2)
 - [x] Agent Runtime with Claude API (Phase 2)
 - [x] MCP client integration (rmcp SDK, multi-server, tool calling loop)
-- [ ] A2A protocol for agent coordination
+- [x] A2A protocol for agent coordination
 - [ ] TCP Controller with PID logic
 - [x] Orchestrator + Test Generator + Code Generator + Reviewer agents
 - [ ] Single working demo: E-commerce API generation
@@ -515,5 +519,5 @@ forgemaster/
 8. ~~**Secret/RBAC propagation** — Copy LLM provider secret + RBAC to task namespaces~~ ✅
 9. ~~**MCP client** — rmcp SDK, tool calling loop, CompositeToolExecutor, multi-server support~~ ✅
 10. ~~**Agent Controller MCP server** — rmcp SDK, Streamable HTTP, strategy pattern, Helm Service~~ ✅
-11. **A2A protocol** — Agent-to-agent communication for orchestrator coordination
+11. ~~**A2A protocol** — Agent-to-agent communication for orchestrator coordination~~ ✅
 12. **TCP Controller** — PID feedback loop (needs agent test results)

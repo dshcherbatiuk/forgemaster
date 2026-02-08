@@ -2,17 +2,21 @@
 //!
 //! Sends the initial prompt to Claude via the conversation loop,
 //! executing tool calls through MCP servers when configured.
+//! Runs an embedded A2A server for inter-agent communication.
 
 use anyhow::Result;
 use tracing::info;
 
+use crate::a2a::client::A2aToolExecutor;
+use crate::a2a::config::A2aConfig;
+use crate::a2a::server::message_handler::AgentMessageHandler;
 use crate::claude_api::client::ClaudeClient;
 use crate::claude_api::request::Message;
 use crate::config::RuntimeConfig;
 use crate::conversation_loop::{self, ConversationLoopConfig};
 use crate::output_writer::OutputWriter;
 use crate::status_updater::StatusUpdater;
-use crate::tool_executor::{CompositeToolExecutor, NoOpToolExecutor, ToolExecutor};
+use crate::tool_executor::{CompositeToolExecutor, ToolExecutor};
 
 /// Long-lived agent runtime.
 ///
@@ -51,14 +55,17 @@ impl AgentRuntime {
         // 1. Transition to Running
         status_updater.transition_to_running().await?;
 
-        // 2. Create tool executor (composite or no-op)
-        let executor: Box<dyn ToolExecutor> = if self.config.mcp_server_urls.is_empty() {
-            Box::new(NoOpToolExecutor)
+        // 2. Create tool executor (MCP servers + A2A tools)
+        let mut composite = if self.config.mcp_server_urls.is_empty() {
+            CompositeToolExecutor::empty()
         } else {
-            Box::new(
-                CompositeToolExecutor::connect(&self.config.mcp_server_urls).await?,
-            )
+            CompositeToolExecutor::connect(&self.config.mcp_server_urls).await?
         };
+
+        // Always add A2A tools for inter-agent communication
+        composite.add(Box::new(A2aToolExecutor::new()));
+
+        let executor: Box<dyn ToolExecutor> = Box::new(composite);
 
         // 3. Build conversation loop config
         let loop_config = ConversationLoopConfig {
@@ -96,9 +103,31 @@ impl AgentRuntime {
             result.total_usage.total()
         );
 
-        // 6. Stay alive — MCP/A2A communication will be handled here
-        tokio::signal::ctrl_c().await?;
-        info!("🛑 Agent {} received shutdown signal", self.config.agent_name);
+        // 6. Start A2A server and stay alive for inter-agent communication
+        let a2a_config = A2aConfig::from_env();
+        let handler = AgentMessageHandler::new(
+            self.config.agent_name.clone(),
+            a2a_config.agent_type.clone(),
+        );
+        let a2a_port = a2a_config.port;
+
+        info!(
+            "🌐 Starting A2A server (type={}, port={}, peers={})",
+            a2a_config.agent_type,
+            a2a_port,
+            a2a_config.peer_urls.len()
+        );
+
+        tokio::select! {
+            result = crate::a2a::server::start(handler, a2a_port) => {
+                if let Err(e) = result {
+                    tracing::error!("🌐 A2A server error: {e}");
+                }
+            }
+            _ = tokio::signal::ctrl_c() => {
+                info!("🛑 Agent {} received shutdown signal", self.config.agent_name);
+            }
+        }
 
         Ok(())
     }

@@ -3,7 +3,7 @@
 //! Delegates env var building, resource requirements, and workspace volume
 //! to their respective modules within the `pod` module.
 
-use k8s_openapi::api::core::v1::{Container, Pod, PodSpec};
+use k8s_openapi::api::core::v1::{Container, ContainerPort, Pod, PodSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::ResourceExt;
 use kube::api::ObjectMeta;
@@ -63,6 +63,14 @@ pub fn build(agent: &Agent, ctx: &ControllerContext) -> Pod {
                 image_pull_policy: Some("Never".to_string()),
                 env: Some(env_vars),
                 resources: resource_requirements,
+                ports: Some(vec![ContainerPort {
+                    name: Some("a2a".to_string()),
+                    container_port: i32::from(
+                        crate::controller::service_creator::A2A_PORT,
+                    ),
+                    protocol: Some("TCP".to_string()),
+                    ..Default::default()
+                }]),
                 volume_mounts: if volume_mounts.is_empty() { None } else { Some(volume_mounts) },
                 ..Default::default()
             }],
