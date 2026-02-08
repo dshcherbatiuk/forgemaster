@@ -1,0 +1,32 @@
+---
+- name: Build Docker image
+  ansible.builtin.shell: |
+    docker build \
+      --progress=plain \
+      -f {{ fm_mcp_devtools_dockerfile }} \
+      -t {{ fm_mcp_devtools_image_name }}:{{ image_tag }} \
+      {{ fm_mcp_devtools_build_context }} 2>&1
+  args:
+    executable: /bin/bash
+  register: build_output
+  changed_when: true
+
+- name: Show build output
+  ansible.builtin.debug:
+    var: build_output.stdout_lines
+
+- name: Tag and push image to registry
+  when: image_registry | length > 0
+  block:
+    - name: Tag image for registry
+      ansible.builtin.command: >
+        docker tag
+        {{ fm_mcp_devtools_image_name }}:{{ image_tag }}
+        {{ image_registry }}/{{ fm_mcp_devtools_image_name }}:{{ image_tag }}
+      changed_when: true
+
+    - name: Push image to registry
+      ansible.builtin.command: >
+        docker push
+        {{ image_registry }}/{{ fm_mcp_devtools_image_name }}:{{ image_tag }}
+      changed_when: true

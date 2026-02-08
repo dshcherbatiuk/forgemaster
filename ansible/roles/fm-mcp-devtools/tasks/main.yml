@@ -1,0 +1,30 @@
+---
+- name: Build Docker image
+  ansible.builtin.include_tasks: build.yml
+  when: build_enabled
+
+- name: Set image name
+  ansible.builtin.set_fact:
+    _fm_mcp_devtools_full_image: >-
+      {{ (image_registry ~ '/' if image_registry else '')
+      ~ fm_mcp_devtools_image_name }}
+
+- name: Install fm-mcp-devtools
+  ansible.builtin.command: >
+    helm upgrade --install fm-mcp-devtools
+    {{ fm_mcp_devtools_chart }}
+    --namespace {{ forgemaster_namespace }}
+    --create-namespace
+    --set image.repository={{ _fm_mcp_devtools_full_image }}
+    --set image.tag={{ image_tag }}
+    --set image.pullPolicy={{ image_pull_policy }}
+    --set workspace.basePath={{ fm_mcp_devtools_workspace_base_path | realpath }}
+    --set docker.socketPath={{ fm_mcp_devtools_docker_socket }}
+  changed_when: false
+
+- name: Wait for deployment
+  ansible.builtin.command: >
+    kubectl rollout status deployment/fm-mcp-devtools
+    --namespace {{ forgemaster_namespace }}
+    --timeout=120s
+  changed_when: false

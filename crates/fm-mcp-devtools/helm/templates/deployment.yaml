@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/component: mcp-server
+    app.kubernetes.io/part-of: forgemaster
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/component: mcp-server
+        app.kubernetes.io/part-of: forgemaster
+    spec:
+      containers:
+        - name: mcp-devtools
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: RUST_LOG
+              value: info
+            - name: MCP_SERVER_PORT
+              value: "{{ .Values.service.port }}"
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+            {{- if .Values.workspace.basePath }}
+            - name: workspace
+              mountPath: /workspace
+            {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: docker-socket
+          hostPath:
+            path: {{ .Values.docker.socketPath }}
+            type: Socket
+        {{- if .Values.workspace.basePath }}
+        - name: workspace
+          hostPath:
+            path: {{ .Values.workspace.basePath }}
+            type: DirectoryOrCreate
+        {{- end }}

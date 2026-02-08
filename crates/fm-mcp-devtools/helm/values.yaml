@@ -1,0 +1,25 @@
+replicaCount: 1
+
+image:
+  repository: fm-mcp-devtools
+  tag: latest
+  pullPolicy: Never
+
+service:
+  port: 3000
+
+workspace:
+  basePath: ""  # Set via Ansible (resolved to absolute path at deploy time)
+
+docker:
+  socketPath: /var/run/docker.sock
+
+namespace: forgemaster-system
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi

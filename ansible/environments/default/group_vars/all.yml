@@ -27,7 +27,7 @@ default_max_tool_iterations: "{{ lookup('env', 'DEFAULT_MAX_TOOL_ITERATIONS') | 
 
 # Default MCP servers for agents (comma-separated name:port, port defaults to 3000)
 # Example: fm-controller-agent:3000,github-mcp:9090
-default_mcp_servers: "{{ lookup('env', 'DEFAULT_MCP_SERVERS') | default('fm-controller-agent-mcp,fm-mcp-filesystem', true) }}"
+default_mcp_servers: "{{ lookup('env', 'DEFAULT_MCP_SERVERS') | default('fm-controller-agent-mcp,fm-mcp-filesystem,fm-mcp-devtools', true) }}"
 
 # UI
 ui_image_name: forgemaster-ui

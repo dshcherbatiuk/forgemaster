@@ -1,0 +1,16 @@
+---
+# Image name (environment provides image_tag, image_registry)
+fm_mcp_devtools_image_name: fm-mcp-devtools
+
+# Build paths (environment provides build_enabled)
+fm_mcp_devtools_dockerfile: "{{ playbook_dir }}/../crates/fm-mcp-devtools/Dockerfile"
+fm_mcp_devtools_build_context: "{{ playbook_dir }}/../"
+
+# Helm chart path
+fm_mcp_devtools_chart: "{{ playbook_dir }}/../crates/fm-mcp-devtools/helm"
+
+# Workspace base path (shared with agent controller)
+fm_mcp_devtools_workspace_base_path: "{{ playbook_dir }}/../target/tasks"
+
+# Docker socket path on host
+fm_mcp_devtools_docker_socket: /var/run/docker.sock
