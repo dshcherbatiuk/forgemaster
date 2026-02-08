@@ -9,7 +9,10 @@ controller:
     tag: latest
     pullPolicy: IfNotPresent
   # Default MCP servers for agents (comma-separated name:port, port defaults to 3000)
-  defaultMcpServers: "fm-controller-agent"
+  defaultMcpServers: "fm-controller-agent-mcp"
+  # MCP server exposed by this controller
+  mcp:
+    port: 3000
   resources:
     limits:
       memory: "256Mi"

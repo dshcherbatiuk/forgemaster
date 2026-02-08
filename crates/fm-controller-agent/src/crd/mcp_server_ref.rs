@@ -29,10 +29,11 @@ pub struct McpServerRef {
 impl McpServerRef {
     /// Builds a full MCP server URL for the given namespace.
     ///
-    /// Uses K8s DNS: `http://<name>.<namespace>.svc.cluster.local:<port>`.
+    /// Uses K8s DNS: `http://<name>.<namespace>.svc.cluster.local:<port>/mcp`.
+    /// The `/mcp` path matches the rmcp Streamable HTTP transport convention.
     pub fn url(&self, namespace: &str) -> String {
         format!(
-            "http://{}.{}.svc.cluster.local:{}",
+            "http://{}.{}.svc.cluster.local:{}/mcp",
             self.name, namespace, self.port
         )
     }
@@ -62,13 +63,13 @@ mod tests {
     }
 
     #[test]
-    fn url_builds_k8s_dns() {
+    fn url_builds_k8s_dns_with_mcp_path() {
         let server = McpServerRef::builder()
             .name("github-mcp".to_string())
             .build();
         assert_eq!(
             server.url("task-abc"),
-            "http://github-mcp.task-abc.svc.cluster.local:3000"
+            "http://github-mcp.task-abc.svc.cluster.local:3000/mcp"
         );
     }
 
@@ -80,7 +81,7 @@ mod tests {
             .build();
         assert_eq!(
             server.url("task-xyz"),
-            "http://fs-mcp.task-xyz.svc.cluster.local:9090"
+            "http://fs-mcp.task-xyz.svc.cluster.local:9090/mcp"
         );
     }
 

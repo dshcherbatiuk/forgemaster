@@ -88,7 +88,7 @@ fn build_env_vars(agent: &Agent, ctx: &ControllerContext) -> Vec<EnvVar> {
     ];
 
     if !spec.mcp_servers.is_empty() {
-        let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, &agent_namespace);
+        let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, ctx.namespace());
         env_vars.push(env_value("MCP_SERVER_URLS", &mcp_urls));
     }
 
@@ -239,6 +239,8 @@ mod tests {
         }
     }
 
+    const TEST_CONTROLLER_NAMESPACE: &str = "forgemaster-system";
+
     /// Test helper that builds env vars without needing ControllerContext.
     fn build_env_vars_test(agent: &Agent) -> Vec<EnvVar> {
         let spec = &agent.spec;
@@ -256,7 +258,7 @@ mod tests {
         ];
 
         if !spec.mcp_servers.is_empty() {
-            let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, &agent_namespace);
+            let mcp_urls = build_mcp_server_urls(&spec.mcp_servers, TEST_CONTROLLER_NAMESPACE);
             env_vars.push(env_value("MCP_SERVER_URLS", &mcp_urls));
         }
 
@@ -505,7 +507,7 @@ mod tests {
             .expect("MCP_SERVER_URLS should be present");
         assert_eq!(
             mcp_var.value,
-            Some("http://github-mcp.task-abc.svc.cluster.local:3000".to_string())
+            Some("http://github-mcp.forgemaster-system.svc.cluster.local:3000/mcp".to_string())
         );
     }
 
@@ -532,8 +534,8 @@ mod tests {
         assert_eq!(
             mcp_var.value,
             Some(
-                "http://github-mcp.task-abc.svc.cluster.local:3000,\
-                 http://fs-mcp.task-abc.svc.cluster.local:9090"
+                "http://github-mcp.forgemaster-system.svc.cluster.local:3000/mcp,\
+                 http://fs-mcp.forgemaster-system.svc.cluster.local:9090/mcp"
                     .to_string()
             )
         );
@@ -554,7 +556,7 @@ mod tests {
         let urls = build_mcp_server_urls(&servers, "ns");
         assert_eq!(
             urls,
-            "http://a-mcp.ns.svc.cluster.local:3000,http://b-mcp.ns.svc.cluster.local:3000"
+            "http://a-mcp.ns.svc.cluster.local:3000/mcp,http://b-mcp.ns.svc.cluster.local:3000/mcp"
         );
     }
 }

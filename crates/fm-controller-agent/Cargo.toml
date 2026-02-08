@@ -32,6 +32,9 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 dashmap = { workspace = true }
 smallvec = { workspace = true }
+axum = { workspace = true }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -1,0 +1,20 @@
+{{- if .Values.controller.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: fm-controller-agent-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: fm-controller-agent
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: forgemaster
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fm-controller-agent
+  ports:
+    - name: mcp
+      port: {{ .Values.controller.mcp.port }}
+      targetPort: mcp
+      protocol: TCP
+{{- end }}

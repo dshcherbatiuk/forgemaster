@@ -54,7 +54,8 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
             }
         });
 
-    let task_watcher = task_watcher::run(client, namespace, &default_model, &default_mcp_servers);
+    let task_watcher = task_watcher::run(client.clone(), namespace, &default_model, &default_mcp_servers);
+    let mcp_server = crate::mcp_server::start(client);
 
     tokio::select! {
         () = agent_controller => {
@@ -63,6 +64,11 @@ pub async fn run(client: Client, namespace: &str) -> anyhow::Result<()> {
         result = task_watcher => {
             if let Err(err) = result {
                 tracing::error!("❌ AgentTask watcher failed: {}", err);
+            }
+        }
+        result = mcp_server => {
+            if let Err(err) = result {
+                tracing::error!("❌ MCP server failed: {}", err);
             }
         }
     }

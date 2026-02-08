@@ -4,4 +4,5 @@
 
 pub mod controller;
 pub mod crd;
+pub mod mcp_server;
 pub mod task_watcher;

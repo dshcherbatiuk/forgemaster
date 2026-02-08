@@ -25,6 +25,10 @@ spec:
         - name: controller
           image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
           imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+          ports:
+            - name: mcp
+              containerPort: {{ .Values.controller.mcp.port }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: fm-controller-agent

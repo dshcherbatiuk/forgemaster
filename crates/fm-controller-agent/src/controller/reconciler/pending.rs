@@ -69,13 +69,22 @@ impl ReconcileStrategy for PendingStrategy {
         let pod = pod_builder::build(agent, &self.ctx);
         info!("🚀 Creating runtime pod for agent {}", name);
 
-        let created_pod = pod_api
-            .create(&PostParams::default(), &pod)
-            .await
-            .map_err(|source| ReconcileError::CreateResource {
-                resource: format!("Pod/{name}"),
-                source,
-            })?;
+        let created_pod = match pod_api.create(&PostParams::default(), &pod).await {
+            Ok(pod) => pod,
+            Err(kube::Error::Api(err)) if err.code == 409 => {
+                info!("📦 Pod already exists for agent {} (race condition), fetching", name);
+                pod_api
+                    .get(&name)
+                    .await
+                    .map_err(ReconcileError::GetAgent)?
+            }
+            Err(source) => {
+                return Err(ReconcileError::CreateResource {
+                    resource: format!("Pod/{name}"),
+                    source,
+                });
+            }
+        };
 
         let pod_uid = created_pod.metadata.uid.clone().unwrap_or_default();
         update_status_with_pod_ref(&self.ctx, agent, &name, &pod_uid).await?;
@@ -144,6 +153,22 @@ mod tests {
         assert_eq!(status["phase"], "Running");
         assert_eq!(status["podRef"]["name"], "test-pod");
         assert_eq!(status["podRef"]["uid"], "uid-123");
+    }
+
+    #[test]
+    fn already_exists_error_is_409() {
+        let err = kube::Error::Api(kube::error::ErrorResponse {
+            status: "Failure".to_string(),
+            message: "pods \"test\" already exists".to_string(),
+            reason: "AlreadyExists".to_string(),
+            code: 409,
+        });
+        match err {
+            kube::Error::Api(ref e) if e.code == 409 => {
+                assert_eq!(e.reason, "AlreadyExists");
+            }
+            _ => panic!("expected 409 AlreadyExists"),
+        }
     }
 
     #[test]
