@@ -8,11 +8,12 @@
 use std::time::Duration;
 
 use a2a_rs_client::A2aClient;
-use a2a_rs_core::{Role, SendMessageResponse, StreamResponse, new_message};
+use a2a_rs_core::{Message, Role, SendMessageResponse, StreamResponse, TaskState, new_message};
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use tracing::debug;
 
+use crate::a2a::server::a2a_message_converter;
 use crate::claude_api::tool_definition::ToolDefinition;
 use crate::tool_executor::{ToolCallResult, ToolExecutor};
 
@@ -47,7 +48,7 @@ impl A2aToolExecutor {
     ///
     /// 1. Sends the message via JSON-RPC
     /// 2. If the response is a non-terminal task, auto-subscribes via SSE
-    /// 3. Returns the final completed result
+    /// 3. Extracts and returns the peer's response text (not raw protocol JSON)
     async fn send_message(&self, input: &serde_json::Value) -> Result<ToolCallResult> {
         let agent_url = require_field(input, "agent_url")?;
         let message_text = require_field(input, "message")?;
@@ -58,10 +59,10 @@ impl A2aToolExecutor {
         let message = new_message(Role::User, message_text, None);
         let response = client.send_message(message, None).await?;
 
-        let content = match response {
+        match response {
             SendMessageResponse::Task(task) => {
                 if task.status.state.is_terminal() {
-                    serde_json::to_string_pretty(&task)?
+                    Ok(extract_response(&task.status.state, task.status.message.as_ref()))
                 } else {
                     // Auto-subscribe via SSE and wait for completion
                     debug!("📡 Auto-subscribing to task {} via SSE", task.id);
@@ -72,19 +73,16 @@ impl A2aToolExecutor {
                     )
                     .await?;
 
-                    // Return the last terminal event, or the collected events
-                    last_terminal_task(&events)
-                        .unwrap_or_else(|| serde_json::to_string_pretty(&events)
-                            .unwrap_or_default())
+                    Ok(extract_terminal_response(&events))
                 }
             }
-            SendMessageResponse::Message(msg) => serde_json::to_string_pretty(&msg)?,
-        };
-
-        Ok(ToolCallResult {
-            content,
-            is_error: false,
-        })
+            SendMessageResponse::Message(msg) => {
+                Ok(ToolCallResult {
+                    content: a2a_message_converter::extract_text(&msg),
+                    is_error: false,
+                })
+            }
+        }
     }
 
     /// Fetches a peer agent's Agent Card.
@@ -103,20 +101,40 @@ impl A2aToolExecutor {
     }
 }
 
-/// Extracts the last terminal task from SSE events as pretty JSON.
-fn last_terminal_task(events: &[StreamResponse]) -> Option<String> {
+/// Extracts the response text from the last terminal SSE event.
+///
+/// Returns `is_error: true` if the terminal state is `Failed`.
+/// Falls back to "No response received" if no terminal event is found.
+fn extract_terminal_response(events: &[StreamResponse]) -> ToolCallResult {
     events
         .iter()
         .rev()
         .find_map(|event| match event {
             StreamResponse::Task(t) if t.status.state.is_terminal() => {
-                serde_json::to_string_pretty(t).ok()
+                Some(extract_response(&t.status.state, t.status.message.as_ref()))
             }
             StreamResponse::StatusUpdate(e) if e.status.state.is_terminal() => {
-                serde_json::to_string_pretty(e).ok()
+                Some(extract_response(&e.status.state, e.status.message.as_ref()))
             }
             _ => None,
         })
+        .unwrap_or_else(|| ToolCallResult {
+            content: "No response received from peer agent".to_string(),
+            is_error: true,
+        })
+}
+
+/// Extracts response text from a terminal task status.
+///
+/// Returns `is_error: true` for failed/canceled/rejected states.
+fn extract_response(state: &TaskState, message: Option<&Message>) -> ToolCallResult {
+    let content = message
+        .map(|msg| a2a_message_converter::extract_text(msg))
+        .unwrap_or_default();
+
+    let is_error = !matches!(state, TaskState::Completed);
+
+    ToolCallResult { content, is_error }
 }
 
 /// Extracts a required string field from JSON input.
@@ -194,7 +212,15 @@ impl ToolExecutor for A2aToolExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a2a_rs_core::{Task, TaskState, TaskStatus, TaskStatusUpdateEvent};
+    use a2a_rs_core::{Part, Task, TaskStatus, TaskStatusUpdateEvent};
+
+    fn completed_status_with_text(text: &str) -> TaskStatus {
+        TaskStatus {
+            state: TaskState::Completed,
+            message: Some(new_message(Role::Agent, text, None)),
+            timestamp: None,
+        }
+    }
 
     #[tokio::test]
     async fn discover_tools_returns_two() {
@@ -284,7 +310,30 @@ mod tests {
     }
 
     #[test]
-    fn last_terminal_task_finds_completed() {
+    fn extract_response_completed_with_text() {
+        let msg = new_message(Role::Agent, "Hello from peer", None);
+        let result = extract_response(&TaskState::Completed, Some(&msg));
+        assert_eq!(result.content, "Hello from peer");
+        assert!(!result.is_error);
+    }
+
+    #[test]
+    fn extract_response_failed_sets_is_error() {
+        let msg = new_message(Role::Agent, "Something went wrong", None);
+        let result = extract_response(&TaskState::Failed, Some(&msg));
+        assert_eq!(result.content, "Something went wrong");
+        assert!(result.is_error);
+    }
+
+    #[test]
+    fn extract_response_completed_without_message() {
+        let result = extract_response(&TaskState::Completed, None);
+        assert_eq!(result.content, "");
+        assert!(!result.is_error);
+    }
+
+    #[test]
+    fn extract_terminal_response_finds_completed() {
         let events = vec![
             StreamResponse::StatusUpdate(TaskStatusUpdateEvent {
                 task_id: "t1".to_string(),
@@ -299,23 +348,36 @@ mod tests {
             StreamResponse::Task(Task {
                 id: "t1".to_string(),
                 context_id: "c1".to_string(),
-                status: TaskStatus {
-                    state: TaskState::Completed,
-                    message: None,
-                    timestamp: None,
-                },
+                status: completed_status_with_text("Task done"),
                 artifacts: None,
                 history: None,
                 metadata: None,
             }),
         ];
-        let result = last_terminal_task(&events);
-        assert!(result.is_some());
-        assert!(result.unwrap().contains("TASK_STATE_COMPLETED"));
+        let result = extract_terminal_response(&events);
+        assert_eq!(result.content, "Task done");
+        assert!(!result.is_error);
     }
 
     #[test]
-    fn last_terminal_task_returns_none_for_non_terminal() {
+    fn extract_terminal_response_finds_failed() {
+        let events = vec![StreamResponse::StatusUpdate(TaskStatusUpdateEvent {
+            task_id: "t1".to_string(),
+            context_id: "c1".to_string(),
+            status: TaskStatus {
+                state: TaskState::Failed,
+                message: Some(new_message(Role::Agent, "Error occurred", None)),
+                timestamp: None,
+            },
+            metadata: None,
+        })];
+        let result = extract_terminal_response(&events);
+        assert_eq!(result.content, "Error occurred");
+        assert!(result.is_error);
+    }
+
+    #[test]
+    fn extract_terminal_response_no_terminal_returns_error() {
         let events = vec![StreamResponse::StatusUpdate(TaskStatusUpdateEvent {
             task_id: "t1".to_string(),
             context_id: "c1".to_string(),
@@ -326,12 +388,42 @@ mod tests {
             },
             metadata: None,
         })];
-        assert!(last_terminal_task(&events).is_none());
+        let result = extract_terminal_response(&events);
+        assert!(result.is_error);
+        assert!(result.content.contains("No response"));
     }
 
     #[test]
-    fn last_terminal_task_empty_events() {
-        assert!(last_terminal_task(&[]).is_none());
+    fn extract_terminal_response_empty_events() {
+        let result = extract_terminal_response(&[]);
+        assert!(result.is_error);
+    }
+
+    #[test]
+    fn extract_terminal_response_multipart_message() {
+        let msg = Message {
+            message_id: "m1".to_string(),
+            role: Role::Agent,
+            parts: vec![Part::text("Line 1"), Part::text("Line 2")],
+            context_id: None,
+            task_id: None,
+            extensions: vec![],
+            reference_task_ids: None,
+            metadata: None,
+        };
+        let events = vec![StreamResponse::StatusUpdate(TaskStatusUpdateEvent {
+            task_id: "t1".to_string(),
+            context_id: "c1".to_string(),
+            status: TaskStatus {
+                state: TaskState::Completed,
+                message: Some(msg),
+                timestamp: None,
+            },
+            metadata: None,
+        })];
+        let result = extract_terminal_response(&events);
+        assert_eq!(result.content, "Line 1\nLine 2");
+        assert!(!result.is_error);
     }
 
     #[test]
