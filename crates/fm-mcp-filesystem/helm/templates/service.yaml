@@ -9,6 +9,10 @@ metadata:
     app.kubernetes.io/part-of: forgemaster
 spec:
   type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
   selector:
     app.kubernetes.io/name: {{ .Chart.Name }}
   ports:

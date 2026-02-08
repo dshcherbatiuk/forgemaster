@@ -69,7 +69,7 @@ impl AuditLogger {
         }
 
         content.push_str("\n---\n");
-        self.append(&content)
+        self.truncate_and_write(&content)
     }
 
     /// Logs the request messages for an iteration.
@@ -160,6 +160,22 @@ impl AuditLogger {
 
         content.push_str("\n---\n");
         self.append(&content)
+    }
+
+    /// Truncates and writes content to the audit file.
+    ///
+    /// Used by `log_header` so that an agent restart produces a clean file
+    /// instead of appending duplicate content.
+    fn truncate_and_write(&self, content: &str) -> Result<()> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.file_path)
+            .with_context(|| format!("failed to open audit file: {}", self.file_path.display()))?;
+
+        file.write_all(content.as_bytes())
+            .with_context(|| format!("failed to write to audit file: {}", self.file_path.display()))
     }
 
     /// Appends content to the audit file.
@@ -463,6 +479,30 @@ mod tests {
         assert!(content.contains("I'll read the file."));
         assert!(content.contains("read_file"));
         assert!(content.contains("fn main() {}"));
+    }
+
+    #[test]
+    fn log_header_truncates_on_restart() {
+        let (logger, _tmp) = test_logger();
+
+        logger
+            .log_header("model-v1", Some("First run"))
+            .expect("first header");
+        logger
+            .log_request(1, &[Message::user("task 1")])
+            .expect("first request");
+
+        // Simulate agent restart — log_header called again
+        logger
+            .log_header("model-v1", Some("Second run"))
+            .expect("second header");
+
+        let content = fs::read_to_string(&logger.file_path).expect("read file");
+        let header_count = content.matches("# Audit Log:").count();
+        assert_eq!(header_count, 1, "restart should truncate, not append");
+        assert!(content.contains("Second run"));
+        assert!(!content.contains("First run"));
+        assert!(!content.contains("task 1"));
     }
 
     #[test]
