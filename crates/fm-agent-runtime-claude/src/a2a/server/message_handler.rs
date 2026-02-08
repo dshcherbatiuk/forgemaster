@@ -185,6 +185,7 @@ async fn process_message(
                 deps.executor.as_ref(),
                 &deps.loop_config,
                 vec![claude_message],
+                deps.audit_logger.as_ref(),
             )
             .await?;
 
@@ -418,6 +419,7 @@ mod tests {
                 "model".to_string(),
                 4096,
             )),
+            audit_logger: None,
         };
 
         let result = process_message("test-gen", &empty_message, Some(&deps)).await;

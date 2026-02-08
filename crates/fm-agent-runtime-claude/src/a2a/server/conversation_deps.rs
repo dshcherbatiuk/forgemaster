@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::audit_logger::AuditLogger;
 use crate::claude_api::client::ClaudeClient;
 use crate::conversation_loop::ConversationLoopConfig;
 use crate::tool_executor::ToolExecutor;
@@ -19,6 +20,8 @@ pub struct ConversationDeps {
     pub executor: Arc<dyn ToolExecutor>,
     /// Conversation loop configuration (model, max_tokens, system prompt).
     pub loop_config: Arc<ConversationLoopConfig>,
+    /// Audit logger for recording prompts and responses.
+    pub audit_logger: Option<AuditLogger>,
 }
 
 #[cfg(test)]
@@ -34,6 +37,7 @@ mod tests {
                 "claude-sonnet-4-20250514".to_string(),
                 4096,
             )),
+            audit_logger: None,
         }
     }
 

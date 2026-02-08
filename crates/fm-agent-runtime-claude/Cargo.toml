@@ -50,3 +50,6 @@ eventsource-stream = "0.2"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3.24.0"

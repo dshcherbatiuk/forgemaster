@@ -154,6 +154,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Implement status updater (patch Agent CR status from runtime pod)
 - [x] Long-lived runtime (sends initial prompt, stays alive for A2A/MCP)
 - [x] Wire token tracking end-to-end (transition_to_succeeded with tokens_used + iterations after conversation loop)
+- [x] Audit logging (every prompt/response to `{workspace_dir}/audit/{agent_name}.md` with timestamps)
 - [x] Add MCP client integration (rmcp SDK, conversation loop with tool calling, CompositeToolExecutor)
 - [x] Add multi-MCP-server support (McpServerRef with per-server port, MCP_SERVER_URLS injection)
 - [x] Add configurable default MCP servers (DEFAULT_MCP_SERVERS env var, Ansible/Helm wiring)
@@ -287,6 +288,9 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Inject A2A env vars (A2A_PORT, AGENT_TYPE) into agent pods
 - [x] Dynamic peer discovery via list_agents MCP tool + K8s DNS URL pattern
 - [x] Implement SSE streaming for task updates (broadcast::channel, OnceLock wiring, a2a_subscribe tool)
+- [x] Wire A2A message handler to Claude conversation loop (real processing, not stub)
+- [x] Extract clean response text from A2A (not raw protocol JSON)
+- [x] Start A2A server before conversation loop (peers reachable immediately)
 - [ ] Test agent-to-agent communication end-to-end
 
 **Deliverables:**

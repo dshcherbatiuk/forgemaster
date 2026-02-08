@@ -12,6 +12,7 @@ use std::sync::Arc;
 use crate::a2a::client::A2aToolExecutor;
 use crate::a2a::config::A2aConfig;
 use crate::a2a::server::conversation_deps::ConversationDeps;
+use crate::audit_logger::AuditLogger;
 use crate::claude_api::client::ClaudeClient;
 use crate::claude_api::request::Message;
 use crate::config::RuntimeConfig;
@@ -78,22 +79,67 @@ impl AgentRuntime {
             max_iterations: self.config.max_tool_iterations,
         });
 
-        // 4. Run conversation loop
         let client = Arc::new(ClaudeClient::new(
             &self.config.api_key,
             &self.config.api_base_url,
         ));
+
+        // 4. Start A2A server FIRST so peers can reach this agent immediately
+        let a2a_config = A2aConfig::from_env();
+
+        info!(
+            "🌐 Starting A2A server (type={}, port={}, peers={})",
+            a2a_config.agent_type,
+            a2a_config.port,
+            a2a_config.peer_urls.len()
+        );
+
+        // Create audit logger when workspace dir is configured
+        let audit_logger = self
+            .config
+            .workspace_dir
+            .as_ref()
+            .map(|dir| AuditLogger::new(dir, &self.config.agent_name))
+            .transpose()?;
+
+        let conversation_deps = ConversationDeps {
+            client: client.clone(),
+            executor: executor.clone(),
+            loop_config: loop_config.clone(),
+            audit_logger: audit_logger.clone(),
+        };
+
+        let agent_name_for_server = self.config.agent_name.clone();
+        tokio::spawn(async move {
+            if let Err(e) = crate::a2a::server::start(
+                &agent_name_for_server,
+                &a2a_config.agent_type,
+                a2a_config.port,
+                Some(conversation_deps),
+            )
+            .await
+            {
+                tracing::error!("🌐 A2A server error: {e}");
+            }
+        });
+
+        // 5. Run conversation loop
         let initial_messages =
             vec![Message::user("Execute the task described in the system prompt.")];
 
-        let result =
-            conversation_loop::run(&client, executor.as_ref(), &loop_config, initial_messages)
-                .await?;
+        let result = conversation_loop::run(
+            &client,
+            executor.as_ref(),
+            &loop_config,
+            initial_messages,
+            audit_logger.as_ref(),
+        )
+        .await?;
 
-        // 5. Log the output
+        // 6. Log the output
         output_writer.write(&result.final_text);
 
-        // 5. Transition to Succeeded with token metrics
+        // 7. Transition to Succeeded with token metrics
         status_updater
             .transition_to_succeeded(
                 result.total_usage.total(),
@@ -108,33 +154,12 @@ impl AgentRuntime {
             result.total_usage.total()
         );
 
-        // 6. Start A2A server and stay alive for inter-agent communication
-        let a2a_config = A2aConfig::from_env();
-
+        // 8. Stay alive for A2A communication (server already running in background)
+        tokio::signal::ctrl_c().await?;
         info!(
-            "🌐 Starting A2A server (type={}, port={}, peers={})",
-            a2a_config.agent_type,
-            a2a_config.port,
-            a2a_config.peer_urls.len()
+            "🛑 Agent {} received shutdown signal",
+            self.config.agent_name
         );
-
-        // Build conversation deps for A2A handler (shared via Arc)
-        let conversation_deps = ConversationDeps {
-            client,
-            executor,
-            loop_config,
-        };
-
-        tokio::select! {
-            result = crate::a2a::server::start(&self.config.agent_name, &a2a_config.agent_type, a2a_config.port, Some(conversation_deps)) => {
-                if let Err(e) = result {
-                    tracing::error!("🌐 A2A server error: {e}");
-                }
-            }
-            _ = tokio::signal::ctrl_c() => {
-                info!("🛑 Agent {} received shutdown signal", self.config.agent_name);
-            }
-        }
 
         Ok(())
     }

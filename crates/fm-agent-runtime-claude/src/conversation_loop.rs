@@ -6,6 +6,7 @@
 use anyhow::{Result, bail};
 use tracing::{debug, info, warn};
 
+use crate::audit_logger::AuditLogger;
 use crate::claude_api::client::ClaudeClient;
 use crate::claude_api::content_block::RequestContentBlock;
 use crate::claude_api::request::{Message, MessagesRequest};
@@ -59,11 +60,15 @@ pub struct ConversationResult {
 ///
 /// Discovers tools from the executor, sends them to Claude, and handles
 /// tool_use/tool_result cycles until Claude returns `end_turn`.
+///
+/// When `audit_logger` is provided, every request and response is logged
+/// to the agent's audit markdown file.
 pub async fn run(
     client: &ClaudeClient,
     executor: &dyn ToolExecutor,
     config: &ConversationLoopConfig,
     initial_messages: Vec<Message>,
+    audit_logger: Option<&AuditLogger>,
 ) -> Result<ConversationResult> {
     let tools = executor.discover_tools().await?;
 
@@ -77,12 +82,20 @@ pub async fn run(
         );
     }
 
+    if let Some(logger) = audit_logger {
+        logger.log_header(&config.model, config.system.as_deref())?;
+    }
+
     let mut messages = initial_messages;
     let mut total_usage = Usage::default();
     let mut final_text = String::new();
 
     for iteration in 1..=config.max_iterations {
         debug!("🔄 Conversation iteration {iteration}");
+
+        if let Some(logger) = audit_logger {
+            logger.log_request(iteration, &messages)?;
+        }
 
         let request = build_request(config, &messages, &tools);
         let events = client.send_streaming(&request).await?;
@@ -92,6 +105,15 @@ pub async fn run(
 
         if !response.text.is_empty() {
             final_text = response.text.clone();
+        }
+
+        if let Some(logger) = audit_logger {
+            logger.log_response(
+                iteration,
+                &response.text,
+                &response.tool_use_blocks,
+                &response.usage,
+            )?;
         }
 
         match response.stop_reason {
@@ -107,6 +129,11 @@ pub async fn run(
                 // Execute each tool and collect results
                 let tool_result_blocks =
                     execute_tools(executor, &response).await;
+
+                if let Some(logger) = audit_logger {
+                    logger.log_tool_results(iteration, &tool_result_blocks)?;
+                }
+
                 messages.push(Message::tool_results(tool_result_blocks));
             }
             Some(StopReason::EndTurn | StopReason::MaxTokens) | None => {

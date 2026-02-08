@@ -6,6 +6,7 @@
 //! and updates Agent CR status.
 
 pub mod a2a;
+pub mod audit_logger;
 pub mod claude_api;
 pub mod config;
 pub mod conversation;
