@@ -3,6 +3,8 @@
 //! Implements the `ToolExecutor` trait to expose A2A operations
 //! as tools available to Claude during the conversation loop.
 
+use std::time::Duration;
+
 use a2a_rs_client::A2aClient;
 use a2a_rs_core::{Role, SendMessageResponse, new_message};
 use anyhow::{Result, bail};
@@ -16,13 +18,15 @@ use crate::tool_executor::{ToolCallResult, ToolExecutor};
 const TOOL_SEND_MESSAGE: &str = "a2a_send_message";
 const TOOL_GET_AGENT_CARD: &str = "a2a_get_agent_card";
 const TOOL_GET_TASK_STATUS: &str = "a2a_get_task_status";
+const TOOL_SUBSCRIBE: &str = "a2a_subscribe";
 
 /// Executes A2A operations as tools in the conversation loop.
 ///
-/// Exposes three tools to Claude:
+/// Exposes four tools to Claude:
 /// - `a2a_send_message` — Send a message to a peer agent
 /// - `a2a_get_agent_card` — Discover peer capabilities via Agent Card
 /// - `a2a_get_task_status` — Check task status at a peer agent
+/// - `a2a_subscribe` — Subscribe to real-time task updates via SSE
 pub struct A2aToolExecutor;
 
 impl Default for A2aToolExecutor {
@@ -87,6 +91,27 @@ impl A2aToolExecutor {
 
         Ok(ToolCallResult {
             content: serde_json::to_string_pretty(&task)?,
+            is_error: false,
+        })
+    }
+
+    /// Subscribes to real-time task updates via SSE streaming.
+    async fn subscribe(&self, input: &serde_json::Value) -> Result<ToolCallResult> {
+        let agent_url = require_field(input, "agent_url")?;
+        let task_id = require_field(input, "task_id")?;
+        let timeout_secs = input["timeout_secs"].as_u64().unwrap_or(30);
+
+        debug!("📡 A2A subscribe to {agent_url} task={task_id} timeout={timeout_secs}s");
+
+        let events = super::sse_stream::subscribe(
+            agent_url,
+            task_id,
+            Some(Duration::from_secs(timeout_secs)),
+        )
+        .await?;
+
+        Ok(ToolCallResult {
+            content: serde_json::to_string_pretty(&events)?,
             is_error: false,
         })
     }
@@ -163,6 +188,36 @@ fn get_task_status_tool() -> ToolDefinition {
         .build()
 }
 
+/// Builds the tool definition for `a2a_subscribe`.
+fn subscribe_tool() -> ToolDefinition {
+    ToolDefinition::builder()
+        .name(TOOL_SUBSCRIBE.to_string())
+        .description(
+            "Subscribe to real-time task status updates from a peer agent via SSE streaming. \
+             Returns all events until the task completes or timeout is reached."
+                .to_string(),
+        )
+        .input_schema(serde_json::json!({
+            "type": "object",
+            "properties": {
+                "agent_url": {
+                    "type": "string",
+                    "description": "Full URL of the peer agent"
+                },
+                "task_id": {
+                    "type": "string",
+                    "description": "ID of the task to subscribe to"
+                },
+                "timeout_secs": {
+                    "type": "integer",
+                    "description": "Maximum seconds to wait for updates (default: 30)"
+                }
+            },
+            "required": ["agent_url", "task_id"]
+        }))
+        .build()
+}
+
 #[async_trait]
 impl ToolExecutor for A2aToolExecutor {
     async fn discover_tools(&self) -> Result<Vec<ToolDefinition>> {
@@ -170,6 +225,7 @@ impl ToolExecutor for A2aToolExecutor {
             send_message_tool(),
             get_agent_card_tool(),
             get_task_status_tool(),
+            subscribe_tool(),
         ])
     }
 
@@ -182,6 +238,7 @@ impl ToolExecutor for A2aToolExecutor {
             TOOL_SEND_MESSAGE => self.send_message(input).await,
             TOOL_GET_AGENT_CARD => self.get_agent_card(input).await,
             TOOL_GET_TASK_STATUS => self.get_task_status(input).await,
+            TOOL_SUBSCRIBE => self.subscribe(input).await,
             _ => bail!("unknown A2A tool: {name}"),
         }
     }
@@ -192,10 +249,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn discover_tools_returns_three() {
+    async fn discover_tools_returns_four() {
         let executor = A2aToolExecutor::new();
         let tools = executor.discover_tools().await.expect("discover");
-        assert_eq!(tools.len(), 3);
+        assert_eq!(tools.len(), 4);
     }
 
     #[tokio::test]
@@ -264,6 +321,23 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(result.expect_err("unknown").to_string().contains("unknown"));
+    }
+
+    #[test]
+    fn subscribe_tool_has_required_fields() {
+        let tool = subscribe_tool();
+        let required = tool.input_schema["required"]
+            .as_array()
+            .expect("required array");
+        assert!(required.contains(&serde_json::json!("agent_url")));
+        assert!(required.contains(&serde_json::json!("task_id")));
+    }
+
+    #[test]
+    fn subscribe_tool_has_optional_timeout() {
+        let tool = subscribe_tool();
+        let properties = tool.input_schema["properties"].as_object().expect("props");
+        assert!(properties.contains_key("timeout_secs"));
     }
 
     #[test]

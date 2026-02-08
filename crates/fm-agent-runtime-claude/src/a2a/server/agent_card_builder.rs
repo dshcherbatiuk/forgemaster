@@ -42,7 +42,10 @@ impl<'a> AgentCardBuilder<'a> {
                 tenant: None,
             }],
             version: PROTOCOL_VERSION.to_string(),
-            capabilities: AgentCapabilities::default(),
+            capabilities: AgentCapabilities {
+                streaming: Some(true),
+                ..Default::default()
+            },
             skills: vec![self.build_skill()],
             ..Default::default()
         }
@@ -107,6 +110,13 @@ mod tests {
         let builder = AgentCardBuilder::new("agent", "type");
         let card = builder.build("http://localhost:9090");
         assert_eq!(card.version, PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn streaming_capability_enabled() {
+        let builder = AgentCardBuilder::new("agent", "type");
+        let card = builder.build("http://localhost:9090");
+        assert_eq!(card.capabilities.streaming, Some(true));
     }
 
     #[test]

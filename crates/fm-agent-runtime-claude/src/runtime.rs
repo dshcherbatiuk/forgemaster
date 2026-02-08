@@ -9,7 +9,6 @@ use tracing::info;
 
 use crate::a2a::client::A2aToolExecutor;
 use crate::a2a::config::A2aConfig;
-use crate::a2a::server::message_handler::AgentMessageHandler;
 use crate::claude_api::client::ClaudeClient;
 use crate::claude_api::request::Message;
 use crate::config::RuntimeConfig;
@@ -105,21 +104,16 @@ impl AgentRuntime {
 
         // 6. Start A2A server and stay alive for inter-agent communication
         let a2a_config = A2aConfig::from_env();
-        let handler = AgentMessageHandler::new(
-            self.config.agent_name.clone(),
-            a2a_config.agent_type.clone(),
-        );
-        let a2a_port = a2a_config.port;
 
         info!(
             "🌐 Starting A2A server (type={}, port={}, peers={})",
             a2a_config.agent_type,
-            a2a_port,
+            a2a_config.port,
             a2a_config.peer_urls.len()
         );
 
         tokio::select! {
-            result = crate::a2a::server::start(handler, a2a_port) => {
+            result = crate::a2a::server::start(&self.config.agent_name, &a2a_config.agent_type, a2a_config.port) => {
                 if let Err(e) = result {
                     tracing::error!("🌐 A2A server error: {e}");
                 }

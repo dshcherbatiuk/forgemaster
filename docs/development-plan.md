@@ -286,7 +286,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Create K8s Service per agent pod for A2A traffic routing
 - [x] Inject A2A env vars (A2A_PORT, AGENT_TYPE) into agent pods
 - [x] Dynamic peer discovery via list_agents MCP tool + K8s DNS URL pattern
-- [ ] Implement SSE streaming for task updates
+- [x] Implement SSE streaming for task updates (broadcast::channel, OnceLock wiring, a2a_subscribe tool)
 - [ ] Test agent-to-agent communication end-to-end
 
 **Deliverables:**
