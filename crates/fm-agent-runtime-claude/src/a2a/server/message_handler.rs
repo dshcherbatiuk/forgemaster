@@ -35,6 +35,10 @@ pub struct AgentMessageHandler {
     agent_name: String,
     /// Type of this agent (e.g., "code-generator", "test-generator").
     agent_type: String,
+    /// K8s namespace — used to build the real Service DNS URL for the agent card.
+    namespace: String,
+    /// A2A server port — used to build the real Service DNS URL for the agent card.
+    port: u16,
     /// Broadcast sender for streaming task status updates.
     /// Set after server creation via [`EventSender`] `OnceLock`.
     event_sender: EventSender,
@@ -49,12 +53,16 @@ impl AgentMessageHandler {
     pub fn new(
         agent_name: String,
         agent_type: String,
+        namespace: String,
+        port: u16,
         event_sender: EventSender,
         conversation_deps: Option<ConversationDeps>,
     ) -> Self {
         Self {
             agent_name,
             agent_type,
+            namespace,
+            port,
             event_sender,
             conversation_deps,
         }
@@ -157,8 +165,14 @@ impl MessageHandler for AgentMessageHandler {
         Ok(SendMessageResponse::Task(task))
     }
 
-    fn agent_card(&self, base_url: &str) -> AgentCard {
-        AgentCardBuilder::new(&self.agent_name, &self.agent_type).build(base_url)
+    fn agent_card(&self, _base_url: &str) -> AgentCard {
+        // Override the server's base_url (which is "http://0.0.0.0:{port}" from the
+        // bind address) with the real K8s Service DNS URL so peer agents can reach us.
+        let service_url = format!(
+            "http://{}.{}.svc.cluster.local:{}",
+            self.agent_name, self.namespace, self.port
+        );
+        AgentCardBuilder::new(&self.agent_name, &self.agent_type).build(&service_url)
     }
 
     fn supports_streaming(&self) -> bool {
@@ -279,27 +293,36 @@ mod tests {
         let handler = AgentMessageHandler::new(
             "test-gen-task-abc".to_string(),
             "test-generator".to_string(),
+            "task-abc".to_string(),
+            9090,
             test_event_sender(),
             None,
         );
         assert_eq!(handler.agent_name, "test-gen-task-abc");
         assert_eq!(handler.agent_type, "test-generator");
+        assert_eq!(handler.namespace, "task-abc");
+        assert_eq!(handler.port, 9090);
         assert!(handler.conversation_deps.is_none());
     }
 
     #[test]
-    fn agent_card_uses_builder() {
+    fn agent_card_uses_service_dns_not_bind_address() {
         let handler = AgentMessageHandler::new(
             "code-gen-task-abc".to_string(),
             "code-generator".to_string(),
+            "task-abc".to_string(),
+            9090,
             test_event_sender(),
             None,
         );
-        let card =
-            handler.agent_card("http://code-gen-task-abc.task-abc.svc.cluster.local:9090");
+        // Pass bind address — handler should ignore it and use Service DNS
+        let card = handler.agent_card("http://0.0.0.0:9090");
 
         assert_eq!(card.name, "code-gen-task-abc");
-        assert!(!card.supported_interfaces.is_empty());
+        assert_eq!(
+            card.supported_interfaces[0].url,
+            "http://code-gen-task-abc.task-abc.svc.cluster.local:9090/v1/rpc"
+        );
     }
 
     #[test]
@@ -307,6 +330,8 @@ mod tests {
         let handler = AgentMessageHandler::new(
             "agent".to_string(),
             "type".to_string(),
+            "ns".to_string(),
+            9090,
             test_event_sender(),
             None,
         );
@@ -337,6 +362,8 @@ mod tests {
         let handler = AgentMessageHandler::new(
             "test-gen".to_string(),
             "test-generator".to_string(),
+            "task-abc".to_string(),
+            9090,
             test_event_sender(),
             None,
         );
@@ -363,6 +390,8 @@ mod tests {
         let handler = AgentMessageHandler::new(
             "test-gen".to_string(),
             "test-generator".to_string(),
+            "task-abc".to_string(),
+            9090,
             event_sender,
             None,
         );
@@ -466,13 +495,16 @@ mod tests {
         let handler = AgentMessageHandler::new(
             "agent".to_string(),
             "code-generator".to_string(),
+            "ns".to_string(),
+            9090,
             test_event_sender(),
             None,
         );
-        let card = handler.agent_card("http://agent.ns:9090");
+        // Even with bind address as base_url, should use Service DNS
+        let card = handler.agent_card("http://0.0.0.0:9090");
         assert_eq!(
             card.supported_interfaces[0].url,
-            "http://agent.ns:9090/v1/rpc"
+            "http://agent.ns.svc.cluster.local:9090/v1/rpc"
         );
     }
 }

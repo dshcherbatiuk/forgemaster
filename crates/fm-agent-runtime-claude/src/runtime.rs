@@ -110,10 +110,12 @@ impl AgentRuntime {
         };
 
         let agent_name_for_server = self.config.agent_name.clone();
+        let namespace_for_server = self.config.namespace.clone();
         tokio::spawn(async move {
             if let Err(e) = crate::a2a::server::start(
                 &agent_name_for_server,
                 &a2a_config.agent_type,
+                &namespace_for_server,
                 a2a_config.port,
                 Some(conversation_deps),
             )

@@ -35,6 +35,7 @@ use message_handler::{AgentMessageHandler, EventSender};
 pub async fn start(
     agent_name: &str,
     agent_type: &str,
+    namespace: &str,
     port: u16,
     conversation_deps: Option<ConversationDeps>,
 ) -> Result<()> {
@@ -45,6 +46,8 @@ pub async fn start(
     let handler = AgentMessageHandler::new(
         agent_name.to_string(),
         agent_type.to_string(),
+        namespace.to_string(),
+        port,
         event_sender.clone(),
         conversation_deps,
     );
@@ -70,12 +73,19 @@ mod tests {
         let handler = AgentMessageHandler::new(
             "test-gen".to_string(),
             "test-generator".to_string(),
+            "task-abc".to_string(),
+            9090,
             Arc::new(OnceLock::new()),
             None,
         );
         let card =
-            a2a_rs_server::MessageHandler::agent_card(&handler, "http://localhost:9090");
+            a2a_rs_server::MessageHandler::agent_card(&handler, "http://0.0.0.0:9090");
         assert_eq!(card.name, "test-gen");
+        // Should use real Service DNS URL, not the bind address
+        assert_eq!(
+            card.supported_interfaces[0].url,
+            "http://test-gen.task-abc.svc.cluster.local:9090/v1/rpc"
+        );
     }
 
     #[test]
