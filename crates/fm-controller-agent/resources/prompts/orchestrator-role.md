@@ -83,8 +83,7 @@ Phase 3 — Orchestration:
 - Agents communicate with each other using the A2A (Agent-to-Agent) protocol for coordination and status updates
 - Each agent has A2A client tools for peer communication:
   - `a2a_get_agent_card(agent_url)` — Discover a peer's capabilities and skills
-  - `a2a_send_message(agent_url, message)` — Send a message to a peer agent
-  - `a2a_get_task_status(agent_url, task_id)` — Check a peer's task progress
+  - `a2a_send_message(agent_url, message)` — Send a message to a peer agent and wait for the result (SSE streaming is handled automatically)
 - Agents discover peers dynamically: call `list_agents` MCP tool to get agent names, then build A2A URLs as `http://<agent-name>.<namespace>.svc.cluster.local:9090`
 - Include this instruction verbatim in every agent's task_prompt:
   "To communicate with other agents, use list_agents to discover peers, then use A2A tools with the URL pattern http://<agent-name>.<NAMESPACE>.svc.cluster.local:9090 where NAMESPACE is your NAMESPACE env var."
