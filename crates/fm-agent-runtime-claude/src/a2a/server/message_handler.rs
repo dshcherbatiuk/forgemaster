@@ -115,6 +115,7 @@ impl MessageHandler for AgentMessageHandler {
 
             let result = process_message(
                 &agent_name,
+                &task_id,
                 &message_for_processing,
                 conversation_deps.as_ref(),
             )
@@ -169,8 +170,12 @@ impl MessageHandler for AgentMessageHandler {
 ///
 /// When conversation deps are available, runs the message through the
 /// Claude conversation loop. Otherwise returns a stub acknowledgment.
+///
+/// Each A2A message gets its own audit file (named `{agent}-a2a-{task_id}`)
+/// to avoid truncating the main conversation's audit log.
 async fn process_message(
     agent_name: &str,
+    task_id: &str,
     message: &Message,
     conversation_deps: Option<&ConversationDeps>,
 ) -> anyhow::Result<String> {
@@ -180,12 +185,22 @@ async fn process_message(
 
             info!("🧠 Processing A2A message via conversation loop for {agent_name}");
 
+            let audit_logger = deps
+                .workspace_dir
+                .as_ref()
+                .map(|dir| {
+                    let short_id = &task_id[..8.min(task_id.len())];
+                    let audit_name = format!("{agent_name}-a2a-{short_id}");
+                    crate::audit_logger::AuditLogger::new(dir, &audit_name)
+                })
+                .transpose()?;
+
             let result = crate::conversation_loop::run(
                 &deps.client,
                 deps.executor.as_ref(),
                 &deps.loop_config,
                 vec![claude_message],
-                deps.audit_logger.as_ref(),
+                audit_logger.as_ref(),
             )
             .await?;
 
@@ -389,7 +404,7 @@ mod tests {
 
     #[tokio::test]
     async fn process_message_stub_returns_acknowledgment() {
-        let result = process_message("test-gen", &test_message("Hello"), None)
+        let result = process_message("test-gen", "task-123", &test_message("Hello"), None)
             .await
             .expect("stub should succeed");
         assert_eq!(result, "Message received by test-gen");
@@ -419,10 +434,11 @@ mod tests {
                 "model".to_string(),
                 4096,
             )),
-            audit_logger: None,
+            workspace_dir: None,
         };
 
-        let result = process_message("test-gen", &empty_message, Some(&deps)).await;
+        let result =
+            process_message("test-gen", "task-456", &empty_message, Some(&deps)).await;
         assert!(result.is_err());
         assert!(
             result

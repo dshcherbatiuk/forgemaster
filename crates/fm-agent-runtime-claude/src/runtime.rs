@@ -106,7 +106,7 @@ impl AgentRuntime {
             client: client.clone(),
             executor: executor.clone(),
             loop_config: loop_config.clone(),
-            audit_logger: audit_logger.clone(),
+            workspace_dir: self.config.workspace_dir.clone(),
         };
 
         let agent_name_for_server = self.config.agent_name.clone();
