@@ -13,7 +13,8 @@ use futures::StreamExt;
 use tracing::{debug, warn};
 
 /// Default timeout for SSE subscriptions.
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+/// 10 minutes — peer agents run full conversation loops that take minutes to complete.
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Subscribes to SSE task updates from a peer agent.
 ///
@@ -250,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn default_timeout_is_30_seconds() {
-        assert_eq!(DEFAULT_TIMEOUT, Duration::from_secs(30));
+    fn default_timeout_is_600_seconds() {
+        assert_eq!(DEFAULT_TIMEOUT, Duration::from_secs(600));
     }
 }

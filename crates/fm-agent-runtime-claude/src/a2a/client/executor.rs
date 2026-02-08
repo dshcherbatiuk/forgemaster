@@ -22,7 +22,9 @@ const TOOL_SEND_MESSAGE: &str = "a2a_send_message";
 const TOOL_GET_AGENT_CARD: &str = "a2a_get_agent_card";
 
 /// Default timeout for waiting on SSE task completion.
-const SSE_TIMEOUT: Duration = Duration::from_secs(30);
+/// 10 minutes — peer agents run full conversation loops (multiple Claude API calls,
+/// file writes, Docker builds) that take minutes to complete.
+const SSE_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Executes A2A operations as tools in the conversation loop.
 ///
@@ -427,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn sse_timeout_is_30_seconds() {
-        assert_eq!(SSE_TIMEOUT, Duration::from_secs(30));
+    fn sse_timeout_is_600_seconds() {
+        assert_eq!(SSE_TIMEOUT, Duration::from_secs(600));
     }
 }
