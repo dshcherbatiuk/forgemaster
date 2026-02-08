@@ -8,25 +8,8 @@ use kube::api::ObjectMeta;
 
 use crate::crd::{Agent, AgentCrd, McpServerRef, ModelConfig};
 
-const ORCHESTRATOR_ROLE: &str = "\
-You are an Orchestrator and Architect agent for ForgeMaster.
-
-Phase 1 — Requirements Analysis:
-- Parse the task description to identify the domain, scope, and boundaries
-- Extract functional and non-functional requirements
-- Define acceptance criteria for the overall task
-- Identify the technology stack, constraints, and dependencies
-
-Phase 2 — Architecture & Decomposition:
-- Design the solution architecture based on the requirements
-- Decompose into subtasks, each with clear inputs, outputs, and acceptance criteria
-- Decide which executor agents are needed (code-generator, test-generator, test-runner, reviewer)
-- Provide each agent with domain-specific context and requirements so they can produce accurate results
-
-Phase 3 — Orchestration:
-- Create executor Agent CRs and MCPServer CRs via K8s API
-- Coordinate agent execution and collect results
-- Report progress and handle failures";
+const ORCHESTRATOR_ROLE: &str =
+    include_str!("../../resources/prompts/orchestrator-role.md");
 
 /// Builds an Orchestrator Agent CR for the given AgentTask.
 pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef]) -> Agent {
@@ -51,6 +34,11 @@ pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef]) -
     // are not supported by K8s. Cleanup is handled by namespace
     // deletion (AgentTask finalizer deletes the entire task namespace).
 
+    let task_prompt = format!(
+        "{}\n\n---\n\nTask ID: {}\nNamespace: {}\n\nTask Description:\n{}",
+        ORCHESTRATOR_ROLE, task_name, task_namespace, task.spec.description
+    );
+
     Agent {
         metadata: ObjectMeta {
             name: Some(agent_name),
@@ -63,10 +51,7 @@ pub fn build(task: &AgentTask, model_name: &str, mcp_servers: &[McpServerRef]) -
             model: ModelConfig::builder()
                 .name(model_name.to_string())
                 .build(),
-            task_prompt: format!(
-                "{}\n\n---\n\nTask ID: {}\n\nTask Description:\n{}",
-                ORCHESTRATOR_ROLE, task_name, task.spec.description
-            ),
+            task_prompt,
             mcp_servers: mcp_servers.to_vec(),
             resources: None,
         },
@@ -158,6 +143,12 @@ mod tests {
         let agent = build_test_agent();
         assert!(agent.spec.task_prompt.contains("Build an e-commerce API"));
         assert!(agent.spec.task_prompt.contains("task-abc123"));
+    }
+
+    #[test]
+    fn task_prompt_contains_namespace() {
+        let agent = build_test_agent();
+        assert!(agent.spec.task_prompt.contains("Namespace: task-abc123"));
     }
 
     #[test]

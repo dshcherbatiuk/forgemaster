@@ -30,7 +30,7 @@ impl AgentMcpHandler {
         }
     }
 
-    #[tool(description = "Create a new Agent CR in Kubernetes. Returns the created agent name and namespace.")]
+    #[tool(description = "Create a new Agent CR in Kubernetes. Use the task namespace (e.g. task-abc123) as the namespace. Returns the created agent name and namespace.")]
     async fn create_agent(
         &self,
         Parameters(params): Parameters<CreateAgentParams>,

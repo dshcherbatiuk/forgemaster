@@ -30,8 +30,9 @@ impl McpAction for CreateAgentAction {
 
     async fn execute(&self, params: Self::Params) -> CallToolResult {
         info!(
-            "🔧 MCP: create_agent name={} namespace={} type={}",
-            params.name, params.namespace, params.agent_type
+            "🔧 MCP: create_agent name={} namespace={} type={} model={} mcp_servers={:?}\n📝 task_prompt:\n{}",
+            params.name, params.namespace, params.agent_type,
+            params.model_name, params.mcp_servers, params.task_prompt
         );
 
         let mcp_servers = params

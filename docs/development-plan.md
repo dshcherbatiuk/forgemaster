@@ -178,6 +178,12 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Implement RBAC propagator (ServiceAccount + ClusterRoleBinding per namespace)
 - [x] Implement secret propagator (copy LLM provider secret to task namespace)
 - [x] Wire LLM_PROVIDER_DEFAULT_MODEL through config chain (env → Ansible → Helm → ConfigMap → context)
+- [x] Implement MCP server (rmcp SDK, Streamable HTTP, strategy pattern for tool actions)
+- [x] Expose create_agent, list_agents, get_agent_status tools via MCP
+- [x] Add Helm Service (fm-controller-agent-mcp) and container port for MCP endpoint
+- [x] Fix MCP URL namespace (use controller namespace, not agent namespace)
+- [x] Handle pod AlreadyExists (409) race condition in pending reconciler
+- [x] Upgrade Rust toolchain to stable 1.93
 
 ### 2.4 Core Agents
 
@@ -246,7 +252,7 @@ This plan outlines the development phases for building ForgeMaster, a meta-agent
 - [x] Add McpServerRef with per-server port and K8s DNS URL building
 - [x] Wire MCP_SERVER_URLS injection in pod_builder
 - [x] Add DEFAULT_MCP_SERVERS config (env → Ansible → Helm → ConfigMap)
-- [ ] Implement Agent Controller MCP server (create_agent, list_agents, get_agent_status)
+- [x] Implement Agent Controller MCP server (create_agent, list_agents, get_agent_status via rmcp SDK)
 - [ ] Integrate external MCP servers (filesystem, GitHub, K8s API)
 - [ ] Test tool discovery and execution end-to-end
 - [ ] Dynamic MCP server registry (future — out of scope for now)
@@ -483,6 +489,6 @@ forgemaster/
 7. ~~**Ansible Environments** — DRY config, local.env for secrets~~ ✅
 8. ~~**Secret/RBAC propagation** — Copy LLM provider secret + RBAC to task namespaces~~ ✅
 9. ~~**MCP client** — rmcp SDK, tool calling loop, CompositeToolExecutor, multi-server support~~ ✅
-10. **Agent Controller MCP server** — Implement create_agent, list_agents, get_agent_status tools
+10. ~~**Agent Controller MCP server** — rmcp SDK, Streamable HTTP, strategy pattern, Helm Service~~ ✅
 11. **A2A protocol** — Agent-to-agent communication for orchestrator coordination
 12. **TCP Controller** — PID feedback loop (needs agent test results)
