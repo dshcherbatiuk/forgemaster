@@ -22,39 +22,33 @@ Autonomous Agent Orchestration for Kubernetes
 User → LLM → Code → Hope it works → Manual fix → Repeat
 ```
 
-- No feedback loop
-- No automated testing
-- No deployment verification
-- Human in the loop for every retry
+- No autonomous infrastructure
+- No automated testing or deployment
+- Manual agent setup and coordination
+- Human in the loop for every step
 
 ---
 
 ## Slide 3 — The Solution (0:50-1:15)
 
-**ForgeMaster: Control Theory + AI Agents**
+**ForgeMaster: Kubernetes manages the agents**
 
 ```mermaid
 flowchart LR
-    A["Task"] --> B["Agent Pipeline"]
-    B --> C["Deploy"]
-    C --> D["Run Tests"]
-    D --> E{"TCP Controller\nerror = failed / total"}
-    E -->|"error > 0.7"| F["Swap Agent"]
-    E -->|"0.2 - 0.7"| G["Adjust"]
-    E -->|"< 0.2"| H["Continue"]
-    F --> B
-    G --> B
-    H -->|"error ≈ 0"| I(["Done"])
+    U["User describes task"] --> CR["AgentTask CR created"]
+    CR --> OP["K8s Operator"]
+    OP --> NS["Namespace created"]
+    OP --> AG["Agent pods provisioned"]
+    AG --> MCP["MCP servers attached"]
+    AG --> A2A["A2A endpoints ready"]
+    A2A --> PIPE["Pipeline runs autonomously"]
+    PIPE --> DONE(["Service deployed & tested"])
 ```
 
-| Error Signal | Action |
-|---|---|
-| > 0.7 | Swap agent |
-| 0.5-0.7 | Add specialist |
-| 0.2-0.5 | Adjust params |
-| < 0.2 | Continue |
-
-**Controller = math (microseconds, $0). Agents = Claude API (creative work, $$).**
+- **AgentTask CRD** — user's intent as a Kubernetes resource
+- **Agent CRD** — each agent is a managed K8s object
+- Operators handle creation, health, scaling, cleanup
+- No manual setup — infrastructure IS the orchestrator
 
 ---
 

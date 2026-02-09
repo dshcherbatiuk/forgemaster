@@ -23,7 +23,7 @@
 **Screen:** Slide or diagram showing: "Single LLM agent" vs "ForgeMaster pipeline".
 
 **Say:**
-"Current AI coding tools are one-shot — generate code, hope it works. If it fails, you manually fix and retry. ForgeMaster borrows from control theory. We use a TCP feedback loop — Task, Context, Prediction — inspired by PID controllers. The key insight: orchestration decisions don't need intelligence. They need math. Is the error rate high? Swap the agent. Medium? Add a specialist. Low? Keep going. This runs in microseconds, costs zero, and is fully deterministic. We reserve the expensive LLM budget for what actually needs creativity — writing code, designing APIs, reviewing architecture."
+"Current AI coding tools are one-shot — generate code, hope it works. If it fails, you manually fix and retry. ForgeMaster takes a different approach. You describe what you want — and Kubernetes handles the rest. The system creates Custom Resources — AgentTask and Agent — and the operators autonomously provision a full pipeline: dedicated namespace, specialized agent pods, MCP tool servers, networking. No manual setup. Kubernetes manages the lifecycle — health checks, restarts, cleanup. Agents are created, scaled, and destroyed automatically based on what the task needs. The infrastructure is the orchestrator."
 
 ---
 
