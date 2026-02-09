@@ -2,7 +2,7 @@
 
 ## 0:00-0:10 — Introduction
 
-**Screen:** ForgeMaster logo / title slide with tagline.
+**Screen:** Slide 1 (Title)
 
 **Say:**
 "Hi, I'm Dmytro. This is **ForgeMaster** — a meta-agent system that autonomously discovers, creates, orchestrates, and manages task-specific AI agent pipelines in Kubernetes. Built for the AgentForge Hackathon 2026."
@@ -20,16 +20,18 @@
 
 ## 0:30-1:15 — The Problem & Core Insight
 
-**Screen:** Slide or diagram showing: "Single LLM agent" vs "ForgeMaster pipeline".
+**Screen:** Slide 2 (The Problem) — side-by-side diagram: "Single LLM agent" vs "ForgeMaster pipeline".
 
 **Say:**
 "Current AI coding tools are one-shot — generate code, hope it works. If it fails, you manually fix and retry. ForgeMaster takes a different approach. You describe what you want — and Kubernetes handles the rest. The system creates Custom Resources — AgentTask and Agent — and the operators autonomously provision a full pipeline: dedicated namespace, specialized agent pods, MCP tool servers, networking. No manual setup. Kubernetes manages the lifecycle — health checks, restarts, cleanup. Agents are created, scaled, and destroyed automatically based on what the task needs. The infrastructure is the orchestrator."
+
+**Screen:** Slide 3 (The Solution) — K8s-managed pipeline flow diagram.
 
 ---
 
 ## 1:15-2:15 — Architecture & Protocols
 
-**Screen:** Architecture diagram (Mermaid or whiteboard). Show three protocol layers.
+**Screen:** Slide 4 (Three Protocols) — protocol table + three-layer Mermaid diagram.
 
 **Say:**
 "ForgeMaster is built on three open protocols:"
@@ -40,7 +42,9 @@
 
 "Third — **A2UI**, Agent-to-User Interface. Agents generate declarative JSON that the React portal renders. Clarifying questions, live progress, test results, agent status — all without executing arbitrary code in the browser."
 
-**Screen:** Show the K8s CRD YAML briefly.
+**Screen:** Slide 5 (Agent Pipeline) — six-agent chain Mermaid diagram.
+
+**Screen:** Slide 6 (Kubernetes-Native) — CRD YAML + namespace architecture diagram.
 
 "Everything is Kubernetes-native. Two custom CRDs — AgentTask and Agent. Each task gets its own namespace with isolated agents, MCP servers, and resource quotas. The operator pattern handles lifecycle, health checks, scalability, reliability, and cleanup automatically."
 
@@ -120,7 +124,7 @@ ls target/tasks/task-f57bc331/audit/
 
 ## 3:50-4:15 — Engineering Quality & ADRs
 
-**Screen:** Show `docs/adr/` directory listing, open one ADR.
+**Screen:** Slide 11 (Engineering Quality) — tech stack table.
 
 **Say:**
 "This isn't a weekend prototype. We have 10 Architecture Decision Records documenting every major choice — why Rust over Python, why custom Axum mock server over wiremock, why A2A over custom RPC."
@@ -135,7 +139,7 @@ ls target/tasks/task-f57bc331/audit/
 
 ## 4:15-4:50 — Why This Should Win
 
-**Screen:** Summary slide with key differentiators.
+**Screen:** Slide 12 (Why ForgeMaster Should Win).
 
 **Say:**
 "Three reasons ForgeMaster stands out:"
@@ -150,7 +154,7 @@ ls target/tasks/task-f57bc331/audit/
 
 ## 4:50-5:00 — Close
 
-**Screen:** Terminal showing successful task completion — all tests passed.
+**Screen:** Slide 13 (Close).
 
 **Say:**
 "ForgeMaster — autonomous agent orchestration, powered by control theory, built for Kubernetes. Thank you."

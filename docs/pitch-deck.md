@@ -18,8 +18,26 @@ Autonomous Agent Orchestration for Kubernetes
 
 **AI coding today is one-shot**
 
-```
-User → LLM → Code → Hope it works → Manual fix → Repeat
+```mermaid
+flowchart LR
+    subgraph TODAY["Today: Single LLM Agent"]
+        U1["User"] --> LLM["One LLM"]
+        LLM --> CODE["Code"]
+        CODE --> HOPE["Hope it works"]
+        HOPE -->|"fails"| U1
+    end
+
+    subgraph FM["ForgeMaster: K8s-Managed Pipeline"]
+        U2["User"] --> CR["AgentTask CR"]
+        CR --> K8S["K8s Operator"]
+        K8S --> AR2["Architect"]
+        K8S --> CG2["Code Gen"]
+        K8S --> DV2["DevOps"]
+        K8S --> TG2["Test Gen"]
+        K8S --> RV2["Reviewer"]
+        TG2 -->|"fail → retry"| CG2
+        RV2 --> DONE2(["Deployed & Tested"])
+    end
 ```
 
 - No autonomous infrastructure
