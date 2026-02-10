@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt clean check all cluster cluster-clean cluster-reset ui slides help
+.PHONY: build test lint fmt clean check all cluster cluster-clean cluster-reset ui slides slides-latex help
 
 help:
 	@echo "Available commands:"
@@ -14,7 +14,8 @@ help:
 	@echo "  make cluster-clean - cleanup cluster resources"
 	@echo "  make cluster-reset - reset OrbStack k8s cluster"
 	@echo "  make ui            - fmt, lint, build UI"
-	@echo "  make slides        - generate pitch deck PDF"
+	@echo "  make slides        - generate pitch deck PDF (fpdf2)"
+	@echo "  make slides-latex  - generate pitch deck PDF (LaTeX Beamer)"
 
 all: fmt lint test build
 
@@ -39,6 +40,11 @@ slides:
 	@test -d slides/.venv || python3 -m venv slides/.venv
 	@slides/.venv/bin/pip install -q fpdf2 Pillow
 	slides/.venv/bin/python slides/generate.py $(SLIDES_SOURCE)
+
+slides-latex:
+	@test -d slides/.venv || python3 -m venv slides/.venv
+	@slides/.venv/bin/pip install -q Pillow
+	slides/.venv/bin/python slides/generate_latex.py $(SLIDES_SOURCE)
 
 ui:
 	cd ui && npm run fmt && npm run lint && npm run build
