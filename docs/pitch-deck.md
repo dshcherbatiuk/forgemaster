@@ -81,7 +81,7 @@ flowchart LR
 | **A2UI** | Agent-to-User | Google |
 
 ```mermaid
-flowchart TB
+flowchart LR
     subgraph UI["A2UI Layer"]
         U["User"] <-->|"Declarative JSON"| P["React Portal"]
     end
@@ -112,7 +112,7 @@ flowchart TB
 **Six agents, self-coordinating via A2A**
 
 ```mermaid
-flowchart TD
+flowchart LR
     OR["Orchestrator\nWrite requirements\nCreate agents"] -->|"A2A"| AR["Architect\nAPI design, Gherkin tests\nArchitecture docs"]
     AR -->|"A2A"| CG["Code Generator\nSource code, Dockerfile\ndocker_build, Helm chart"]
     CG -->|"A2A"| DV["DevOps\nhelm_install\nVerify deployment"]
@@ -160,25 +160,19 @@ spec:
 ```
 
 ```mermaid
-flowchart TB
+flowchart LR
     subgraph SYSTEM["forgemaster-system namespace"]
-        ATC["AgentTask Controller"]
-        AC["Agent Controller"]
-        MCP1["fm-mcp-filesystem"]
-        MCP2["fm-mcp-devtools"]
-        MCP3["fm-controller-agent-mcp"]
+        direction TB
+        ATC["AgentTask Controller"] ~~~ AC["Agent Controller"]
+        MCP1["fm-mcp-filesystem"] ~~~ MCP2["fm-mcp-devtools"] ~~~ MCP3["fm-controller-agent-mcp"]
     end
     subgraph TASK["task-f57bc331 namespace"]
-        ORC["orchestrator"]
-        ARCH["architect"]
-        CGEN["code-generator"]
-        DEVP["devops"]
-        TGEN["test-generator"]
-        REV["reviewer"]
+        direction TB
+        ORC["orchestrator"] ~~~ ARCH["architect"] ~~~ CGEN["code-generator"]
+        DEVP["devops"] ~~~ TGEN["test-generator"] ~~~ REV["reviewer"]
         SVC["hello-world-service\nDeployment + Service"]
     end
-    AC -->|"creates pods"| TASK
-    ATC -->|"creates namespace"| TASK
+    SYSTEM -->|"creates namespace\ncreates pods"| TASK
     CGEN ---|"MCP"| MCP1
     CGEN ---|"MCP"| MCP2
     DEVP ---|"MCP"| MCP2

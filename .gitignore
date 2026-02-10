@@ -17,6 +17,12 @@ Thumbs.db
 .env.local
 .env.forgemaster
 
+# Python
+.venv/
+
 # Node.js
 node_modules/
 dist/
+
+# Generated
+*.pdf
