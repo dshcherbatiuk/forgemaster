@@ -1,0 +1,7 @@
+---
+- name: Build UI Docker image
+  ansible.builtin.command: >
+    docker build -t {{ ui_image_name }}:{{ image_tag }} .
+  args:
+    chdir: "{{ playbook_dir }}/../ui"
+  changed_when: true
