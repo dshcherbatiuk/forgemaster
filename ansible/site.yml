@@ -33,13 +33,16 @@
     - ui
 
   post_tasks:
-    - name: Get Gateway address
+    - name: Wait for Gateway address
       ansible.builtin.command: >
         kubectl get gateway forgemaster-gateway
         -n {{ forgemaster_namespace }}
         -o jsonpath='{.status.addresses[0].value}'
       register: gateway_address
       changed_when: false
+      until: gateway_address.stdout | length > 0
+      retries: 30
+      delay: 2
 
     - name: Display access info
       ansible.builtin.debug:
