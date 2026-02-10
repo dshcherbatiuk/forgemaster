@@ -1,109 +1,4 @@
-#!/usr/bin/env python3
-"""Generate ForgeMaster pitch deck PDF via LaTeX Beamer.
-
-Extracts Mermaid diagrams from markdown, renders them to PNG via mmdc,
-generates a Beamer .tex file, and compiles to PDF using tectonic.
-"""
-
-import argparse
-import os
-import re
-import subprocess
-import tempfile
-from pathlib import Path
-
-# -- Paths ------------------------------------------------------------------
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-DEFAULT_PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
-MERMAID_CONFIG = SCRIPT_DIR / "mermaid-config.json"
-TARGET_DIR = PROJECT_ROOT / "target" / "slides-latex"
-DIAGRAMS_DIR = TARGET_DIR / "diagrams"
-OUTPUT_TEX = TARGET_DIR / "forgemaster-pitch.tex"
-OUTPUT_PDF = TARGET_DIR / "forgemaster-pitch.pdf"
-
-
-def extract_mermaid_blocks(md_path: Path) -> list[tuple[str, str]]:
-    """Extract mermaid code blocks from markdown. Returns (slide_id, code) pairs."""
-    content = md_path.read_text()
-    blocks = []
-    slide_pattern = re.compile(
-        r"## Slide (\d+)[^\n]*\n(.*?)(?=\n## Slide |\Z)", re.DOTALL
-    )
-    mermaid_pattern = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
-
-    for slide_match in slide_pattern.finditer(content):
-        slide_num = slide_match.group(1)
-        slide_content = slide_match.group(2)
-        for i, mermaid_match in enumerate(mermaid_pattern.finditer(slide_content)):
-            block_id = f"slide{slide_num}_diagram{i}"
-            blocks.append((block_id, mermaid_match.group(1).strip()))
-
-    return blocks
-
-
-def render_mermaid_diagrams(blocks: list[tuple[str, str]]) -> dict[str, Path]:
-    """Render mermaid blocks to PNG files using mmdc."""
-    DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-    rendered = {}
-
-    for block_id, code in blocks:
-        png_path = DIAGRAMS_DIR / f"{block_id}.png"
-        if png_path.exists():
-            print(f"  [cached] {block_id}")
-            rendered[block_id] = png_path
-            continue
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".mmd", delete=False) as f:
-            f.write(code)
-            mmd_path = f.name
-
-        try:
-            cmd = [
-                "npx", "--yes", "@mermaid-js/mermaid-cli",
-                "-i", mmd_path,
-                "-o", str(png_path),
-                "-c", str(MERMAID_CONFIG),
-                "-b", "#0a1628",
-                "-w", "1600",
-                "-s", "2",
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            if result.returncode != 0:
-                print(f"  [WARN] {block_id}: {result.stderr[:200]}")
-                continue
-            print(f"  [rendered] {block_id}")
-            rendered[block_id] = png_path
-        finally:
-            os.unlink(mmd_path)
-
-    return rendered
-
-
-def diagram_cmd(diagrams: dict[str, Path], key: str, width: str = "0.9\\\\linewidth") -> str:
-    """Return LaTeX includegraphics command if diagram exists."""
-    if key not in diagrams:
-        return ""
-    return f"\\includegraphics[width={width}]{{{diagrams[key]}}}"
-
-
-def generate_tex(diagrams: dict[str, Path]) -> str:
-    """Generate the Beamer LaTeX source."""
-
-    # Helper to get diagram path for LaTeX (relative to .tex file)
-    def img(key: str, width: str = "0.9\\linewidth") -> str:
-        if key not in diagrams:
-            return ""
-        rel_path = os.path.relpath(diagrams[key], TARGET_DIR).replace("\\", "/")
-        return f"\\includegraphics[width={width}]{{{rel_path}}}"
-
-    def img_block(key: str, width: str = "0.9\\linewidth") -> str:
-        i = img(key, width)
-        if not i:
-            return ""
-        return f"\\begin{{center}}\n{i}\n\\end{{center}}"
-
-    tex = r"""\PassOptionsToPackage{table}{xcolor}
+\PassOptionsToPackage{table}{xcolor}
 \documentclass[aspectratio=169,14pt]{beamer}
 
 % -- Theme ------------------------------------------------------------------
@@ -178,7 +73,7 @@ def generate_tex(diagrams: dict[str, Path]) -> str:
 % Slide 2: The Problem
 % ============================================================================
 \begin{frame}{AI coding today is one-shot}
-""" + img_block("slide2_diagram0", "0.65\\linewidth") + r"""
+{{DIAGRAM_slide2_diagram0_0.65}}
 \begin{itemize}
   \item No autonomous infrastructure
   \item No automated testing or deployment
@@ -191,7 +86,7 @@ def generate_tex(diagrams: dict[str, Path]) -> str:
 % Slide 3: The Solution
 % ============================================================================
 \begin{frame}{ForgeMaster: Kubernetes manages the agents}
-""" + img_block("slide3_diagram0") + r"""
+{{DIAGRAM_slide3_diagram0_0.9}}
 \begin{itemize}
   \item \textcolor{accent}{AgentTask CRD} -- user's intent as a Kubernetes resource
   \item \textcolor{accent}{Agent CRD} -- each agent is a managed K8s object
@@ -217,14 +112,14 @@ A2UI & Agent-to-User  & Google \\
 \end{tabular}
 \end{center}
 \vspace{2pt}
-""" + img_block("slide4_diagram0", "0.85\\linewidth") + r"""
+{{DIAGRAM_slide4_diagram0_0.85}}
 \end{frame}
 
 % ============================================================================
 % Slide 5: Agent Pipeline
 % ============================================================================
 \begin{frame}{Six agents, self-coordinating via A2A}
-""" + img_block("slide5_diagram0") + r"""
+{{DIAGRAM_slide5_diagram0_0.9}}
 \begin{itemize}
   \item Own Kubernetes pod
   \item Own Claude API session
@@ -265,7 +160,7 @@ spec:
 \end{column}
 \end{columns}
 \vspace{4pt}
-""" + img_block("slide6_diagram0", "0.75\\linewidth") + r"""
+{{DIAGRAM_slide6_diagram0_0.75}}
 \end{frame}
 
 % ============================================================================
@@ -341,63 +236,3 @@ LLM budget reserved for creative work only.
 }
 
 \end{document}
-"""
-    return tex
-
-
-def compile_tex(tex_path: Path):
-    """Compile .tex to PDF using tectonic."""
-    result = subprocess.run(
-        ["tectonic", "-X", "compile", str(tex_path)],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    if result.returncode != 0:
-        print(f"  [ERROR] tectonic failed:\n{result.stderr}")
-        raise SystemExit(1)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate ForgeMaster pitch deck PDF via LaTeX Beamer")
-    parser.add_argument(
-        "source",
-        nargs="?",
-        default=str(DEFAULT_PITCH_DECK_MD),
-        help=f"Path to pitch deck markdown (default: {DEFAULT_PITCH_DECK_MD})",
-    )
-    return parser.parse_args()
-
-
-def main():
-    args = parse_args()
-    source = Path(args.source)
-
-    print("=== ForgeMaster Pitch Deck Generator (LaTeX) ===\n")
-
-    # Step 1: Extract Mermaid blocks
-    print(f"[1/4] Extracting Mermaid diagrams from {source.name}...")
-    blocks = extract_mermaid_blocks(source)
-    print(f"  Found {len(blocks)} diagrams: {[b[0] for b in blocks]}\n")
-
-    # Step 2: Render diagrams
-    print("[2/4] Rendering Mermaid diagrams to PNG...")
-    diagrams = render_mermaid_diagrams(blocks)
-    print(f"  Rendered {len(diagrams)} diagrams\n")
-
-    # Step 3: Generate .tex
-    print("[3/4] Generating Beamer .tex...")
-    TARGET_DIR.mkdir(parents=True, exist_ok=True)
-    tex_content = generate_tex(diagrams)
-    OUTPUT_TEX.write_text(tex_content)
-    print(f"  Written: {OUTPUT_TEX}\n")
-
-    # Step 4: Compile to PDF
-    print("[4/4] Compiling with tectonic...")
-    compile_tex(OUTPUT_TEX)
-    print(f"\n  Output: {OUTPUT_PDF}")
-    print("\nDone!")
-
-
-if __name__ == "__main__":
-    main()
