@@ -5,19 +5,20 @@
 \usetheme{default}
 \usecolortheme{default}
 
-\definecolor{bgdark}{HTML}{0A1628}
-\definecolor{accent}{HTML}{5BBCFF}
-\definecolor{bodytext}{HTML}{DCDCDC}
-\definecolor{muted}{HTML}{8CA0B4}
-\definecolor{codebg}{HTML}{0F1E32}
-\definecolor{tablehead}{HTML}{1A3A5C}
-\definecolor{tablerow}{HTML}{0F2337}
-\definecolor{tablealt}{HTML}{142A41}
+\definecolor{bgdark}{HTML}{{{THEME_BG}}}
+\definecolor{titlecolor}{HTML}{{{THEME_TITLE}}}
+\definecolor{accent}{HTML}{{{THEME_ACCENT}}}
+\definecolor{bodytext}{HTML}{{{THEME_BODY}}}
+\definecolor{muted}{HTML}{{{THEME_MUTED}}}
+\definecolor{codebg}{HTML}{{{THEME_CODE_BG}}}
+\definecolor{tablehead}{HTML}{{{THEME_TABLE_HEADER}}}
+\definecolor{tablerow}{HTML}{{{THEME_TABLE_ROW}}}
+\definecolor{tablealt}{HTML}{{{THEME_TABLE_ALT}}}
 
 \setbeamercolor{background canvas}{bg=bgdark}
 \setbeamercolor{normal text}{fg=bodytext}
-\setbeamercolor{frametitle}{fg=white}
-\setbeamercolor{title}{fg=white}
+\setbeamercolor{frametitle}{fg=titlecolor}
+\setbeamercolor{title}{fg=titlecolor}
 \setbeamercolor{subtitle}{fg=accent}
 \setbeamercolor{author}{fg=muted}
 \setbeamercolor{date}{fg=muted}
@@ -224,7 +225,7 @@ LLM budget reserved for creative work only.
 \begin{frame}[plain]
 \vfill
 \begin{center}
-{\Huge\bfseries\color{white}ForgeMaster}\\[16pt]
+{\Huge\bfseries\usebeamercolor[fg]{title}ForgeMaster}\\[16pt]
 {\Large\color{accent}Autonomous agent orchestration,}\\[4pt]
 {\Large\color{accent}powered by control theory,}\\[4pt]
 {\Large\color{accent}built for Kubernetes.}\\[50pt]

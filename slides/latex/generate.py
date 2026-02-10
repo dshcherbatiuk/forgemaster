@@ -7,6 +7,7 @@ to PDF using tectonic.
 """
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -18,15 +19,50 @@ SCRIPT_DIR = Path(__file__).parent
 SLIDES_DIR = SCRIPT_DIR.parent
 PROJECT_ROOT = SLIDES_DIR.parent
 DEFAULT_PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
-MERMAID_CONFIG = SLIDES_DIR / "mermaid-config.json"
+THEME_JSON = SLIDES_DIR / "theme.json"
 TEMPLATE_TEX = SCRIPT_DIR / "template.tex"
 TARGET_DIR = PROJECT_ROOT / "target" / "slides-latex"
+MERMAID_CONFIG = TARGET_DIR / "mermaid-config.json"
 DIAGRAMS_DIR = TARGET_DIR / "diagrams"
 OUTPUT_TEX = TARGET_DIR / "forgemaster-pitch.tex"
 OUTPUT_PDF = TARGET_DIR / "forgemaster-pitch.pdf"
 
+_theme = json.loads(THEME_JSON.read_text())
+
 # Placeholder pattern: {{DIAGRAM_<id>_<width>}}
 PLACEHOLDER_RE = re.compile(r"\{\{DIAGRAM_(\w+)_([\d.]+)\}\}")
+
+
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    h = hex_color.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def generate_mermaid_config():
+    """Generate mermaid-config.json from theme.json."""
+    bg = _theme["bg"]
+    accent = _theme["accent"]
+    is_dark = sum(hex_to_rgb(bg)) < 384
+    config = {
+        "theme": "dark" if is_dark else "default",
+        "themeVariables": {
+            "primaryColor": _theme["table_header"],
+            "primaryTextColor": _theme["title"],
+            "primaryBorderColor": accent,
+            "lineColor": accent,
+            "secondaryColor": _theme["table_row"],
+            "tertiaryColor": bg,
+            "background": bg,
+            "mainBkg": _theme["table_header"],
+            "nodeBorder": accent,
+            "clusterBkg": _theme["table_row"],
+            "clusterBorder": _theme["muted"],
+            "titleColor": _theme["title"],
+            "edgeLabelBackground": bg,
+        },
+    }
+    TARGET_DIR.mkdir(parents=True, exist_ok=True)
+    MERMAID_CONFIG.write_text(json.dumps(config, indent=2))
 
 
 def extract_mermaid_blocks(md_path: Path) -> list[tuple[str, str]]:
@@ -70,7 +106,7 @@ def render_mermaid_diagrams(blocks: list[tuple[str, str]]) -> dict[str, Path]:
                 "-i", mmd_path,
                 "-o", str(png_path),
                 "-c", str(MERMAID_CONFIG),
-                "-b", "#0a1628",
+                "-b", _theme["bg"],
                 "-w", "1600",
                 "-s", "2",
             ]
@@ -84,6 +120,26 @@ def render_mermaid_diagrams(blocks: list[tuple[str, str]]) -> dict[str, Path]:
             os.unlink(mmd_path)
 
     return rendered
+
+
+def resolve_theme_placeholders(template: str) -> str:
+    """Replace {{THEME_*}} placeholders with values from theme.json."""
+    theme_map = {
+        "THEME_BG": _theme["bg"],
+        "THEME_TITLE": _theme["title"],
+        "THEME_ACCENT": _theme["accent"],
+        "THEME_BODY": _theme["body"],
+        "THEME_MUTED": _theme["muted"],
+        "THEME_CODE_BG": _theme["code_bg"],
+        "THEME_TABLE_HEADER": _theme["table_header"],
+        "THEME_TABLE_ROW": _theme["table_row"],
+        "THEME_TABLE_ALT": _theme["table_alt"],
+    }
+    for key, value in theme_map.items():
+        # Strip # from hex for LaTeX \definecolor{}{HTML}{...}
+        hex_val = value.lstrip("#").upper()
+        template = template.replace(f"{{{{{key}}}}}", hex_val)
+    return template
 
 
 def resolve_placeholders(template: str, diagrams: dict[str, Path]) -> str:
@@ -134,6 +190,9 @@ def main():
 
     print("=== ForgeMaster Pitch Deck Generator (LaTeX) ===\n")
 
+    # Step 0: Generate mermaid config from theme
+    generate_mermaid_config()
+
     # Step 1: Extract Mermaid blocks
     print(f"[1/4] Extracting Mermaid diagrams from {source.name}...")
     blocks = extract_mermaid_blocks(source)
@@ -148,6 +207,7 @@ def main():
     print("[3/4] Generating Beamer .tex from template...")
     TARGET_DIR.mkdir(parents=True, exist_ok=True)
     template = TEMPLATE_TEX.read_text()
+    template = resolve_theme_placeholders(template)
     tex_content = resolve_placeholders(template, diagrams)
     OUTPUT_TEX.write_text(tex_content)
     print(f"  Template: {TEMPLATE_TEX}")

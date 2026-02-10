@@ -6,6 +6,7 @@ and builds a dark-themed 16:9 PDF presentation using fpdf2.
 """
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -19,21 +20,29 @@ from PIL import Image
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 DEFAULT_PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
-MERMAID_CONFIG = SCRIPT_DIR / "mermaid-config.json"
+THEME_JSON = SCRIPT_DIR / "theme.json"
 TARGET_DIR = PROJECT_ROOT / "target" / "slides"
+MERMAID_CONFIG = TARGET_DIR / "mermaid-config.json"
 DIAGRAMS_DIR = TARGET_DIR / "diagrams"
 OUTPUT_PDF = TARGET_DIR / "forgemaster-pitch.pdf"
 
+
 # -Theme ------------------------------------------------------------------
-BG_COLOR = (10, 22, 40)       # #0a1628
-TITLE_COLOR = (255, 255, 255)  # white
-ACCENT_COLOR = (91, 188, 255)  # #5bbcff
-BODY_COLOR = (220, 220, 220)   # light gray
-MUTED_COLOR = (140, 160, 180)  # muted blue-gray
-CODE_BG = (15, 30, 50)         # darker panel for code
-TABLE_HEADER_BG = (26, 58, 92) # #1a3a5c
-TABLE_ROW_BG = (15, 35, 55)
-TABLE_ALT_BG = (20, 42, 65)
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    h = hex_color.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+_theme = json.loads(THEME_JSON.read_text())
+BG_COLOR = hex_to_rgb(_theme["bg"])
+TITLE_COLOR = hex_to_rgb(_theme["title"])
+ACCENT_COLOR = hex_to_rgb(_theme["accent"])
+BODY_COLOR = hex_to_rgb(_theme["body"])
+MUTED_COLOR = hex_to_rgb(_theme["muted"])
+CODE_BG = hex_to_rgb(_theme["code_bg"])
+TABLE_HEADER_BG = hex_to_rgb(_theme["table_header"])
+TABLE_ROW_BG = hex_to_rgb(_theme["table_row"])
+TABLE_ALT_BG = hex_to_rgb(_theme["table_alt"])
 
 # Slide dimensions (16:9 in mm)
 SLIDE_W = 338.67  # ~13.33 inches
@@ -41,6 +50,33 @@ SLIDE_H = 190.50  # ~7.5 inches
 
 FONT_TITLE = "Helvetica"
 FONT_BODY = "Helvetica"
+
+
+def generate_mermaid_config():
+    """Generate mermaid-config.json from theme.json."""
+    bg = _theme["bg"]
+    accent = _theme["accent"]
+    is_dark = sum(hex_to_rgb(bg)) < 384
+    config = {
+        "theme": "dark" if is_dark else "default",
+        "themeVariables": {
+            "primaryColor": _theme["table_header"],
+            "primaryTextColor": _theme["title"],
+            "primaryBorderColor": accent,
+            "lineColor": accent,
+            "secondaryColor": _theme["table_row"],
+            "tertiaryColor": bg,
+            "background": bg,
+            "mainBkg": _theme["table_header"],
+            "nodeBorder": accent,
+            "clusterBkg": _theme["table_row"],
+            "clusterBorder": _theme["muted"],
+            "titleColor": _theme["title"],
+            "edgeLabelBackground": bg,
+        },
+    }
+    TARGET_DIR.mkdir(parents=True, exist_ok=True)
+    MERMAID_CONFIG.write_text(json.dumps(config, indent=2))
 
 
 def extract_mermaid_blocks(md_path: Path) -> list[tuple[str, str]]:
@@ -85,7 +121,7 @@ def render_mermaid_diagrams(blocks: list[tuple[str, str]]) -> dict[str, Path]:
                 "-i", mmd_path,
                 "-o", str(png_path),
                 "-c", str(MERMAID_CONFIG),
-                "-b", "#0a1628",
+                "-b", _theme["bg"],
                 "-w", "1600",
                 "-s", "2",
             ]
@@ -445,6 +481,9 @@ def main():
     source = Path(args.source)
 
     print("=== ForgeMaster Pitch Deck Generator ===\n")
+
+    # Step 0: Generate mermaid config from theme
+    generate_mermaid_config()
 
     # Step 1: Extract Mermaid blocks
     print(f"[1/3] Extracting Mermaid diagrams from {source.name}...")
