@@ -2,47 +2,40 @@
 """Generate ForgeMaster pitch deck PDF from docs/pitch-deck.md.
 
 Automatically extracts Mermaid diagrams, renders them to PNG via mmdc,
-and builds a dark-themed 16:9 PDF presentation using fpdf2.
+and builds a themed 16:9 PDF presentation using fpdf2.
 """
 
 import argparse
-import json
-import os
-import re
-import subprocess
-import tempfile
 from pathlib import Path
 
 from fpdf import FPDF
 from PIL import Image
 
-# -Paths ------------------------------------------------------------------
-SCRIPT_DIR = Path(__file__).parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-DEFAULT_PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
-THEME_JSON = SCRIPT_DIR / "theme.json"
+from shared import (
+    DEFAULT_PITCH_DECK_MD,
+    PROJECT_ROOT,
+    extract_mermaid_blocks,
+    generate_mermaid_config,
+    hex_to_rgb,
+    render_mermaid_diagrams,
+    theme,
+)
+
+# -- Paths ------------------------------------------------------------------
 TARGET_DIR = PROJECT_ROOT / "target" / "slides"
-MERMAID_CONFIG = TARGET_DIR / "mermaid-config.json"
 DIAGRAMS_DIR = TARGET_DIR / "diagrams"
 OUTPUT_PDF = TARGET_DIR / "forgemaster-pitch.pdf"
 
-
-# -Theme ------------------------------------------------------------------
-def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
-    h = hex_color.lstrip("#")
-    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
-
-
-_theme = json.loads(THEME_JSON.read_text())
-BG_COLOR = hex_to_rgb(_theme["bg"])
-TITLE_COLOR = hex_to_rgb(_theme["title"])
-ACCENT_COLOR = hex_to_rgb(_theme["accent"])
-BODY_COLOR = hex_to_rgb(_theme["body"])
-MUTED_COLOR = hex_to_rgb(_theme["muted"])
-CODE_BG = hex_to_rgb(_theme["code_bg"])
-TABLE_HEADER_BG = hex_to_rgb(_theme["table_header"])
-TABLE_ROW_BG = hex_to_rgb(_theme["table_row"])
-TABLE_ALT_BG = hex_to_rgb(_theme["table_alt"])
+# -- Theme (RGB tuples) -----------------------------------------------------
+BG_COLOR = hex_to_rgb(theme["bg"])
+TITLE_COLOR = hex_to_rgb(theme["title"])
+ACCENT_COLOR = hex_to_rgb(theme["accent"])
+BODY_COLOR = hex_to_rgb(theme["body"])
+MUTED_COLOR = hex_to_rgb(theme["muted"])
+CODE_BG = hex_to_rgb(theme["code_bg"])
+TABLE_HEADER_BG = hex_to_rgb(theme["table_header"])
+TABLE_ROW_BG = hex_to_rgb(theme["table_row"])
+TABLE_ALT_BG = hex_to_rgb(theme["table_alt"])
 
 # Slide dimensions (16:9 in mm)
 SLIDE_W = 338.67  # ~13.33 inches
@@ -52,107 +45,20 @@ FONT_TITLE = "Helvetica"
 FONT_BODY = "Helvetica"
 
 
-def generate_mermaid_config():
-    """Generate mermaid-config.json from theme.json."""
-    bg = _theme["bg"]
-    accent = _theme["accent"]
-    is_dark = sum(hex_to_rgb(bg)) < 384
-    config = {
-        "theme": "dark" if is_dark else "default",
-        "themeVariables": {
-            "primaryColor": _theme["table_header"],
-            "primaryTextColor": _theme["title"],
-            "primaryBorderColor": accent,
-            "lineColor": accent,
-            "secondaryColor": _theme["table_row"],
-            "tertiaryColor": bg,
-            "background": bg,
-            "mainBkg": _theme["table_header"],
-            "nodeBorder": accent,
-            "clusterBkg": _theme["table_row"],
-            "clusterBorder": _theme["muted"],
-            "titleColor": _theme["title"],
-            "edgeLabelBackground": bg,
-        },
-    }
-    TARGET_DIR.mkdir(parents=True, exist_ok=True)
-    MERMAID_CONFIG.write_text(json.dumps(config, indent=2))
-
-
-def extract_mermaid_blocks(md_path: Path) -> list[tuple[str, str]]:
-    """Extract mermaid code blocks from markdown. Returns (slide_id, code) pairs."""
-    content = md_path.read_text()
-    blocks = []
-    # Find slide headers and their mermaid blocks
-    slide_pattern = re.compile(
-        r"## Slide (\d+)[^\n]*\n(.*?)(?=\n## Slide |\Z)", re.DOTALL
-    )
-    mermaid_pattern = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
-
-    for slide_match in slide_pattern.finditer(content):
-        slide_num = slide_match.group(1)
-        slide_content = slide_match.group(2)
-        for i, mermaid_match in enumerate(mermaid_pattern.finditer(slide_content)):
-            block_id = f"slide{slide_num}_diagram{i}"
-            blocks.append((block_id, mermaid_match.group(1).strip()))
-
-    return blocks
-
-
-def render_mermaid_diagrams(blocks: list[tuple[str, str]]) -> dict[str, Path]:
-    """Render mermaid blocks to PNG files using mmdc. Returns {block_id: png_path}."""
-    DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-    rendered = {}
-
-    for block_id, code in blocks:
-        png_path = DIAGRAMS_DIR / f"{block_id}.png"
-        if png_path.exists():
-            print(f"  [cached] {block_id}")
-            rendered[block_id] = png_path
-            continue
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".mmd", delete=False) as f:
-            f.write(code)
-            mmd_path = f.name
-
-        try:
-            cmd = [
-                "npx", "--yes", "@mermaid-js/mermaid-cli",
-                "-i", mmd_path,
-                "-o", str(png_path),
-                "-c", str(MERMAID_CONFIG),
-                "-b", _theme["bg"],
-                "-w", "1600",
-                "-s", "2",
-            ]
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=60
-            )
-            if result.returncode != 0:
-                print(f"  [WARN] {block_id}: {result.stderr[:200]}")
-                continue
-            print(f"  [rendered] {block_id}")
-            rendered[block_id] = png_path
-        finally:
-            os.unlink(mmd_path)
-
-    return rendered
-
-
 class PitchDeck(FPDF):
-    """16:9 dark-themed PDF presentation."""
+    """16:9 themed PDF presentation."""
 
     def __init__(self):
         super().__init__(orientation="L", unit="mm", format=(SLIDE_H, SLIDE_W))
         self.set_auto_page_break(auto=False)
 
     def dark_bg(self):
-        """Fill the current page with dark background."""
+        """Fill the current page with background color."""
         self.set_fill_color(*BG_COLOR)
         self.rect(0, 0, SLIDE_W, SLIDE_H, "F")
 
     def add_slide(self):
-        """Add a new slide with dark background."""
+        """Add a new slide with background."""
         self.add_page()
         self.dark_bg()
 
@@ -203,7 +109,6 @@ class PitchDeck(FPDF):
         scale = min(max_w / img_w, max_h / img_h)
         w = img_w * scale
         h = img_h * scale
-        # Center horizontally within the given space
         cx = x + (max_w - w) / 2
         self.image(str(png_path), cx, y, w, h)
 
@@ -211,7 +116,6 @@ class PitchDeck(FPDF):
                    x: float, y: float, col_widths: list[float],
                    row_height: float = 10):
         """Draw a styled table."""
-        # Header
         self.set_font(FONT_BODY, "B", 12)
         self.set_fill_color(*TABLE_HEADER_BG)
         self.set_text_color(*ACCENT_COLOR)
@@ -219,7 +123,6 @@ class PitchDeck(FPDF):
             self.set_xy(x + sum(col_widths[:i]), y)
             self.cell(col_widths[i], row_height, f"  {header}", fill=True)
 
-        # Rows
         self.set_font(FONT_BODY, "", 11)
         for r, row in enumerate(rows):
             ry = y + row_height * (r + 1)
@@ -228,7 +131,6 @@ class PitchDeck(FPDF):
             self.set_text_color(*BODY_COLOR)
             for i, cell in enumerate(row):
                 self.set_xy(x + sum(col_widths[:i]), ry)
-                # Bold first column
                 if i == 0:
                     self.set_font(FONT_BODY, "B", 11)
                     self.set_text_color(*ACCENT_COLOR)
@@ -238,7 +140,7 @@ class PitchDeck(FPDF):
                 self.cell(col_widths[i], row_height, f"  {cell}", fill=True)
 
     def code_block(self, text: str, x: float, y: float, w: float, size: int = 9):
-        """Draw a code block with dark background."""
+        """Draw a code block with background."""
         self.set_fill_color(*CODE_BG)
         lines = text.strip().split("\n")
         block_h = len(lines) * (size * 0.55) + 8
@@ -253,17 +155,14 @@ class PitchDeck(FPDF):
 def build_slide_1_title(pdf: PitchDeck):
     """Slide 1: Title."""
     pdf.add_slide()
-    # Big title centered
     pdf.set_font(FONT_TITLE, "B", 52)
     pdf.set_text_color(*TITLE_COLOR)
     pdf.set_xy(0, 50)
     pdf.cell(SLIDE_W, 25, "ForgeMaster", align="C")
-    # Subtitle
     pdf.set_font(FONT_BODY, "", 22)
     pdf.set_text_color(*ACCENT_COLOR)
     pdf.set_xy(0, 82)
     pdf.cell(SLIDE_W, 12, "Autonomous Agent Orchestration for Kubernetes", align="C")
-    # Author
     pdf.set_font(FONT_BODY, "", 14)
     pdf.set_text_color(*MUTED_COLOR)
     pdf.set_xy(0, 145)
@@ -317,7 +216,6 @@ def build_slide_4_protocols(pdf: PitchDeck, diagrams: dict[str, Path]):
     pdf.add_slide()
     pdf.slide_title("Standards-based, not reinvented")
 
-    # Protocol table
     headers = ["Protocol", "Purpose", "Standard"]
     rows = [
         ["MCP", "Agent-to-Tools", "Anthropic"],
@@ -326,7 +224,6 @@ def build_slide_4_protocols(pdf: PitchDeck, diagrams: dict[str, Path]):
     ]
     pdf.draw_table(headers, rows, 25, 35, [50, 80, 100])
 
-    # Diagram
     diagram_key = "slide4_diagram0"
     if diagram_key in diagrams:
         pdf.embed_diagram(diagrams[diagram_key], 25, 85, SLIDE_W - 50, 95)
@@ -357,7 +254,6 @@ def build_slide_6_k8s(pdf: PitchDeck, diagrams: dict[str, Path]):
     pdf.add_slide()
     pdf.slide_title("Two Custom Resource Definitions")
 
-    # AgentTask YAML
     agenttask_yaml = """apiVersion: forgemaster.io/v1alpha1
 kind: AgentTask
 spec:
@@ -380,7 +276,6 @@ spec:
     pdf.code_block(agenttask_yaml, 25, 35, 140)
     pdf.code_block(agent_yaml, 175, 35, 140)
 
-    # Diagram
     diagram_key = "slide6_diagram0"
     if diagram_key in diagrams:
         pdf.embed_diagram(diagrams[diagram_key], 25, 105, SLIDE_W - 50, 75)
@@ -483,7 +378,7 @@ def main():
     print("=== ForgeMaster Pitch Deck Generator ===\n")
 
     # Step 0: Generate mermaid config from theme
-    generate_mermaid_config()
+    mermaid_config = generate_mermaid_config(TARGET_DIR)
 
     # Step 1: Extract Mermaid blocks
     print(f"[1/3] Extracting Mermaid diagrams from {source.name}...")
@@ -492,7 +387,7 @@ def main():
 
     # Step 2: Render diagrams
     print("[2/3] Rendering Mermaid diagrams to PNG...")
-    diagrams = render_mermaid_diagrams(blocks)
+    diagrams = render_mermaid_diagrams(blocks, DIAGRAMS_DIR, mermaid_config)
     print(f"  Rendered {len(diagrams)} diagrams\n")
 
     # Step 3: Build PDF

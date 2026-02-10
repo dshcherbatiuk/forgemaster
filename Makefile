@@ -46,6 +46,11 @@ slides-latex:
 	@slides/.venv/bin/pip install -q Pillow
 	slides/.venv/bin/python slides/latex/generate.py $(SLIDES_SOURCE)
 
+slides-pptx:
+	@test -d slides/.venv || python3 -m venv slides/.venv
+	@slides/.venv/bin/pip install -q python-pptx Pillow
+	slides/.venv/bin/python slides/pptx/generate.py $(SLIDES_SOURCE)
+
 ui:
 	cd ui && npm run fmt && npm run lint && npm run build
 

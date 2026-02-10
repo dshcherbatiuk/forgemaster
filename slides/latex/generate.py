@@ -7,133 +7,48 @@ to PDF using tectonic.
 """
 
 import argparse
-import json
 import os
 import re
 import subprocess
-import tempfile
+import sys
 from pathlib import Path
+
+# Allow importing shared module from parent directory
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from shared import (
+    DEFAULT_PITCH_DECK_MD,
+    PROJECT_ROOT,
+    extract_mermaid_blocks,
+    generate_mermaid_config,
+    render_mermaid_diagrams,
+    theme,
+)
 
 # -- Paths ------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).parent
-SLIDES_DIR = SCRIPT_DIR.parent
-PROJECT_ROOT = SLIDES_DIR.parent
-DEFAULT_PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
-THEME_JSON = SLIDES_DIR / "theme.json"
 TEMPLATE_TEX = SCRIPT_DIR / "template.tex"
 TARGET_DIR = PROJECT_ROOT / "target" / "slides-latex"
-MERMAID_CONFIG = TARGET_DIR / "mermaid-config.json"
 DIAGRAMS_DIR = TARGET_DIR / "diagrams"
 OUTPUT_TEX = TARGET_DIR / "forgemaster-pitch.tex"
 OUTPUT_PDF = TARGET_DIR / "forgemaster-pitch.pdf"
-
-_theme = json.loads(THEME_JSON.read_text())
 
 # Placeholder pattern: {{DIAGRAM_<id>_<width>}}
 PLACEHOLDER_RE = re.compile(r"\{\{DIAGRAM_(\w+)_([\d.]+)\}\}")
 
 
-def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
-    h = hex_color.lstrip("#")
-    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
-
-
-def generate_mermaid_config():
-    """Generate mermaid-config.json from theme.json."""
-    bg = _theme["bg"]
-    accent = _theme["accent"]
-    is_dark = sum(hex_to_rgb(bg)) < 384
-    config = {
-        "theme": "dark" if is_dark else "default",
-        "themeVariables": {
-            "primaryColor": _theme["table_header"],
-            "primaryTextColor": _theme["title"],
-            "primaryBorderColor": accent,
-            "lineColor": accent,
-            "secondaryColor": _theme["table_row"],
-            "tertiaryColor": bg,
-            "background": bg,
-            "mainBkg": _theme["table_header"],
-            "nodeBorder": accent,
-            "clusterBkg": _theme["table_row"],
-            "clusterBorder": _theme["muted"],
-            "titleColor": _theme["title"],
-            "edgeLabelBackground": bg,
-        },
-    }
-    TARGET_DIR.mkdir(parents=True, exist_ok=True)
-    MERMAID_CONFIG.write_text(json.dumps(config, indent=2))
-
-
-def extract_mermaid_blocks(md_path: Path) -> list[tuple[str, str]]:
-    """Extract mermaid code blocks from markdown. Returns (slide_id, code) pairs."""
-    content = md_path.read_text()
-    blocks = []
-    slide_pattern = re.compile(
-        r"## Slide (\d+)[^\n]*\n(.*?)(?=\n## Slide |\Z)", re.DOTALL
-    )
-    mermaid_pattern = re.compile(r"```mermaid\n(.*?)```", re.DOTALL)
-
-    for slide_match in slide_pattern.finditer(content):
-        slide_num = slide_match.group(1)
-        slide_content = slide_match.group(2)
-        for i, mermaid_match in enumerate(mermaid_pattern.finditer(slide_content)):
-            block_id = f"slide{slide_num}_diagram{i}"
-            blocks.append((block_id, mermaid_match.group(1).strip()))
-
-    return blocks
-
-
-def render_mermaid_diagrams(blocks: list[tuple[str, str]]) -> dict[str, Path]:
-    """Render mermaid blocks to PNG files using mmdc."""
-    DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-    rendered = {}
-
-    for block_id, code in blocks:
-        png_path = DIAGRAMS_DIR / f"{block_id}.png"
-        if png_path.exists():
-            print(f"  [cached] {block_id}")
-            rendered[block_id] = png_path
-            continue
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".mmd", delete=False) as f:
-            f.write(code)
-            mmd_path = f.name
-
-        try:
-            cmd = [
-                "npx", "--yes", "@mermaid-js/mermaid-cli",
-                "-i", mmd_path,
-                "-o", str(png_path),
-                "-c", str(MERMAID_CONFIG),
-                "-b", _theme["bg"],
-                "-w", "1600",
-                "-s", "2",
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            if result.returncode != 0:
-                print(f"  [WARN] {block_id}: {result.stderr[:200]}")
-                continue
-            print(f"  [rendered] {block_id}")
-            rendered[block_id] = png_path
-        finally:
-            os.unlink(mmd_path)
-
-    return rendered
-
-
 def resolve_theme_placeholders(template: str) -> str:
     """Replace {{THEME_*}} placeholders with values from theme.json."""
     theme_map = {
-        "THEME_BG": _theme["bg"],
-        "THEME_TITLE": _theme["title"],
-        "THEME_ACCENT": _theme["accent"],
-        "THEME_BODY": _theme["body"],
-        "THEME_MUTED": _theme["muted"],
-        "THEME_CODE_BG": _theme["code_bg"],
-        "THEME_TABLE_HEADER": _theme["table_header"],
-        "THEME_TABLE_ROW": _theme["table_row"],
-        "THEME_TABLE_ALT": _theme["table_alt"],
+        "THEME_BG": theme["bg"],
+        "THEME_TITLE": theme["title"],
+        "THEME_ACCENT": theme["accent"],
+        "THEME_BODY": theme["body"],
+        "THEME_MUTED": theme["muted"],
+        "THEME_CODE_BG": theme["code_bg"],
+        "THEME_TABLE_HEADER": theme["table_header"],
+        "THEME_TABLE_ROW": theme["table_row"],
+        "THEME_TABLE_ALT": theme["table_alt"],
     }
     for key, value in theme_map.items():
         # Strip # from hex for LaTeX \definecolor{}{HTML}{...}
@@ -191,7 +106,7 @@ def main():
     print("=== ForgeMaster Pitch Deck Generator (LaTeX) ===\n")
 
     # Step 0: Generate mermaid config from theme
-    generate_mermaid_config()
+    mermaid_config = generate_mermaid_config(TARGET_DIR)
 
     # Step 1: Extract Mermaid blocks
     print(f"[1/4] Extracting Mermaid diagrams from {source.name}...")
@@ -200,7 +115,7 @@ def main():
 
     # Step 2: Render diagrams
     print("[2/4] Rendering Mermaid diagrams to PNG...")
-    diagrams = render_mermaid_diagrams(blocks)
+    diagrams = render_mermaid_diagrams(blocks, DIAGRAMS_DIR, mermaid_config)
     print(f"  Rendered {len(diagrams)} diagrams\n")
 
     # Step 3: Load template and substitute diagrams
