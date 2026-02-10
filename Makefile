@@ -33,10 +33,12 @@ cluster-clean:
 cluster-reset:
 	echo "y" | orbctl reset
 
+SLIDES_SOURCE ?= docs/pitch-deck.md
+
 slides:
 	@test -d slides/.venv || python3 -m venv slides/.venv
 	@slides/.venv/bin/pip install -q fpdf2 Pillow
-	slides/.venv/bin/python slides/generate.py
+	slides/.venv/bin/python slides/generate.py $(SLIDES_SOURCE)
 
 ui:
 	cd ui && npm run fmt && npm run lint && npm run build

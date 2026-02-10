@@ -5,6 +5,7 @@ Automatically extracts Mermaid diagrams, renders them to PNG via mmdc,
 and builds a dark-themed 16:9 PDF presentation using fpdf2.
 """
 
+import argparse
 import os
 import re
 import subprocess
@@ -17,7 +18,7 @@ from PIL import Image
 # -Paths ------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
+DEFAULT_PITCH_DECK_MD = PROJECT_ROOT / "docs" / "pitch-deck.md"
 MERMAID_CONFIG = SCRIPT_DIR / "mermaid-config.json"
 TARGET_DIR = PROJECT_ROOT / "target" / "slides"
 DIAGRAMS_DIR = TARGET_DIR / "diagrams"
@@ -428,12 +429,26 @@ def build_slide_10_close(pdf: PitchDeck):
     pdf.cell(SLIDE_W, 10, "Dmytro Shcherbatiuk  |  Team CSM-101", align="C")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate ForgeMaster pitch deck PDF")
+    parser.add_argument(
+        "source",
+        nargs="?",
+        default=str(DEFAULT_PITCH_DECK_MD),
+        help=f"Path to pitch deck markdown (default: {DEFAULT_PITCH_DECK_MD})",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    source = Path(args.source)
+
     print("=== ForgeMaster Pitch Deck Generator ===\n")
 
     # Step 1: Extract Mermaid blocks
-    print("[1/3] Extracting Mermaid diagrams from pitch-deck.md...")
-    blocks = extract_mermaid_blocks(PITCH_DECK_MD)
+    print(f"[1/3] Extracting Mermaid diagrams from {source.name}...")
+    blocks = extract_mermaid_blocks(source)
     print(f"  Found {len(blocks)} diagrams: {[b[0] for b in blocks]}\n")
 
     # Step 2: Render diagrams
